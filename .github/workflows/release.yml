@@ -5,7 +5,7 @@ name: Build & publish update
 on:
   push:
     branches: [main]
-    paths-ignore: ['README.md', 'ANLEITUNG.md']
+    paths-ignore: ['README.md', 'ANLEITUNG.md', 'CLAUDE.md']
   workflow_dispatch:
 
 permissions:
