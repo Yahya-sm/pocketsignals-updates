@@ -1,0 +1,19 @@
+{
+  "name": "signal-app",
+  "version": "1.0.27",
+  "description": "PocketSignals PC + Handy",
+  "main": "main.js",
+  "updateRepo": "Yahya-sm/pocketsignals-updates",
+  "scripts": {
+    "start": "electron .",
+    "server": "node src/server.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.4.4",
+    "electron": "^33.4.11"
+  }
+}

@@ -1,0 +1,16 @@
+# Secrets – never in the repository
+.github-token
+*.keystore
+data/
+signal-zugang.txt
+
+# Build output
+node_modules/
+build-pc/
+android/build/
+android/app/src/main/assets/www/
+updates/
+*.apk
+*.idsig
+*.exe
+*.zip

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e16">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<title>PocketSignals</title>
+<link rel="stylesheet" href="style.css">
+<script>
+  // Errors while the app starts (before app.js is loaded) – shown in the status line and the connection log.
+  window.__bootErrors = [];
+  window.addEventListener('error', function (e) { window.__bootErrors.push((e.message || 'Fehler') + (e.lineno ? ' (Zeile ' + e.lineno + ')' : '')); });
+</script>
+</head>
+<body>
+<header id="bar">
+  <div class="brand">
+    <img src="icon.png" alt="" class="logo">
+    <div><b>PocketSignals</b><div class="sub"><span class="dot" id="dot"></span><span id="statusline" data-i18n="connecting"></span></div></div>
+  </div>
+  <div class="langs" id="langs"><button data-lang="de">DE</button><button data-lang="ru">RU</button><button data-lang="en">EN</button></div>
+  <div class="winctl" id="winctl" hidden>
+    <button data-cmd="opacity" data-i18n-title="w_opacity">◐</button>
+    <button data-cmd="pin" id="pinBtn" class="on" data-i18n-title="w_pin">📌</button>
+    <button data-cmd="min" data-i18n-title="w_min">–</button>
+    <button data-cmd="close" data-i18n-title="w_close">✕</button>
+  </div>
+  <span class="mode" id="mode"></span>
+</header>
+
+<div id="mini"></div>
+
+<main>
+  <section id="signals" class="tab active">
+    <div id="stats" class="stats"></div>
+    <div class="chips" id="dirFilter">
+      <button class="chip active" data-dir="all" data-i18n="all"></button>
+      <button class="chip" data-dir="CALL">▲ CALL</button>
+      <button class="chip" data-dir="PUT">▼ PUT</button>
+      <span class="spacer"></span>
+      <button class="chip" id="scanBtn" data-i18n="scan" data-i18n-title="scan_title"></button>
+    </div>
+    <div id="loginBox" class="login" hidden>
+      <b data-i18n="login_title"></b>
+      <p data-i18n="login_text"></p>
+      <button class="btn wide" id="loginBtn" data-i18n="login_btn"></button>
+    </div>
+    <div id="live"></div>
+    <div class="empty" id="liveEmpty">
+      <div class="radar"></div>
+      <p data-i18n="waiting"></p>
+      <small id="nextScan"></small>
+    </div>
+  </section>
+
+  <section id="history" class="tab">
+    <div class="chips"><button class="chip active" data-hist="list" data-i18n="history"></button><button class="chip" data-hist="stats" data-i18n="stats_by_strategy"></button></div>
+    <div id="hist"></div>
+    <div id="stratStats" hidden></div>
+    <button class="btn ghost wide" id="clearBtn" data-i18n="clear_history"></button>
+  </section>
+
+  <section id="settings" class="tab">
+    <h3 data-i18n="general"></h3>
+    <div class="group">
+      <label class="row"><span data-i18n="language"></span>
+        <select id="sLang"><option value="de">Deutsch</option><option value="ru">Русский</option><option value="en">English</option></select></label>
+      <label class="row"><span data-i18n="signals_on"></span><input type="checkbox" class="sw" id="sOn"></label>
+      <label class="row"><span data-i18n="sound"></span><input type="checkbox" class="sw" id="sSound"></label>
+      <label class="row"><span><span data-i18n="show_m5"></span><small data-i18n="show_m5_hint"></small></span><input type="checkbox" class="sw" id="sM5"></label>
+      <label class="row"><span data-i18n="trend_tf"></span>
+        <select id="sTrendTf"><option>M1</option><option>M2</option><option>M3</option><option>M5</option><option>M10</option><option>M15</option><option>M30</option></select></label>
+      <label class="row"><span><span data-i18n="trend_filter"></span><small data-i18n="trend_filter_hint"></small></span><input type="checkbox" class="sw" id="sTrendFilter"></label>
+      <label class="row" id="miniRow" hidden><span><span data-i18n="mini"></span><small data-i18n="mini_hint"></small></span><input type="checkbox" class="sw" id="sMini"></label>
+      <label class="row miniOpt" hidden><span data-i18n="mini_count"></span>
+        <select id="sMiniCount"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+      <label class="row miniOpt" hidden><span><span data-i18n="mini_pos"></span><small data-i18n="mini_pos_hint"></small></span>
+        <select id="sMiniPos">
+          <option value="tr" data-i18n="pos_tr"></option><option value="tl" data-i18n="pos_tl"></option><option value="tc" data-i18n="pos_tc"></option>
+          <option value="br" data-i18n="pos_br"></option><option value="bl" data-i18n="pos_bl"></option><option value="bc" data-i18n="pos_bc"></option>
+          <option value="custom" data-i18n="pos_custom"></option>
+        </select></label>
+      <label class="row"><span><span data-i18n="po_start"></span><small id="poLastInfo"></small></span>
+        <select id="sPoStart"><option value="last" data-i18n="po_last"></option><option value="demo" data-i18n="po_demo"></option><option value="real" data-i18n="po_real"></option></select></label>
+      <label class="row" id="tvRow" hidden><span><span data-i18n="tv_open"></span><small data-i18n="tv_open_hint"></small></span>
+        <select id="sTvOpen"><option value="external" data-i18n="tv_external"></option><option value="app" data-i18n="tv_inapp"></option></select></label>
+      <label class="row" id="autoRow"><span><span data-i18n="auto_po"></span><small data-i18n="auto_po_hint"></small></span><input type="checkbox" class="sw" id="sAuto"></label>
+      <label class="row"><span><span data-i18n="scan_every"></span><small data-i18n="scan_every_hint"></small></span>
+        <select id="sInterval"><option value="5">5 s</option><option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
+      <label class="row"><span data-i18n="market"></span>
+        <select id="sMarket"><option value="both" data-i18n="m_both"></option><option value="otc" data-i18n="m_otc"></option><option value="real" data-i18n="m_real"></option></select></label>
+      <label class="row"><span data-i18n="min_strength"></span><input type="number" id="sMin" min="0" max="99"></label>
+      <label class="row"><span data-i18n="max_per_min"></span><input type="number" id="sMax" min="1" max="20"></label>
+      <label class="row"><span data-i18n="min_payout"></span><input type="number" id="sPayout" min="0" max="100"></label>
+    </div>
+    <h3 data-i18n="markets"></h3>
+    <div class="group" id="cats"></div>
+    <h3><span data-i18n="strategies"></span> <span id="stratCount"></span></h3>
+    <input type="search" id="stratSearch" data-i18n-ph="strat_search">
+    <div class="chips"><button class="chip active" data-filter="all" data-i18n="all"></button><button class="chip" data-filter="on" data-i18n="active"></button><button class="chip" data-filter="fav" data-i18n="favorites"></button></div>
+    <div id="strats"></div>
+    <h3 data-i18n="transfer"></h3>
+    <p class="hint" data-i18n="transfer_hint"></p>
+    <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" hidden>
+    <textarea id="importText" rows="3" placeholder='{"strategies": [...], "strategy_settings": {...}}'></textarea>
+    <div class="btnrow">
+      <button class="btn ghost" id="importPick" data-i18n="pick_file"></button>
+      <button class="btn" id="importBtn" data-i18n="import"></button>
+      <button class="btn ghost" id="exportBtn" data-i18n="export"></button>
+    </div>
+    <h3 data-i18n="po_session"></h3>
+    <p class="hint" id="sessionHint" data-i18n="session_hint"></p>
+    <textarea id="ssid" rows="3" placeholder='42["auth",{"session":"…","isDemo":1,…}]'></textarea>
+    <button class="btn wide" id="ssidBtn" data-i18n="save_session"></button>
+    <p class="session-info" id="sessionInfo"></p>
+    <div id="exportBox" hidden>
+      <button class="btn ghost wide" id="exportSessionBtn" data-i18n="export_session"></button>
+      <p class="hint" data-i18n="export_session_hint"></p>
+    </div>
+    <h3 data-i18n="conn_log"></h3>
+    <pre id="connLog" class="connlog"></pre>
+    <button class="btn ghost wide" id="copyLogBtn" data-i18n="copy_log"></button>
+    <div id="updateBox" hidden>
+      <h3 data-i18n="update"></h3>
+      <p class="hint"><span data-i18n="version"></span> <b id="appVersion"></b> <span id="onlineStatus"></span></p>
+      <button class="btn wide" id="checkBtn" data-i18n="check_btn"></button>
+      <button class="btn wide" id="installBtn" hidden></button>
+      <p class="hint" data-i18n="update_hint"></p>
+      <button class="btn ghost wide" id="updateBtn" data-i18n="update_btn"></button>
+    </div>
+    <div id="lanBox">
+      <h3 data-i18n="phone_wifi"></h3>
+      <p class="hint" data-i18n="phone_wifi_hint"></p>
+      <div id="lan"></div>
+    </div>
+  </section>
+</main>
+
+<nav id="tabs">
+  <button class="active" data-tab="signals"><span>⚡</span><b data-i18n="tab_signals"></b><i id="liveCount"></i></button>
+  <button data-tab="history"><span>🕘</span><b data-i18n="tab_history"></b></button>
+  <button data-tab="settings"><span>⚙</span><b data-i18n="tab_settings"></b></button>
+</nav>
+
+<div id="toast"></div>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

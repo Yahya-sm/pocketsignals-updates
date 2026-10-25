@@ -1,0 +1,61 @@
+# Builds the PC update file and the Android APK on every change to main and publishes them as a release.
+# The installed apps find it under Settings → Update → "Check for updates".
+name: Build & publish update
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['README.md', 'ANLEITUNG.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm ci
+
+      # Version = the patch number in package.json plus the run number, so every build is newer than the last.
+      - name: Set version
+        run: |
+          node -e "
+            const fs = require('fs'); const p = JSON.parse(fs.readFileSync('package.json'));
+            const [a, b, c] = p.version.split('.').map(Number);
+            p.version = [a, b, c + Number(process.env.GITHUB_RUN_NUMBER)].join('.');
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            console.log('Version', p.version);
+          "
+
+      - name: PC update file
+        run: node tools/build-update.js
+
+      - name: Android APK
+        env:
+          KEYSTORE_B64: ${{ secrets.APK_KEYSTORE_B64 }}
+        run: bash android/build-apk.sh
+
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: ${{ github.event.head_commit.message }}
+        run: node tools/publish.js "$NOTES" --apk
