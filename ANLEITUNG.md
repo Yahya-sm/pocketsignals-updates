@@ -9,6 +9,16 @@
 - **TradingView**-Knopf: öffnet den Chart in der App.
 - Tipp: in den Android-Einstellungen für „PocketSignals“ den Akku-Sparmodus ausschalten, damit Android sie nicht im Hintergrund beendet.
 
+## Neue Versionen (automatisch über GitHub)
+Der Quellcode liegt in github.com/Yahya-sm/pocketsignals-updates. Jede Änderung auf `main` startet den Ablauf
+`.github/workflows/release.yml`: GitHub baut die PC-Update-Datei und die Handy-APK, zählt die Version hoch
+(Patch aus package.json + Laufnummer) und veröffentlicht beides. Die Apps finden es unter „Nach Updates suchen“.
+- Ohne PC: in **claude.ai/code** das Repository verbinden und Änderungen beschreiben.
+- Vom PC aus hochladen: `node tools/github-sync.js "Was ist neu"` (prüft vorher alle Dateien auf Geheimnisse).
+- Den Bau beobachten: `node tools/watch-build.js`.
+- Der APK-Signaturschlüssel liegt als Secret `APK_KEYSTORE_B64` bei GitHub (Original: `android/signal-app.keystore`, nicht im Repository – gut aufbewahren).
+- Die Setup-Datei (`.exe`) für Neuinstallationen wird weiter am PC gebaut: `node tools/build-pc.js`.
+
 ## Updates (PC)
 **Online:** Einstellungen → Update → „Nach Updates suchen“ → „Version … installieren“. Die App prüft auch beim Start selbst.
 Neue Version veröffentlichen: `node tools/build-pc.js`, danach `node tools/publish.js "Was ist neu"`
