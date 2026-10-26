@@ -7,9 +7,11 @@ const api = async p => (await fetch(`https://api.github.com/repos/${repo}${p}`, 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   const t0 = Date.now();
+  // Only runs started at most 2 minutes before this script (the newest push), never an older finished one.
+  const since = t0 - 2 * 60 * 1000;
   while (Date.now() - t0 < 15 * 60 * 1000) {
-    const runs = await api('/actions/runs?per_page=1');
-    const run = runs.workflow_runs && runs.workflow_runs[0];
+    const runs = await api('/actions/runs?per_page=5');
+    const run = (runs.workflow_runs || []).find(r => new Date(r.created_at).getTime() >= since);
     if (run) {
       process.stdout.write(`\r${Math.round((Date.now() - t0) / 1000)}s  #${run.run_number} ${run.status} ${run.conclusion || ''}      `);
       if (run.status === 'completed') {

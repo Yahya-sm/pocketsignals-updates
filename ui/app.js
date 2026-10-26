@@ -512,6 +512,8 @@ if (updater) {
 if (isDesktop && window.desktop.onCompact) {
   $('#miniRow').hidden = false;
   document.querySelectorAll('.miniOpt').forEach(el => { el.hidden = false; });
+  // Tell the window that the click came from inside the mini view, so focusing it keeps it small.
+  if (window.desktop.miniPointer) $('#mini').addEventListener('pointerdown', () => window.desktop.miniPointer(), true);
   window.desktop.onCompact(on => {
     document.body.classList.toggle('compact', on);
     if (on) { $('#mini').dataset.key = ''; render(); reportMiniHeight(); }

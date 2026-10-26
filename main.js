@@ -119,6 +119,17 @@ function createWindow() {
   // Mini view: when another app gets the focus, shrink to the current signals. A click on the mini view
   // (not on a star) restores the full window via the 'expand' message; the star pins a signal instead.
   win.on('blur', () => setTimeout(() => { if (win && !win.isFocused() && !win.isMinimized()) setCompact(true); }, 80));
+  // Focus from outside (taskbar, Alt+Tab, tray) opens the full window. A click inside the mini view also focuses
+  // it – the page reports such clicks ('mini-pointer'), and then the mini view stays (star, drag grip).
+  // Shrinking itself can make Windows report a focus, so focus right after shrinking is ignored.
+  win.on('focus', () => {
+    if (!compact || Date.now() - compactAt < 800) return;
+    setTimeout(() => {
+      if (win && compact && win.isFocused() && Date.now() - lastMiniPointer > 600) setCompact(false);
+    }, 250);
+  });
+  // Dragging the mini view by its grip also focuses the window: that counts like a click inside, it stays small.
+  win.on('will-move', () => { if (compact) lastMiniPointer = Date.now(); });
   // Dragging the mini view remembers that spot ("custom" position).
   win.on('moved', () => {
     if (!compact || placing) return;
@@ -127,7 +138,7 @@ function createWindow() {
   });
 }
 
-let compact = false, fullBounds = null, miniH = 80, placing = false, lastPos = null;
+let compact = false, fullBounds = null, miniH = 80, placing = false, lastPos = null, lastMiniPointer = 0, compactAt = 0;
 const MINI_W = 300, GAP = 12;
 
 // Puts the mini view at the chosen screen position (settings: mini_pos), keeping bottom positions anchored
@@ -153,6 +164,7 @@ function setCompact(on) {
   if (on && engine.settings.mini_on_blur === false) return;
   compact = on;
   if (on) {
+    compactAt = Date.now();
     fullBounds = win.getBounds();
     win.setMinimumSize(200, 40);
     placeMini();
@@ -190,6 +202,7 @@ app.whenReady().then(async () => {
   ipcMain.on('version', e => { e.returnValue = app.getVersion(); });
   // The mini view reports the height its content needs.
   ipcMain.on('expand', () => { if (win) { setCompact(false); win.focus(); } });
+  ipcMain.on('mini-pointer', () => { lastMiniPointer = Date.now(); });
   ipcMain.on('mini-height', (_e, h) => {
     miniH = Math.max(40, Math.min(520, Math.round(h)));
     if (win && compact) placeMini();
