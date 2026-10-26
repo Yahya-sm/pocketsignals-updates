@@ -1,5 +1,6 @@
 // Runs the Android engine bundle in Node with browser-like globals, to check it connects and scans.
 const fs = require('fs'), path = require('path'), NodeWS = require('ws');
+require('child_process').execFileSync(process.execPath, [path.join(__dirname, 'build-mobile.js')], { stdio: 'inherit' }); // never test a stale bundle
 const store = {};
 global.window = global;
 global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };

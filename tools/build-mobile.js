@@ -5,7 +5,8 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'android', 'app', 'src', 'main', 'assets', 'www');
-const MODULES = ['po-client', 'indicators', 'strategies', 'assets', 'engine', 'po-switch'];
+// Every file in src/ that another one require()s must be listed here (order: dependencies first).
+const MODULES = ['po-client', 'indicators', 'levels', 'five_bot', 'bot_ports', 'strategies', 'assets', 'engine', 'po-switch'];
 
 // Start settings for a new installation (strategies, pairs – no secrets); same on the PC and on GitHub's build servers.
 const settings = fs.readFileSync(path.join(ROOT, 'defaults', 'settings.json'), 'utf8');
