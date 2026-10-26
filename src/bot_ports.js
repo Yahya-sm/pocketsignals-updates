@@ -200,8 +200,11 @@ function ma25(c, i, p = {}, tfMin = 2) {
   };
   const [af, bf] = lin(fast, ft), [az, bz] = lin(slow, st);
   const spread = x => (af * x + bf) - (az * x + bz);
-  const prevClose = zc[zc.length - 1], now = c[i].close;
-  const s0 = Math.sign(spread(prevClose)), s1 = Math.sign(spread(now));
+  const now = c[i].close;
+  // Before: the real MAs on the last closed candle. (The bot compared with "this candle closing at the previous close",
+  // which can stay on the old side for several candles after the lines already crossed – the signal came 2–3 candles late.)
+  const maClosed = (n, kind) => kind === 'SMA' ? zc.slice(-n).reduce((s, v) => s + v, 0) / n : emaS(zc, n)[zc.length - 1];
+  const s0 = Math.sign(maClosed(fast, ft) - maClosed(slow, st)), s1 = Math.sign(spread(now));
   if (!s1 || !s0 || s0 === s1) return { dir: 0, reason: 'нет нового пересечения в этой свече' };
   if ((s1 > 0 && p.m25_buy === false) || (s1 < 0 && p.m25_sell === false)) return { dir: 0, reason: 'направление выключено' };
   const vmin = Number(p.m25_vol ?? 1);
