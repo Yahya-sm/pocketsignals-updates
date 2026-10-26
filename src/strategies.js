@@ -100,7 +100,7 @@ const DEFAULTS = {
   n_pa: { ...REV, level_bars: 20, wick_ratio: 2.0 },
   n_smasar: { ...TREND, ma_fast: 6, ma_slow: 14, sar_step: 0.02, sar_max: 0.3, min_adx: 25 },
   n_ema5: { ema5_expiry: 120, ...FILTERS, no_countertrend: false, room_check: true, room_min: 1, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
-  ma4813: { ...TREND, min_adx: 15 },
+  ma4813: { ...TREND, min_adx: 15, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
 };
 
 const clamp = v => Math.max(1, Math.min(99, Math.round(v)));
@@ -439,9 +439,11 @@ const S = {
     return sig(now, 72, L(`пересечение MA ${n} после ${run} свечей`, `Kreuzung MA ${n} nach ${run} Kerzen`, `MA ${n} cross after ${run} candles`), p.ema5_expiry);
   },
   ma4813(x, p) {
-    const i = x.last, d = cross(x.ema(4), x.ema(8), i); if (!d) return null;
-    if (d > 0 ? x.ema(8)[i] < x.ema(13)[i] : x.ema(8)[i] > x.ema(13)[i]) return null;
-    return sig(d, 72, L('EMA 4 пересекла EMA 8 по EMA 13', 'EMA 4 kreuzt EMA 8 im Sinne der EMA 13', 'EMA 4 crossed EMA 8 with EMA 13'));
+    const t = p.ma3_type || 'EMA', f = Number(p.ma3_fast) || 4, m = Number(p.ma3_mid) || 8, s = Number(p.ma3_slow) || 13;
+    const a = I.ma(x.close, f, t), b = I.ma(x.close, m, t), c = I.ma(x.close, s, t);
+    const i = x.last, d = cross(a, b, i); if (!d || c[i] === null) return null;
+    if (d > 0 ? b[i] < c[i] : b[i] > c[i]) return null; // middle MA must be on the right side of the slow one
+    return sig(d, 72, L(`${t} ${f} пересекла ${t} ${m} по ${t} ${s}`, `${t} ${f} kreuzt ${t} ${m} im Sinne der ${t} ${s}`, `${t} ${f} crossed ${t} ${m} with ${t} ${s}`));
   },
 };
 
