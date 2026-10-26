@@ -149,7 +149,8 @@ const body = k => Math.abs(k.close - k.open);
 const dirOf = k => (k.close > k.open ? 1 : k.close < k.open ? -1 : 0);
 
 // Combine 1-minute candles into N-minute candles aligned to the clock.
-function resample(c, minutes) {
+// keepPartial: keep the unfinished last bucket (for strategies that look at the forming candle).
+function resample(c, minutes, keepPartial = false) {
   if (minutes <= 1) return c;
   const out = [], sec = minutes * 60;
   for (const k of c) {
@@ -157,7 +158,7 @@ function resample(c, minutes) {
     if (last && last.time === t) { last.high = Math.max(last.high, k.high); last.low = Math.min(last.low, k.low); last.close = k.close; last.n++; }
     else out.push({ time: t, open: k.open, high: k.high, low: k.low, close: k.close, n: 1 });
   }
-  if (out.length && out[out.length - 1].n < minutes) out.pop(); // drop the unfinished bucket
+  if (!keepPartial && out.length && out[out.length - 1].n < minutes) out.pop(); // drop the unfinished bucket
   return out;
 }
 

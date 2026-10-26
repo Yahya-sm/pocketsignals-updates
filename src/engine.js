@@ -43,6 +43,7 @@ class Engine extends EventEmitter {
     this.trendReq = new Map();     // request index -> { tf }
     this.secReq = new Map();       // request index -> { sec } for S10/S15/S30 candles
     this.lastEval = new Map();    // symbol -> time of last evaluated candle
+    this.lastEvalBot = new Map(); // symbol -> last closed candle evaluated by the bot strategies
     this.pendingScan = [];
     this.status = 'start';
     this.po = new POClient(loadSsid(this.config), this.config.poUrl);
@@ -200,28 +201,51 @@ class Engine extends EventEmitter {
     this._settleResults(h.asset, closed);           // results only from closed candles
     // Fast scanning also looks at the forming candle; one signal per candle is kept by the signal id.
     const fast = this.scanInterval < 60;
-    const candles = fast && all.length && all[all.length - 1].time === nowMin ? all : closed;
-    const last = candles[candles.length - 1].time;
-    if (!fast && this.lastEval.get(h.asset) === last) return;
-    this.lastEval.set(h.asset, last);
-    if (last < nowMin - 60) return;                // stale data, e.g. market just closed
+    const forming = all.length && all[all.length - 1].time === nowMin;
     const enabled = this.enabledStrategies();
-    const tfs = new Set(enabled.flatMap(n => this.settings.strat_tfs?.[n] || ['M1']));
-    const byTf = {};
-    for (const tf of tfs) {
-      if (tf[0] === 'S') continue; // second timeframes come from their own candles (_onSecondHistory)
-      const m = parseInt(tf.slice(1), 10) || 1;
-      const c = I.resample(candles, m);
-      // Only evaluate a higher timeframe when its candle closed with this minute.
-      if (c.length && c[c.length - 1].time + m * 60 === last + 60) byTf[tf] = c;
-    }
+    // Strategies decide which candles they need (strategies.liveMode): the program's own ones as before ('legacy'),
+    // the Telegram-bot ones only closed candles, only the forming candle, or both.
+    const mode = n => strategies.liveMode(n, this.settings);
+    const legacy = enabled.filter(n => mode(n) === 'legacy');
+    const closedOnly = enabled.filter(n => mode(n) === 'closed' || mode(n) === 'both');
+    const liveOnly = enabled.filter(n => mode(n) === 'live' || mode(n) === 'both');
     // Optional filter: skip signals against the trend on the trend timeframe (sideways trend does not filter).
     const trend = this.settings.trend_filter ? this.m5Trend(h.asset) : null;
-    for (const sig of strategies.evaluate(byTf, enabled, this.settings)) {
-      if (sig.strength < (this.settings.min_strength || 0)) continue;
-      if ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0)) continue;
+    const run = (candles, names, live) => {
+      if (!names.length) return;
+      const last = candles[candles.length - 1].time;
+      const tfs = new Set(names.flatMap(n => this.settings.strat_tfs?.[n] || ['M1']));
+      const byTf = {};
+      for (const tf of tfs) {
+        if (tf[0] === 'S') continue; // second timeframes come from their own candles (_onSecondHistory)
+        const m = parseInt(tf.slice(1), 10) || 1;
+        const c = I.resample(candles, m, live);
+        // Closed: only when the higher-timeframe candle closed with this minute. Live: its candle contains the current minute.
+        if (c.length && (live ? c[c.length - 1].time + m * 60 > last : c[c.length - 1].time + m * 60 === last + 60)) byTf[tf] = c;
+      }
+      for (const sig of strategies.evaluate(byTf, names, this.settings)) {
+        if (sig.strength < (this.settings.min_strength || 0)) continue;
+        if ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0)) continue;
         this.scanSignals.push({ ...sig, asset: h.asset, candle: candles[candles.length - 1] });
+      }
+    };
+    // The program's own strategies – unchanged.
+    if (legacy.length) {
+      const candles = fast && forming ? all : closed;
+      const last = candles[candles.length - 1].time;
+      if ((fast || this.lastEval.get(h.asset) !== last) && last >= nowMin - 60) {
+        this.lastEval.set(h.asset, last);
+        run(candles, legacy, false);
+      }
     }
+    // Bot strategies on the closed candle: once per new closed candle.
+    const cLast = closed[closed.length - 1].time;
+    if (closedOnly.length && this.lastEvalBot.get(h.asset) !== cLast && cLast >= nowMin - 60) {
+      this.lastEvalBot.set(h.asset, cLast);
+      run(closed, closedOnly, false);
+    }
+    // Bot strategies inside the candle (before the close / at the touch / at the cross) – on every fast scan.
+    if (liveOnly.length && fast && forming) run(all, liveOnly, true);
   }
 
   _flushScan() {
@@ -239,7 +263,7 @@ class Engine extends EventEmitter {
   _emitSignal(s) {
     const a = this.assets.get(s.asset) || { name: s.asset, type: '' };
     const entryTime = s.entry || s.candle.time + 60; // next candle start (S-timeframes set their own)
-    const id = `${s.asset}-${s.strategy}-${s.tf}-${entryTime}`;
+    const id = `${s.asset}-${s.strategy}-${s.tf}-${s.bar ?? entryTime}`; // entry "now" inside a candle: one signal per candle
     if (this.signals.some(x => x.id === id)) return;
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',

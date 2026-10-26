@@ -2,6 +2,9 @@
 // closed native library, so each strategy is rebuilt from its name, description and settings keys.
 // A strategy gets closed candles (oldest first) and returns null or { dir: 1|-1, strength, reason, expiry? }.
 const I = require('./indicators');
+const { roomAhead } = require('./levels'); // room to the nearest level ahead (filter for trend strategies)
+const { five5 } = require('./five_bot');    // "5 on 5" exactly as in the Telegram bot (five_bot: true)
+const BP = require('./bot_ports');           // big candle, series, level touch, MA 2/5 as in the Telegram bot
 
 // Text in three languages; the UI picks one.
 const L = (ru, de, en) => ({ ru, de, en: en ?? de });
@@ -11,6 +14,8 @@ const L = (ru, de, en) => ({ ru, de, en: en ?? de });
 const META = {
   n_sharp: [L('Глубокое падение/рост → отскок', 'Starker Fall/Anstieg → Rücksprung', 'Deep drop/rise → rebound'), 'rev'],
   n_big: [L('Откат после большой свечи', 'Rücklauf nach großer Kerze', 'Pullback after big candle'), 'rev'],
+  n_level: [L('Подход к уровню → отскок', 'Annäherung an ein Niveau → Rücksprung', 'Approach to a level → rebound'), 'rev'],
+  n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
   n_pulse: [L('Сильный импульс → возможный отскок', 'Starker Impuls → möglicher Rücksprung', 'Strong impulse → possible rebound'), 'rev'],
   n_vdrop: [L('Импульсное падение → отскок', 'Impulsfall → Rücksprung', 'Impulse drop → rebound'), 'rev'],
   n_cgdrop: [L('Истощение падения (ранний разворот)', 'Erschöpfung des Falls (frühe Umkehr)', 'Drop exhaustion (early reversal)'), 'rev'],
@@ -52,10 +57,18 @@ const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]])
 // trend strategies get no_countertrend. Strategies with their own expiry key (sharp_expiry …) have no "expiry".
 const FILTERS = { min_adx: 0, max_adx: 0, flat_pips: 0 };
 const REV = { expiry: 60, ...FILTERS, follow_move: false };
-const TREND = { expiry: 60, ...FILTERS, no_countertrend: false };
+// Trend strategies also get the level filter (no entry straight into a level, room in average candles).
+const TREND = { expiry: 60, ...FILTERS, no_countertrend: false, room_check: true, room_min: 1 };
+// Telegram-bot variants (bot: true / five_bot: true) – their own settings, shown next to the classic ones.
+const BIG_BOT = { bot: false, preclose_sec: 8, big_m5: true, big_quiet: false, big_hours: false, big_away: false, big_rsiedge: false };
+const SHARP_BOT = { bot: false, preclose_sec: 8, sharp_series: true, sharp_move: false, sharp_imp: 2, sharp_drop: 4, sharp_fresh: 5,
+  sharp_m5: true, sharp_hours: false, sharp_adx: 0, sharp_day_only: false, sharp_buy: true, sharp_sell: true };
+const FIVE_BOT = { five_bot: false, candle_ma: 5, five_er_min: 0.3, five_trend: true, five_adx_min: 20, five_sar: 4, five_confirm: true, five_room: 0.7 };
 const DEFAULTS = {
-  n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true },
-  n_big: { ...REV, big_body: 2.5, big_period: 20 },
+  n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true, ...SHARP_BOT },
+  n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT },
+  n_level: { ...FILTERS, follow_move: false, lvl_first: true, lvl_len: 5, lvl_width: 3, lvl_er: 0.5 },
+  n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 1 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
   n_vdrop: { ...REV, min_impulse_candles: 4, max_impulse_candles: 10, minimum_total_drop_atr: 2.0, min_speed_atr: 1.0, max_reversal_wait_bars: 2, impulse_rsi_filter: true, send_mirror: true },
   n_cgdrop: { ...REV, minimum_total_drop_atr: 1.0, min_lower_wick_to_body: 1.5, min_reversal_body_atr: 0.25, send_mirror: true },
@@ -73,7 +86,7 @@ const DEFAULTS = {
   n_bbosc: { ...REV, bb_period: 20, bb_mult: 2, rsi_period: 7, rsi_extreme: 25 },
   n_fractal: { ...REV, frac_lookback: 20 },
   n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
-  n_5x5: { ...TREND, ema_fast: 5, ema_slow: 13 },
+  n_5x5: { ...TREND, ema_fast: 5, ema_slow: 13, ...FIVE_BOT },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   n_vortex: { ...TREND, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
   n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
@@ -86,7 +99,7 @@ const DEFAULTS = {
   n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
   n_pa: { ...REV, level_bars: 20, wick_ratio: 2.0 },
   n_smasar: { ...TREND, ma_fast: 6, ma_slow: 14, sar_step: 0.02, sar_max: 0.3, min_adx: 25 },
-  n_ema5: { ema5_expiry: 120, ...FILTERS, no_countertrend: false, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
+  n_ema5: { ema5_expiry: 120, ...FILTERS, no_countertrend: false, room_check: true, room_min: 1, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
   ma4813: { ...TREND, min_adx: 15 },
 };
 
@@ -103,6 +116,23 @@ function runLength(c, end) {
   return { d, n };
 }
 const sig = (dir, strength, reason, expiry) => ({ dir, strength, reason, expiry });
+// Result of a Telegram-bot strategy → signal (entry/bar: entry "now" inside the candle, one signal per candle).
+const botSig = r => {
+  if (!r || !r.dir) return null;
+  const out = sig(r.dir, 75, L(r.reason, r.reason, r.reason), r.expiry);
+  if (r.entry) out.entry = r.entry;
+  if (r.bar !== undefined) out.bar = r.bar;
+  return out;
+};
+// Which candles a strategy gets: 'legacy' as before; 'closed' only closed candles (once per candle);
+// 'live' only with the forming candle; 'both' before the close (live) plus a fallback right after it.
+function liveMode(name, settings) {
+  const p = paramsFor(name, settings);
+  if (name === 'n_level' || name === 'n_ma25') return 'live';
+  if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
+  if (name === 'n_5x5' && p.five_bot) return 'closed';
+  return 'legacy';
+}
 
 function ctx(c) {
   const close = c.map(k => k.close), memo = {};
@@ -120,6 +150,7 @@ function ctx(c) {
 
 const S = {
   n_sharp(x, p) {
+    if (p.bot) return botSig(BP.sharpSeries(x.c, x.last, p)); // Telegram-bot logic
     const { d, n } = runLength(x.c, x.last), min = p.sharp_min || 4;
     if (n < min || (!p.sharp_mirror && d > 0)) return null;
     if (p.sharp_rsi) { const r = x.rsi(14)[x.last]; if (d < 0 ? r > 35 : r < 65) return null; }
@@ -127,7 +158,10 @@ const S = {
       ? L(`${n} красных свечей подряд`, `${n} rote Kerzen in Folge`, `${n} red candles in a row`)
       : L(`${n} зелёных свечей подряд`, `${n} grüne Kerzen in Folge`, `${n} green candles in a row`), p.sharp_expiry);
   },
+  n_level(x, p) { return botSig(BP.levelTouch(x.c, x.last, p)); },        // as in the Telegram bot
+  n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
   n_big(x, p) {
+    if (p.bot) return botSig(BP.bigFade(x.c, x.last, p)); // Telegram-bot logic
     const k = x.c[x.last], ab = avgBody(x.c, p.big_period || 20, x.last - 1), mult = p.big_body || 2.5;
     if (!ab || I.body(k) < mult * ab) return null;
     const r = I.body(k) / ab;
@@ -279,6 +313,10 @@ const S = {
     return sig(d, 74, L(`MA ${p.ma_fast} пересекла MA ${p.ma_slow}, Stochastic согласен`, `MA ${p.ma_fast} kreuzt MA ${p.ma_slow}, Stochastic stimmt zu`, `MA ${p.ma_fast} crossed MA ${p.ma_slow}, Stochastic agrees`));
   },
   n_5x5(x, p) {
+    if (p.five_bot) { // logic and filters of the Telegram bot
+      const r = five5(x.c, x.last, p); if (!r.dir) return null;
+      return sig(r.dir, 75, L(`«5 на 5» как в боте: ${r.reason}`, `„5 auf 5“ wie im Bot: ${r.reason}`, `"5 on 5" as in the bot: ${r.reason}`));
+    }
     const i = x.last, d = cross(x.ema(p.ema_fast || 5), x.ema(p.ema_slow || 13), i);
     if (!d || I.dirOf(x.c[i]) !== d) return null;
     return sig(d, 72, L(`EMA ${p.ema_fast} пересекла EMA ${p.ema_slow}`, `EMA ${p.ema_fast} kreuzt EMA ${p.ema_slow}`, `EMA ${p.ema_fast} crossed EMA ${p.ema_slow}`));
@@ -417,6 +455,12 @@ function passesFilters(x, p, s, type) {
     if ((Math.max(...seg.map(k => k.high)) - Math.min(...seg.map(k => k.low))) / pip < p.flat_pips) return false;
   }
   if (p.no_countertrend && type === 'trend' && a && a.adx >= 25 && s.dir !== (a.pdi > a.mdi ? 1 : -1)) return false;
+  // Trend strategies: no CALL straight into resistance, no PUT straight into support (room in average candles).
+  // Reversal strategies need no such filter – they trade against the move anyway.
+  if (type === 'trend' && p.room_check) {
+    const r = roomAhead(x.c, x.last, s.dir);
+    if (r.dist < (Number(p.room_min) || 1)) return false;
+  }
   return true;
 }
 
@@ -445,7 +489,7 @@ function evaluate(candlesByTf, enabled, settings) {
     const p = paramsFor(name, settings);
     for (const tf of settings.strat_tfs?.[name] || ['M1']) {
       const c = candlesByTf[tf]; if (!c || c.length < 60) continue;
-      const x = (ctxs[tf] ??= ctx(c));
+      const x = (ctxs[tf] ??= ctx(c)); x.tfMin = parseInt(tf.slice(1), 10) || 1;
       let s; try { s = fn(x, p); } catch { s = null; }
       if (!s || !s.dir || !passesFilters(x, p, s, META[name][1])) continue;
       // Reversal strategies bet against the last move; with follow_move they trade with it instead.
@@ -463,4 +507,4 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-module.exports = { evaluate, NAMES, DEFAULTS, META, paramsFor, list: Object.keys(META) };
+module.exports = { evaluate, NAMES, DEFAULTS, META, paramsFor, liveMode, list: Object.keys(META) };
