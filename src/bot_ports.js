@@ -189,8 +189,9 @@ function ma25(c, i, p = {}, tfMin = 2) {
   if (!isLive(c, i, period)) return { dir: 0, reason: 'сигнал только внутри живой свечи' };
   const fast = Number(p.m25_fast || 2), slow = Number(p.m25_slow || 5), ft = p.m25_fast_type || 'SMA', st = p.m25_slow_type || 'SMA';
   const z = c.slice(0, i);                                   // закрытые свечи таймфрейма
-  const need = Math.max(56, 5 * slow);
-  if (z.length < need) return { dir: 0, reason: 'мало закрытой истории' };
+  // The bot wanted 56 closed candles; PocketOption gives only ~150 M1 (≈74 M2, 49 M3), so take what is there (min. 5 × slow for the EMA).
+  const need = Math.min(Math.max(56, 5 * slow), z.length);
+  if (need < 5 * slow) return { dir: 0, reason: 'мало закрытой истории' };
   for (let j = z.length - need + 1; j < z.length; j++) if (z[j].time - z[j - 1].time !== period) return { dir: 0, reason: 'разрыв истории средних' };
   const zc = z.slice(-need).map(k => k.close);
   const lin = (n, kind) => {
@@ -206,7 +207,7 @@ function ma25(c, i, p = {}, tfMin = 2) {
   const vmin = Number(p.m25_vol ?? 1);
   if (vmin) {
     const zz = z.slice(-need), tr = zz.map((k, j) => j === 0 ? k.high - k.low : Math.max(k.high - k.low, Math.abs(k.high - zz[j - 1].close), Math.abs(k.low - zz[j - 1].close)));
-    const a50 = tr.slice(-50).reduce((s, v) => s + v, 0) / 50, vr = tr.slice(-5).reduce((s, v) => s + v, 0) / 5 / a50;
+    const t50 = tr.slice(-50), a50 = t50.reduce((s, v) => s + v, 0) / t50.length, vr = tr.slice(-5).reduce((s, v) => s + v, 0) / 5 / a50;
     if (!(vr >= vmin)) return { dir: 0, reason: 'мелкие свечи — пропуск' };
   }
   return { dir: s1, expiry: Number(p.m25_expiry || 120), entry: Math.floor(nowSec()), bar: c[i].time,

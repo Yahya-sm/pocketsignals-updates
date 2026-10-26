@@ -194,7 +194,7 @@ const PARAM_NAMES = {
   m25_fast: ['Schnelle MA', 'Быстрая MA', 'Fast MA'], m25_slow: ['Langsame MA', 'Медленная MA', 'Slow MA'],
   m25_fast_type: ['Typ schnelle MA (EMA/SMA)', 'Тип быстрой MA (EMA/SMA)', 'Fast MA type (EMA/SMA)'], m25_slow_type: ['Typ langsame MA (EMA/SMA)', 'Тип медленной MA (EMA/SMA)', 'Slow MA type (EMA/SMA)'],
   m25_buy: ['CALL-Signale', 'Сигналы CALL', 'CALL signals'], m25_sell: ['PUT-Signale', 'Сигналы PUT', 'PUT signals'],
-  m25_vol: ['Mindest-Kerzengröße (× Durchschnitt)', 'Мин. размер свечи (× среднее)', 'Minimum candle size (× average)'],
+  m25_vol: ['Letzte 5 Kerzen mindestens … × Durchschnitt (0 = aus)', 'Последние 5 свечей минимум … × среднего (0 = выкл.)', 'Last 5 candles at least … × average (0 = off)'],
   candle_ma: ['SMA-Periode für Kerzenkreuzung', 'Период SMA для пересечения свечой', 'SMA period for candle cross'],
   five_er_min: ['Kein Seitwärtsmarkt: Effizienz mindestens (0 = aus)', 'Не флэт: эффективность не ниже (0 = выкл.)', 'No flat: efficiency at least (0 = off)'],
   five_trend: ['Nur mit Trend EMA 50', 'Только по тренду EMA 50', 'Only with EMA 50 trend'],
