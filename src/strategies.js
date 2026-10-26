@@ -46,43 +46,48 @@ const META = {
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
 
-// Default parameters per strategy (merged under the user's strategy_settings, editable in the app).
-const COMMON = { expiry: 60, min_adx: 0, max_adx: 0, flat_pips: 0, no_countertrend: false };
+// Parameters per strategy: exactly the values the strategy (and the shared filters) really use – these are
+// what the app shows. User values for other keys (the original app stored one long generic list for every
+// strategy) are ignored. Reversal strategies get follow_move: true = trade with the move instead of against it;
+// trend strategies get no_countertrend. Strategies with their own expiry key (sharp_expiry …) have no "expiry".
+const FILTERS = { min_adx: 0, max_adx: 0, flat_pips: 0 };
+const REV = { expiry: 60, ...FILTERS, follow_move: false };
+const TREND = { expiry: 60, ...FILTERS, no_countertrend: false };
 const DEFAULTS = {
-  n_sharp: { ...COMMON, sharp_expiry: 180, sharp_min: 4, sharp_rsi: false, sharp_mirror: true },
-  n_big: { ...COMMON, big_body: 2.5, big_period: 20 },
-  n_pulse: { ...COMMON, pulse_min: 3, pulse_early_max: 4, pulse_body: 1.5, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
-  n_vdrop: { ...COMMON, min_impulse_candles: 4, max_impulse_candles: 10, minimum_total_drop_atr: 2.0, min_speed_atr: 1.0, max_reversal_wait_bars: 2, impulse_rsi_filter: true, send_mirror: true },
-  n_cgdrop: { ...COMMON, minimum_total_drop_atr: 1.0, min_body_atr_multiplier: 0.5, min_lower_wick_to_body: 1.5, min_reversal_body_atr: 0.25, send_mirror: true },
-  early: { ...COMMON, early_min: 3, early_drop_atr: 1.5 },
-  n_tri: { ...COMMON, tri_fast: 9, tri_mid: 13, tri_slow: 21, tri_rsi_period: 5, tri_smooth_period: 3, tri_lower: 35, tri_upper: 65, min_adx: 15, max_adx: 45 },
-  n_mafr: { ...COMMON, mf_fast: 2, mf_slow: 5, mf_rsi: 13, mf_frac_on: true, mf_rsi_on: true, mf_frac_bars: 8 },
-  n_rsi8020: { ...COMMON, rsi_period: 14, rsi_levels: '70/30' },
-  n_rsi13: { ...COMMON, rsi13_expiry: 180, rsi13_period: 13, rsi13_low: 20, rsi13_buy: true, rsi13_sell: true },
-  n_rsi2: { ...COMMON, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
-  zzsar: { ...COMMON, zz_bars: 6, stoch_zone: 20, sar_step: 0.02, sar_max: 0.2 },
-  n_stoch: { ...COMMON, stoch_k: 14, stoch_d: 3, stoch_slow: 3, stoch_zone: 20 },
-  n_macross: { ...COMMON, ma_fast: 2, ma_slow: 9, ma_fast_type: 'EMA', ma_slow_type: 'EMA' },
-  n_rsibreak: { ...COMMON, rsi_period: 14, ema_trend: 20 },
-  n_rsitrend: { ...COMMON, ema_fast: 20, ema_slow: 50, rsi_period: 14 },
-  n_bbosc: { ...COMMON, bb_period: 20, bb_mult: 2, rsi_period: 7, rsi_extreme: 25 },
-  n_fractal: { ...COMMON, frac_lookback: 20 },
-  n_sbs: { ...COMMON, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
-  n_5x5: { ...COMMON, ema_fast: 5, ema_slow: 13 },
-  n_stochenv: { ...COMMON, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
-  n_vortex: { ...COMMON, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
-  n_mamacd: { ...COMMON, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
-  n_wave: { ...COMMON, bb_period: 20, squeeze_pct: 0.25, squeeze_bars: 10 },
-  n_psar: { ...COMMON, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
-  n_bb2: { ...COMMON, bb_period: 20, bb_inner: 2, bb_outer: 3 },
-  n_atrst: { ...COMMON, ema_fast: 20, ema_slow: 50, atr_min: 0.6, atr_max: 2.0, min_adx: 20 },
-  n_m5pb: { ...COMMON, m5_ema: 20, pullback_min: 3, min_adx: 20 },
-  n_structure: { ...COMMON, frac_count: 2 },
-  n_impulse: { ...COMMON, impulse_body: 1.5, pullback_max: 2 },
-  n_pa: { ...COMMON, level_bars: 20, wick_ratio: 2.0 },
-  n_smasar: { ...COMMON, ma_fast: 6, ma_slow: 14, sar_step: 0.02, sar_max: 0.3, min_adx: 25 },
-  n_ema5: { ...COMMON, ema5_expiry: 120, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
-  ma4813: { ...COMMON, min_adx: 15 },
+  n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true },
+  n_big: { ...REV, big_body: 2.5, big_period: 20 },
+  n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
+  n_vdrop: { ...REV, min_impulse_candles: 4, max_impulse_candles: 10, minimum_total_drop_atr: 2.0, min_speed_atr: 1.0, max_reversal_wait_bars: 2, impulse_rsi_filter: true, send_mirror: true },
+  n_cgdrop: { ...REV, minimum_total_drop_atr: 1.0, min_lower_wick_to_body: 1.5, min_reversal_body_atr: 0.25, send_mirror: true },
+  early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
+  n_tri: { ...TREND, tri_fast: 9, tri_mid: 13, tri_slow: 21, tri_rsi_period: 5, tri_smooth_period: 3, tri_lower: 35, tri_upper: 65, min_adx: 15, max_adx: 45 },
+  n_mafr: { ...TREND, mf_fast: 2, mf_slow: 5, mf_rsi: 13, mf_frac_on: true, mf_rsi_on: true, mf_frac_bars: 8 },
+  n_rsi8020: { ...REV, rsi_period: 14, rsi_levels: '70/30' },
+  n_rsi13: { rsi13_expiry: 180, ...FILTERS, follow_move: false, rsi13_period: 13, rsi13_low: 20, rsi13_buy: true, rsi13_sell: true },
+  n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
+  zzsar: { ...REV, zz_bars: 6, stoch_zone: 20, sar_step: 0.02, sar_max: 0.2 },
+  n_stoch: { ...REV, stoch_k: 14, stoch_d: 3, stoch_slow: 3, stoch_zone: 20 },
+  n_macross: { ...TREND, ma_fast: 2, ma_slow: 9, ma_fast_type: 'EMA', ma_slow_type: 'EMA' },
+  n_rsibreak: { ...TREND, rsi_period: 14, ema_trend: 20 },
+  n_rsitrend: { ...TREND, ema_fast: 20, ema_slow: 50, rsi_period: 14 },
+  n_bbosc: { ...REV, bb_period: 20, bb_mult: 2, rsi_period: 7, rsi_extreme: 25 },
+  n_fractal: { ...REV, frac_lookback: 20 },
+  n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
+  n_5x5: { ...TREND, ema_fast: 5, ema_slow: 13 },
+  n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
+  n_vortex: { ...TREND, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
+  n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
+  n_wave: { ...TREND, bb_period: 20, squeeze_pct: 0.25, squeeze_bars: 10 },
+  n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
+  n_bb2: { ...REV, bb_period: 20, bb_inner: 2, bb_outer: 3 },
+  n_atrst: { ...TREND, ema_fast: 20, ema_slow: 50, atr_min: 0.6, atr_max: 2.0, min_adx: 20 },
+  n_m5pb: { ...TREND, m5_ema: 20, pullback_min: 3, min_adx: 20 },
+  n_structure: { ...TREND },
+  n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
+  n_pa: { ...REV, level_bars: 20, wick_ratio: 2.0 },
+  n_smasar: { ...TREND, ma_fast: 6, ma_slow: 14, sar_step: 0.02, sar_max: 0.3, min_adx: 25 },
+  n_ema5: { ema5_expiry: 120, ...FILTERS, no_countertrend: false, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
+  ma4813: { ...TREND, min_adx: 15 },
 };
 
 const clamp = v => Math.max(1, Math.min(99, Math.round(v)));
@@ -415,10 +420,22 @@ function passesFilters(x, p, s, type) {
   return true;
 }
 
+// The strategy's own values: defaults overridden by the user's values – only for keys the strategy uses.
 function paramsFor(name, settings) {
-  const user = Object.fromEntries(Object.entries(settings.strategy_settings?.[name] || {}).filter(([, v]) => v !== null));
-  return { ...DEFAULTS[name], ...user };
+  const user = settings.strategy_settings?.[name] || {};
+  const p = { ...DEFAULTS[name] };
+  for (const k of Object.keys(p)) if (user[k] !== null && user[k] !== undefined) p[k] = user[k];
+  return p;
 }
+
+// Appended to the reason so the card says what the signal expects.
+const EXPECT = {
+  reversal: L(' → ожидается разворот', ' → Rücksprung erwartet', ' → rebound expected'),
+  follow: L(' → движение продолжится', ' → Bewegung geht weiter', ' → move continues'),
+};
+const addText = (reason, extra) => (reason && typeof reason === 'object'
+  ? { ru: (reason.ru || '') + extra.ru, de: (reason.de || '') + extra.de, en: (reason.en || '') + extra.en }
+  : String(reason || '') + extra.de);
 
 // candlesByTf: { M1: [...], M2: [...] }; tfs: per-strategy timeframe lists.
 function evaluate(candlesByTf, enabled, settings) {
@@ -431,9 +448,16 @@ function evaluate(candlesByTf, enabled, settings) {
       const x = (ctxs[tf] ??= ctx(c));
       let s; try { s = fn(x, p); } catch { s = null; }
       if (!s || !s.dir || !passesFilters(x, p, s, META[name][1])) continue;
+      // Reversal strategies bet against the last move; with follow_move they trade with it instead.
+      let mode = 'trend';
+      if (META[name][1] === 'rev') {
+        mode = p.follow_move ? 'follow' : 'reversal';
+        if (p.follow_move) s.dir = -s.dir;
+        s.reason = addText(s.reason, EXPECT[mode]);
+      }
       const n = parseInt(tf.slice(1), 10) || 1, tfSec = tf[0] === 'S' ? n : n * 60; // S10 = 10 s, M5 = 300 s
       let expiry = s.expiry || p.expiry; if (!expiry || expiry === 'auto') expiry = tfSec;
-      out.push({ ...s, strategy: name, tf, expiry: Number(expiry), strength: clamp(s.strength) });
+      out.push({ ...s, strategy: name, tf, mode, expiry: Number(expiry), strength: clamp(s.strength) });
     }
   }
   return out;

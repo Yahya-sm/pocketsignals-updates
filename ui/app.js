@@ -221,7 +221,7 @@ function strategyStats() {
 
 const CATS = ['forex', 'otc', 'po_crypto', 'po_goods', 'po_indices', 'po_stocks'];
 const TFS = ['S10', 'S15', 'S30', 'M1', 'M2', 'M3', 'M5'];
-const paramLabel = k => (I18N.de['p_' + k] ? t('p_' + k) : k);
+const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }[LANG] ?? 0] : k);
 const openStrats = new Set();
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
@@ -238,7 +238,7 @@ function renderStrategies(s) {
   document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === stratFilter));
   $('#strats').innerHTML = list.map(x => `<div class="strat${openStrats.has(x.key) ? ' open' : ''}">
     <div class="strat-head"><input type="checkbox" class="sw" data-strat="${x.key}" ${s.strategies.includes(x.key) ? 'checked' : ''}>
-      <button class="strat-name" data-open="${x.key}">${s.favorites.includes(x.key) ? '★ ' : ''}${esc(tr(x.names || x.name))}<small>${x.tfs.join(' · ')} · ${x.type === 'rev' ? t('reversal') : t('trend')}</small></button>
+      <button class="strat-name" data-open="${x.key}">${s.favorites.includes(x.key) ? '★ ' : ''}${esc(tr(x.names || x.name))}<small>${x.tfs.join(' · ')} · ${x.type === 'rev' ? (x.params.follow_move ? t('follow') : t('reversal')) : t('trend')}</small></button>
       <button class="strat-arrow" data-open="${x.key}">${openStrats.has(x.key) ? '▴' : '▾'}</button></div>
     <div class="strat-body">
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
