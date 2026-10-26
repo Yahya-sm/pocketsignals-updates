@@ -144,6 +144,14 @@ input[type=search] { width: 100%; background: var(--card); border: 1px solid var
 .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .15s; }
 .sw:checked { background: var(--accent); border-color: var(--accent); }
 .sw:checked::after { transform: translateX(17px); }
+.mkt { border-bottom: 1px solid var(--line); }
+.mkt:last-child { border-bottom: 0; }
+.mkt .row { border-bottom: 0; }
+.mkt-ctl { display: flex; align-items: center; gap: 6px; }
+.mkt-body { padding: 0 14px 10px 12px; max-height: 320px; overflow-y: auto; overflow-x: hidden; }
+.mkt-body .prow { padding-right: 2px; }
+.prow input.sw[type=checkbox] { flex: none; width: 40px; height: 23px; } /* switches keep their size in setting rows */
+.mkt-body .prow small { color: var(--muted); font-size: 11px; }
 .strat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 6px; overflow: hidden; }
 .strat-head { display: flex; align-items: center; gap: 10px; padding: 9px 10px; }
 .strat-name { flex: 1; text-align: left; border: 0; background: none; padding: 0; }

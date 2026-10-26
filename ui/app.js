@@ -93,8 +93,7 @@ function render() {
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
     $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sMarket').value = s.market; $('#sInterval').value = String(s.scan_interval || 60);
     $('#sMin').value = s.min_strength; $('#sMax').value = s.max_per_scan; $('#sPayout').value = s.min_payout;
-    $('#cats').innerHTML = CATS.map(k => `<label class="row"><span>${t('cat_' + k)}</span>
-      <input type="checkbox" class="sw" data-cat="${k}" ${s.assets_off.includes(k) ? '' : 'checked'}></label>`).join('');
+    renderMarkets(s);
     renderStrategies(s);
   }
   const si = state.session;
@@ -220,6 +219,35 @@ function strategyStats() {
 }
 
 const CATS = ['forex', 'otc', 'po_crypto', 'po_goods', 'po_indices', 'po_stocks'];
+// Markets: a switch per market; a market that is on can be opened to choose its pairs one by one.
+const openMarkets = new Set();
+function renderMarkets(s) {
+  const markets = s.markets || {};
+  $('#cats').innerHTML = CATS.map(k => {
+    const on = !s.assets_off.includes(k), pairs = markets[k] || [], chosen = pairs.filter(p => p.on).length;
+    const open = on && openMarkets.has(k);
+    return `<div class="mkt${open ? ' open' : ''}">
+      <div class="row"><span>${t('cat_' + k)}${on && pairs.length ? `<small>${t('pairs_chosen', { a: chosen, n: pairs.length })}</small>` : ''}</span>
+        <span class="mkt-ctl">${on && pairs.length ? `<button class="strat-arrow" data-mkt="${k}">${open ? '▴' : '▾'}</button>` : ''}
+        <input type="checkbox" class="sw" data-cat="${k}" ${on ? 'checked' : ''}></span></div>
+      ${open ? `<div class="mkt-body">
+        <div class="chips"><button class="chip" data-pairs-all="${k}">${t('all')}</button><button class="chip" data-pairs-none="${k}">${t('none')}</button></div>
+        ${pairs.map(p => `<label class="prow"><span>${esc(p.name)} <small>${p.payout}%${p.open ? '' : ' · ' + t('closed')}</small></span>
+          <input type="checkbox" class="sw" data-pair="${esc(p.key)}" ${p.on ? 'checked' : ''}></label>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+// Changes the chosen pairs locally (instant) and in the engine.
+function setPairs(keysOn, keysOff) {
+  if (!Array.isArray(state.settings.pairs)) return; // never overwrite the selection without knowing it
+  const pairs = new Set(state.settings.pairs);
+  keysOn.forEach(k => pairs.add(k)); keysOff.forEach(k => pairs.delete(k));
+  state.settings.pairs = [...pairs];
+  for (const list of Object.values(state.settings.markets || {})) for (const p of list) p.on = pairs.has(p.key);
+  call({ action: 'settings', patch: { pairs: state.settings.pairs } });
+  renderMarkets(state.settings);
+}
 const TFS = ['S10', 'S15', 'S30', 'M1', 'M2', 'M3', 'M5'];
 const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }[LANG] ?? 0] : k);
 const openStrats = new Set();
@@ -322,6 +350,9 @@ document.addEventListener('click', e => {
   if (el.dataset.dir) { dirFilter = el.dataset.dir; document.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b === el)); render(); }
   if (el.dataset.hist) { histView = el.dataset.hist; document.querySelectorAll('[data-hist]').forEach(b => b.classList.toggle('active', b === el)); render(); }
   if (el.dataset.cmd && isDesktop) window.desktop.win(el.dataset.cmd);
+  if (el.dataset.mkt) { const k = el.dataset.mkt; openMarkets.has(k) ? openMarkets.delete(k) : openMarkets.add(k); renderMarkets(state.settings); }
+  if (el.dataset.pairsAll) setPairs((state.settings.markets[el.dataset.pairsAll] || []).map(p => p.key), []);
+  if (el.dataset.pairsNone) setPairs([], (state.settings.markets[el.dataset.pairsNone] || []).map(p => p.key));
   if (el.dataset.open) { const k = el.dataset.open; openStrats.has(k) ? openStrats.delete(k) : openStrats.add(k); renderStrategies(state.settings); }
   if (el.dataset.filter) { stratFilter = el.dataset.filter; renderStrategies(state.settings); }
   if (el.dataset.reset && confirm(t('defaults_confirm'))) call({ action: 'resetStrategy', name: el.dataset.reset });
@@ -348,7 +379,13 @@ document.addEventListener('change', e => {
   if (el.id === 'sMin') patch.min_strength = +el.value;
   if (el.id === 'sMax') patch.max_per_scan = +el.value;
   if (el.id === 'sPayout') patch.min_payout = +el.value;
-  if (el.dataset.cat) patch.assets_off = CATS.filter(k => !document.querySelector(`[data-cat="${k}"]`).checked);
+  if (el.dataset.cat) {
+    patch.assets_off = CATS.filter(k => !document.querySelector(`[data-cat="${k}"]`).checked);
+    state.settings.assets_off = patch.assets_off;          // hide/show the pair list right away
+    if (!el.checked) openMarkets.delete(el.dataset.cat);
+    renderMarkets(state.settings);
+  }
+  if (el.dataset.pair) { el.checked ? setPairs([el.dataset.pair], []) : setPairs([], [el.dataset.pair]); return; }
   if (el.dataset.strat) {
     const on = new Set(state.settings.strategies);
     el.checked ? on.add(el.dataset.strat) : on.delete(el.dataset.strat);

@@ -289,6 +289,16 @@ class Engine extends EventEmitter {
     return 'FLAT';
   }
 
+  // All pairs PocketOption offers, grouped by market, with whether each is chosen (settings.pairs) and open now.
+  marketsForUi() {
+    const chosen = new Set(this.settings.pairs || []), by = {};
+    for (const a of this.assets.values()) {
+      (by[a.category] ||= []).push({ key: a.key, name: a.name, payout: a.payout, open: a.active, on: chosen.has(a.key) });
+    }
+    for (const list of Object.values(by)) list.sort((x, y) => x.name.localeCompare(y.name));
+    return by;
+  }
+
   // tf: optional timeframe like 'M1' / 'M5' to open the chart with.
   openOnPocketOption(symbol, tf) {
     const unit = { S: 1, M: 60, H: 3600 }[String(tf || '')[0]] || 60;
@@ -375,6 +385,7 @@ class Engine extends EventEmitter {
         })),
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,
         assets_off: this.settings.assets_off || [],
+        markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur !== false, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
