@@ -116,13 +116,8 @@ function createWindow() {
   win.loadURL(`http://127.0.0.1:${port}/?desktop=1`);
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.on('closed', () => { win = null; app.quit(); });
-  // Mini view: the header button (or, if switched on, another app getting the focus) shrinks to the current signals. A click on the mini view
+  // Mini view: only the header button shrinks to the current signals. A click on the mini view
   // (not on a star) restores the full window via the 'expand' message; the star pins a signal instead.
-  // Opening PocketOption from the app is no reason to shrink (its window takes the focus).
-  win.on('blur', () => setTimeout(() => {
-    const poFocused = poWin && !poWin.isDestroyed() && poWin.isFocused();
-    if (win && !win.isFocused() && !win.isMinimized() && !poFocused) setCompact(true);
-  }, 80));
   // Focus from outside (taskbar, Alt+Tab, tray) opens the full window. A click inside the mini view also focuses
   // it – the page reports such clicks ('mini-pointer'), and then the mini view stays (star, drag grip).
   // Shrinking itself can make Windows report a focus, so focus right after shrinking is ignored.
@@ -163,10 +158,10 @@ function placeMini() {
   setTimeout(() => { placing = false; }, 300);
 }
 
-// manual: the "small" button in the window header; otherwise only when "shrink automatically" is switched on.
+// Only the "small" button in the window header shrinks the window (the user wants no automatic shrinking).
 function setCompact(on, manual = false) {
   if (!win || on === compact) return;
-  if (on && !manual && engine.settings.mini_on_blur !== true) return;
+  if (on && !manual) return;
   compact = on;
   if (on) {
     compactAt = Date.now();
