@@ -8,7 +8,16 @@ let state = null, ws, reqId = 0, dirFilter = 'all', histView = 'list', stratFilt
 const replies = {};
 // Script errors are shown in the status line, so problems on a phone are visible without a debugger.
 let jsError = (window.__bootErrors || [])[0] || null; // e.g. the signal engine failed to start
-window.addEventListener('error', e => { jsError = e.message || String(e.error); const el = document.getElementById('statusline'); if (el) el.textContent = '⚠ ' + jsError; });
+window.addEventListener('error', e => {
+  jsError = e.message || String(e.error);
+  const el = document.getElementById('statusline'); if (el) el.textContent = '⚠ ' + jsError;
+  // Full error with place and call stack into the connection log (can be copied there), each one once.
+  const where = `${(e.filename || '').split('/').pop() || '?'}:${e.lineno || 0}:${e.colno || 0}`;
+  const stack = e.error && e.error.stack ? ' | ' + String(e.error.stack).split('\n').slice(1, 4).map(l => l.trim()).join(' | ') : '';
+  const line = `${new Date().toTimeString().slice(0, 8)} ${jsError} @ ${where}${stack}`;
+  const list = (window.__bootErrors = window.__bootErrors || []);
+  if (!list.some(x => x.slice(9) === line.slice(9)) && list.length < 10) list.push(line);
+});
 
 function onMessage(m) {
   if (m.type === 'state') { state = m.state; render(); }
