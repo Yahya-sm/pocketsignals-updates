@@ -92,8 +92,23 @@ public class MainActivity extends Activity {
         po = makeWebView();
         CookieManager.getInstance().setAcceptThirdPartyCookies(po, true);
         po.addJavascriptInterface(new AuthBridge(), "SignalAppAuth");
+        // Since 10/2026 PocketOption sends phones to the new mobile site m.pocketoption.com (other page layout: no pair
+        // switching, login takeover unclear). A desktop user agent keeps the normal site, as before. The same string is
+        // used by PoSocket, so the session taken over from this page matches its user agent.
+        java.util.regex.Matcher cv = java.util.regex.Pattern.compile("Chrome/([\\d.]+)").matcher(po.getSettings().getUserAgentString());
+        po.getSettings().setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+            + (cv.find() ? cv.group(1) : "130.0.0.0") + " Safari/537.36");
         poUserAgent = po.getSettings().getUserAgentString();
         po.setWebViewClient(new WebViewClient() {
+            // Links to other apps (intent:, market:, tg: …) would show an error page in the WebView: open them outside instead.
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                String scheme = req.getUrl().getScheme();
+                if ("http".equals(scheme) || "https".equals(scheme)) return false;
+                try { startActivity(Intent.parseUri(req.getUrl().toString(), Intent.URI_INTENT_SCHEME)); } catch (Exception ignored) { }
+                return true;
+            }
+
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
                 view.evaluateJavascript(AUTH_HOOK, null);
@@ -300,7 +315,7 @@ public class MainActivity extends Activity {
         // Demo or real trading page to open PocketOption with.
         @JavascriptInterface
         public void setPoStart(String url) {
-            if (url == null || !url.startsWith("https://pocketoption.com/")) return;
+            if (url == null || !url.matches("https://(m\\.)?pocketoption\\.com/.*")) return;
             poStart = url;
             runOnUiThread(() -> { if (po.getUrl() == null) po.loadUrl(url); });
         }
