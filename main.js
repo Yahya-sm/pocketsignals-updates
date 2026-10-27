@@ -118,7 +118,11 @@ function createWindow() {
   win.on('closed', () => { win = null; app.quit(); });
   // Mini view: the header button (or, if switched on, another app getting the focus) shrinks to the current signals. A click on the mini view
   // (not on a star) restores the full window via the 'expand' message; the star pins a signal instead.
-  win.on('blur', () => setTimeout(() => { if (win && !win.isFocused() && !win.isMinimized()) setCompact(true); }, 80));
+  // Opening PocketOption from the app is no reason to shrink (its window takes the focus).
+  win.on('blur', () => setTimeout(() => {
+    const poFocused = poWin && !poWin.isDestroyed() && poWin.isFocused();
+    if (win && !win.isFocused() && !win.isMinimized() && !poFocused) setCompact(true);
+  }, 80));
   // Focus from outside (taskbar, Alt+Tab, tray) opens the full window. A click inside the mini view also focuses
   // it – the page reports such clicks ('mini-pointer'), and then the mini view stays (star, drag grip).
   // Shrinking itself can make Windows report a focus, so focus right after shrinking is ignored.

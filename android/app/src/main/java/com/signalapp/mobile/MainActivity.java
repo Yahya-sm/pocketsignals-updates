@@ -92,12 +92,8 @@ public class MainActivity extends Activity {
         po = makeWebView();
         CookieManager.getInstance().setAcceptThirdPartyCookies(po, true);
         po.addJavascriptInterface(new AuthBridge(), "SignalAppAuth");
-        // Since 10/2026 PocketOption sends phones to the new mobile site m.pocketoption.com (other page layout: no pair
-        // switching, login takeover unclear). A desktop user agent keeps the normal site, as before. The same string is
-        // used by PoSocket, so the session taken over from this page matches its user agent.
-        java.util.regex.Matcher cv = java.util.regex.Pattern.compile("Chrome/([\\d.]+)").matcher(po.getSettings().getUserAgentString());
-        po.getSettings().setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
-            + (cv.find() ? cv.group(1) : "130.0.0.0") + " Safari/537.36");
+        // Since 10/2026 PocketOption sends phones to m.pocketoption.com – made for phone screens, same pair list
+        // (.pair-number-wrap / .current-symbol), so switching pairs works there too. Keep the phone's own user agent.
         poUserAgent = po.getSettings().getUserAgentString();
         po.setWebViewClient(new WebViewClient() {
             // Links to other apps (intent:, market:, tg: …) would show an error page in the WebView: open them outside instead.

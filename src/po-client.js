@@ -59,7 +59,11 @@ class POClient extends EventEmitter {
       this.emit('status', 'retry');
       if (this.ws === ws) this.retry = setTimeout(() => this.connect(), 5000);
     });
-    ws.on('error', e => { this.lastError = e.message; this._log('Fehler: ' + e.message); this.emit('status', 'error'); });
+    ws.on('error', e => {
+      this.lastError = e.message; this._log('Fehler: ' + e.message); this.emit('status', 'error');
+      // Since 27.10.2026 PocketOption's only demo server does not answer; signals then need a real-account session.
+      if (/demo-api/.test(url)) this._log('Demo-Server von PocketOption antwortet nicht – in PocketOption aufs Real-Konto wechseln (Login wird übernommen)');
+    });
   }
 
   setSsid(ssid, url) {
