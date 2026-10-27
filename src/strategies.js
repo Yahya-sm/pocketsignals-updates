@@ -71,7 +71,8 @@ const DEFAULTS = {
   n_level: { ...FILTERS, follow_move: false, lvl_first: true, lvl_len: 5, lvl_width: 3, lvl_er: 0.5 },
   // Pin bar after impulse and pullback, entry when the next candle breaks the pin bar (M1, 60 s). Every condition
   // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
-  n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
+  n_pinbar: { expiry: 60, ...FILTERS, pb_preset: 2, pb_mode: 'trend', pb_min_score: 8,
+    pb_imp_gap: 3, pb_ext_atr: 1.5, pb_rsi_rev: 30, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
     pb_atr_period: 14, pb_imp_required: true, pb_imp_min: 2, pb_imp_max: 0, pb_imp_lookback: 6, pb_imp_body_atr: 0.6, pb_imp_move_atr: 2, pb_slope_atr: 0.5, pb_near_atr: 0.5,
     pb_wick_body: 2, pb_body_max: 0.3, pb_atr_min: 0.7, pb_atr_max: 1.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2,
@@ -109,6 +110,30 @@ const DEFAULTS = {
   n_smasar: { ...TREND, ma_fast: 6, ma_slow: 14, sar_step: 0.02, sar_max: 0.3, min_adx: 25 },
   n_ema5: { ema5_expiry: 120, ...FILTERS, no_countertrend: false, room_check: true, room_min: 1, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
   ma4813: { ...TREND, min_adx: 15, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
+};
+
+// Ready-made setting combinations (one tap in the app). Level 4 = the user's example: a vertical move of big candles,
+// right after it a clean pin bar against it, entry on the breakout of the pin bar.
+const PRESETS = {
+  n_pinbar: [
+    { name: L('Мягко', 'Locker', 'Loose'), values: { pb_preset: 1, pb_mode: 'trend', pb_min_score: 6, pb_imp_required: false,
+      pb_imp_min: 2, pb_imp_max: 0, pb_imp_gap: 3, pb_imp_body_atr: 0.4, pb_imp_move_atr: 1.5, pb_slope_atr: 0.3,
+      pb_wick_body: 1.5, pb_body_max: 0.35, pb_nose_max: 0.7, pb_atr_hard_min: 0.3, pb_atr_hard_max: 3, pb_near_atr: 0.7,
+      pb_room_min: 0.5, pb_ema50: false, pb_shape_required: true, pb_need_break: true } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { pb_preset: 2, pb_mode: 'trend', pb_min_score: 8, pb_imp_required: true,
+      pb_imp_min: 2, pb_imp_max: 0, pb_imp_gap: 3, pb_imp_body_atr: 0.6, pb_imp_move_atr: 2, pb_slope_atr: 0.5,
+      pb_wick_body: 2, pb_body_max: 0.3, pb_nose_max: 0.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2, pb_near_atr: 0.5,
+      pb_room_min: 1, pb_ema50: false, pb_shape_required: true, pb_need_break: true } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { pb_preset: 3, pb_mode: 'trend', pb_min_score: 9, pb_imp_required: true,
+      pb_imp_min: 3, pb_imp_max: 6, pb_imp_gap: 2, pb_imp_body_atr: 0.8, pb_imp_move_atr: 3, pb_slope_atr: 0.8,
+      pb_wick_body: 2.5, pb_body_max: 0.25, pb_nose_max: 0.35, pb_atr_hard_min: 0.6, pb_atr_hard_max: 2, pb_near_atr: 0.3,
+      pb_room_min: 1.5, pb_ema50: true, pb_shape_required: true, pb_need_break: true } },
+    { name: L('Очень строго: вертикаль → разворот', 'Sehr streng: Vertikal → Umkehr', 'Very strict: vertical → reversal'),
+      values: { pb_preset: 4, pb_mode: 'reversal', pb_min_score: 8, pb_imp_required: true,
+      pb_imp_min: 1, pb_imp_max: 4, pb_imp_gap: 0, pb_imp_body_atr: 1.8, pb_imp_move_atr: 3, pb_slope_atr: 1,
+      pb_wick_body: 2.5, pb_body_max: 0.3, pb_nose_max: 0.3, pb_atr_hard_min: 0.15, pb_atr_hard_max: 3, pb_ext_atr: 2,
+      pb_rsi_rev: 30, pb_room_min: 1, pb_shape_required: true, pb_need_break: true } },
+  ],
 };
 
 const clamp = v => Math.max(1, Math.min(99, Math.round(v)));
@@ -177,10 +202,15 @@ const S = {
     const upW = k.high - Math.max(k.open, k.close), loW = Math.min(k.open, k.close) - k.low;
     const ef = x.ema(Number(p.pb_ema_fast) || 9), em = x.ema(Number(p.pb_ema_mid) || 21), es = x.ema(Number(p.pb_ema_slow) || 50);
     const sb = Math.max(1, Number(p.pb_slope_bars) || 3);
-    // Direction from the EMAs; if they give none, from the pin bar's long wick.
+    // Two models (pb_mode): 'trend' = impulse → pullback → pin bar in the trend direction;
+    // 'reversal' = vertical move → pin bar against it → breakout (the move turns).
+    const rev = p.pb_mode === 'reversal';
     const up = k.close > em[i] && ef[i] > em[i] && ef[i] > ef[i - sb] && em[i] > em[i - sb];
     const dn = k.close < em[i] && ef[i] < em[i] && ef[i] < ef[i - sb] && em[i] < em[i - sb];
-    const dir = up ? 1 : dn ? -1 : loW > upW ? 1 : upW > loW ? -1 : 0;
+    // Direction: trend from the EMAs (else from the long wick); reversal always from the long wick.
+    const wickDir = loW > upW ? 1 : upW > loW ? -1 : 0;
+    const dir = rev ? wickDir : up ? 1 : dn ? -1 : wickDir;
+    const impDir = rev ? -dir : dir; // the impulse goes with the trade (trend) or against it (reversal)
     if (!dir || (dir > 0 && p.pb_buy === false) || (dir < 0 && p.pb_sell === false)) return null;
     // Hard limits (no pin bar at all): tail against the direction, body share, size against ATR.
     const tail = dir > 0 ? loW : upW, rel = range / atr;
@@ -192,20 +222,24 @@ const S = {
     if (p.pb_shape_required !== false && !shape) return null;
     if (body / range > Math.max(Number(p.pb_body_max) || 0.3, 0.5)) return null;
     if (rel < (Number(p.pb_atr_hard_min) || 0) || (Number(p.pb_atr_hard_max) > 0 && rel > Number(p.pb_atr_hard_max))) return null;
-    if (p.pb_ema50 && (dir > 0 ? k.close < es[i] : k.close > es[i])) return null;
+    if (!rev && p.pb_ema50 && (dir > 0 ? k.close < es[i] : k.close > es[i])) return null;
     const why = [];
     let score = 0;
     const add = (pts, ok, ru, de, en) => { if (ok) { score += pts; why.push([ru, de, en]); } };
-    add(2, up || dn, 'EMA по направлению', 'EMAs in Richtung', 'EMAs aligned');
+    if (rev) { // instead of the trend: price stretched far from the middle EMA by the move
+      const ext = (dir > 0 ? em[i] - k.close : k.close - em[i]) / atr;
+      add(2, ext >= Number(p.pb_ext_atr ?? 1.5), `цена далеко от EMA (${ext.toFixed(1)} ATR)`, `Preis weit weg von der EMA (${ext.toFixed(1)} ATR)`, `price far from the EMA (${ext.toFixed(1)} ATR)`);
+    } else add(2, up || dn, 'EMA по направлению', 'EMAs in Richtung', 'EMAs aligned');
     // Strong impulse before the pullback: at least pb_imp_min candles in a row in the direction, each with a big body
     // (≥ pb_imp_body_atr × ATR), together moving ≥ pb_imp_move_atr × ATR, plus a steep fast EMA (≥ pb_slope_atr × ATR
     // over pb_slope_bars candles). Small, sideways candles are no impulse.
-    const bodyMin = Number(p.pb_imp_body_atr ?? 0.6) * atr;
+    // pb_imp_gap: the impulse must end at most that many candles before the pin bar (0 = right before it).
+    const bodyMin = Number(p.pb_imp_body_atr ?? 0.6) * atr, gap = Number(p.pb_imp_gap ?? 99);
     let imp = 0, run = 0, impMove = 0, runStart = 0;
     for (let j = i - 1; j >= Math.max(1, i - (Number(p.pb_imp_lookback) || 6)); j--) {
       const kj = x.c[j];
-      if (I.dirOf(kj) === dir && Math.abs(kj.close - kj.open) >= bodyMin) {
-        if (!run) runStart = kj.close;
+      if (I.dirOf(kj) === impDir && Math.abs(kj.close - kj.open) >= bodyMin) {
+        if (!run) { if (i - 1 - j > gap) break; runStart = kj.close; }
         run++;
         if (run > imp) { imp = run; impMove = Math.abs(runStart - kj.open); }
       } else run = 0;
@@ -213,18 +247,26 @@ const S = {
     const moveAtr = impMove / atr, slopeAtr = Math.abs(ef[i - 1] - ef[i - 1 - sb]) / atr;
     const impMax = Number(p.pb_imp_max) || 0; // 0 = no upper limit (a very long run is often already exhausted)
     const strongImp = imp >= (Number(p.pb_imp_min) || 2) && (!impMax || imp <= impMax) && moveAtr >= Number(p.pb_imp_move_atr ?? 2)
-      && slopeAtr >= Number(p.pb_slope_atr ?? 0.5) && Math.sign(ef[i - 1] - ef[i - 1 - sb]) === dir;
+      && slopeAtr >= Number(p.pb_slope_atr ?? 0.5) && Math.sign(ef[i - 1] - ef[i - 1 - sb]) === impDir;
     if (p.pb_imp_required !== false && !strongImp) return null;
     add(1, strongImp, `импульс ${imp} св., ${moveAtr.toFixed(1)} ATR`, `Impuls ${imp} Kerzen, ${moveAtr.toFixed(1)} ATR`, `impulse ${imp} candles, ${moveAtr.toFixed(1)} ATR`);
     // Pullback to EMA fast/mid or a level: the pin bar's tail reaches near one of them.
     const tip = dir > 0 ? k.low : k.high, near = (Number(p.pb_near_atr) || 0.5) * atr;
-    const nearEma = Math.abs(tip - ef[i]) <= near || Math.abs(tip - em[i]) <= near
-      || (dir > 0 ? k.low <= em[i] && k.close >= em[i] : k.high >= em[i] && k.close <= em[i]);
+    const nearEma = !rev && (Math.abs(tip - ef[i]) <= near || Math.abs(tip - em[i]) <= near
+      || (dir > 0 ? k.low <= em[i] && k.close >= em[i] : k.high >= em[i] && k.close <= em[i]));
     const lvl = roomAhead(x.c.slice(0, i + 1), i, -dir), nearLvl = lvl.R > 0 && lvl.dist * lvl.R <= near;
-    add(2, nearEma || nearLvl, nearEma ? 'пин-бар у EMA' : 'пин-бар у уровня', nearEma ? 'Pinbar an EMA' : 'Pinbar am Level', nearEma ? 'pin bar at EMA' : 'pin bar at level');
+    // Reversal: the pin bar's tail is the new extreme of the last pb_imp_lookback·3 candles (end of the move).
+    let extreme = false;
+    if (rev) { extreme = true; for (let j = Math.max(0, i - 3 * (Number(p.pb_imp_lookback) || 6)); j < i; j++) if (dir > 0 ? x.c[j].low < k.low : x.c[j].high > k.high) { extreme = false; break; } }
+    add(2, nearEma || nearLvl || extreme,
+      nearEma ? 'пин-бар у EMA' : nearLvl ? 'пин-бар у уровня' : 'пин-бар на новом экстремуме',
+      nearEma ? 'Pinbar an EMA' : nearLvl ? 'Pinbar am Level' : 'Pinbar am neuen Extrem',
+      nearEma ? 'pin bar at EMA' : nearLvl ? 'pin bar at level' : 'pin bar at a new extreme');
     add(1, shape, 'форма пин-бара', 'Pinbar-Form', 'pin bar shape');
     const r = x.rsi(Number(p.pb_rsi_period) || 7)[i], lo = Number(p.pb_rsi_min ?? 52), hi = Number(p.pb_rsi_max ?? 68);
-    add(1, r !== null && (dir > 0 ? r >= lo && r <= hi : r <= 100 - lo && r >= 100 - hi), `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`);
+    const rRev = Number(p.pb_rsi_rev ?? 30); // reversal: oversold for CALL, overbought (100 − value) for PUT
+    const rsiOk = r !== null && (rev ? (dir > 0 ? r <= rRev : r >= 100 - rRev) : (dir > 0 ? r >= lo && r <= hi : r <= 100 - lo && r >= 100 - hi));
+    add(1, rsiOk, `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`);
     add(1, rel >= (Number(p.pb_atr_min) || 0) && rel <= (Number(p.pb_atr_max) || 99), `${rel.toFixed(1)} ATR`, `${rel.toFixed(1)} ATR`, `${rel.toFixed(1)} ATR`);
     const broke = dir > 0 ? now.high > k.high : now.low < k.low;
     if (p.pb_need_break !== false && !broke) return null;
@@ -587,4 +629,4 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-module.exports = { evaluate, NAMES, DEFAULTS, META, paramsFor, liveMode, list: Object.keys(META) };
+module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, paramsFor, liveMode, list: Object.keys(META) };

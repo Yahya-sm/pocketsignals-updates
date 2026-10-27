@@ -160,6 +160,8 @@ input[type=search] { width: 100%; background: var(--card); border: 1px solid var
 .strat-body { display: none; padding: 4px 12px 12px; border-top: 1px solid var(--line); }
 .strat.open .strat-body { display: block; }
 .tfs { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 10px; }
+.presets small { width: 100%; color: var(--muted); }
 .tfs label input { display: none; }
 .tfs label span { display: inline-block; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; cursor: pointer; }
 .tfs label input:checked + span { background: var(--accent); border-color: var(--accent); }

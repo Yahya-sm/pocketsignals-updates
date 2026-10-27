@@ -443,6 +443,7 @@ class Engine extends EventEmitter {
         allStrategies: strategies.list.map(k => ({
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
+          presets: strategies.PRESETS[k] || [],
         })),
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,
         assets_off: this.settings.assets_off || [],
