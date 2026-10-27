@@ -71,7 +71,7 @@ const DEFAULTS = {
   n_level: { ...FILTERS, follow_move: false, lvl_first: true, lvl_len: 5, lvl_width: 3, lvl_er: 0.5 },
   // Pin bar after impulse and pullback, entry when the next candle breaks the pin bar (M1, 60 s). Every condition
   // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
-  n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true,
+  n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true, pb_shape_required: true,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
     pb_imp_min: 2, pb_imp_lookback: 6, pb_near_atr: 0.5,
     pb_wick_body: 2, pb_body_max: 0.3, pb_atr_min: 0.7, pb_atr_max: 1.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2,
@@ -183,6 +183,10 @@ const S = {
     if (!dir || (dir > 0 && p.pb_buy === false) || (dir < 0 && p.pb_sell === false)) return null;
     // Hard limits (no pin bar at all): tail against the direction, body share, size against ATR.
     const tail = dir > 0 ? loW : upW, rel = range / atr;
+    // A real pin bar is the core of the strategy: long tail against the move, small body, close in the right half.
+    const shape = tail >= (Number(p.pb_wick_body) || 2) * Math.max(body, range * 0.02) && body / range <= (Number(p.pb_body_max) || 0.3)
+      && (dir > 0 ? k.close >= k.low + range / 2 : k.close <= k.low + range / 2);
+    if (p.pb_shape_required !== false && !shape) return null;
     if (body / range > Math.max(Number(p.pb_body_max) || 0.3, 0.5)) return null;
     if (rel < (Number(p.pb_atr_hard_min) || 0) || (Number(p.pb_atr_hard_max) > 0 && rel > Number(p.pb_atr_hard_max))) return null;
     if (p.pb_ema50 && (dir > 0 ? k.close < es[i] : k.close > es[i])) return null;
@@ -202,8 +206,6 @@ const S = {
       || (dir > 0 ? k.low <= em[i] && k.close >= em[i] : k.high >= em[i] && k.close <= em[i]);
     const lvl = roomAhead(x.c.slice(0, i + 1), i, -dir), nearLvl = lvl.R > 0 && lvl.dist * lvl.R <= near;
     add(2, nearEma || nearLvl, nearEma ? 'пин-бар у EMA' : 'пин-бар у уровня', nearEma ? 'Pinbar an EMA' : 'Pinbar am Level', nearEma ? 'pin bar at EMA' : 'pin bar at level');
-    const shape = tail >= (Number(p.pb_wick_body) || 2) * Math.max(body, range * 0.02) && body / range <= (Number(p.pb_body_max) || 0.3)
-      && (dir > 0 ? k.close >= k.low + range / 2 : k.close <= k.low + range / 2);
     add(1, shape, 'форма пин-бара', 'Pinbar-Form', 'pin bar shape');
     const r = x.rsi(Number(p.pb_rsi_period) || 7)[i], lo = Number(p.pb_rsi_min ?? 52), hi = Number(p.pb_rsi_max ?? 68);
     add(1, r !== null && (dir > 0 ? r >= lo && r <= hi : r <= 100 - lo && r >= 100 - hi), `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`);
