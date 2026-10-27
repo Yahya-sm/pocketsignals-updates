@@ -44,6 +44,7 @@ class Engine extends EventEmitter {
     this.secReq = new Map();       // request index -> { sec } for S10/S15/S30 candles
     this.lastEval = new Map();    // symbol -> time of last evaluated candle
     this.lastEvalBot = new Map(); // symbol -> last closed candle evaluated by the bot strategies
+    this.scanSignals = [];        // PocketOption sends candles by itself right after the login, before the first scan
     this.pendingScan = [];
     this.status = 'start';
     this.po = new POClient(loadSsid(this.config), this.config.poUrl);
