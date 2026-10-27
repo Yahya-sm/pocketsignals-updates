@@ -73,7 +73,7 @@ const DEFAULTS = {
   // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
   n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
-    pb_imp_required: true, pb_imp_min: 2, pb_imp_lookback: 6, pb_imp_body_atr: 0.6, pb_imp_move_atr: 2, pb_slope_atr: 0.5, pb_near_atr: 0.5,
+    pb_atr_period: 14, pb_imp_required: true, pb_imp_min: 2, pb_imp_max: 0, pb_imp_lookback: 6, pb_imp_body_atr: 0.6, pb_imp_move_atr: 2, pb_slope_atr: 0.5, pb_near_atr: 0.5,
     pb_wick_body: 2, pb_body_max: 0.3, pb_atr_min: 0.7, pb_atr_max: 1.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2,
     pb_rsi_period: 7, pb_rsi_min: 52, pb_rsi_max: 68, pb_room_min: 1, pb_buy: true, pb_sell: true },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0 },
@@ -171,7 +171,8 @@ const S = {
   n_pinbar(x, p) {
     const t = x.last, i = t - 1, k = x.c[i], now = x.c[t];
     if (i < 60) return null;
-    const range = k.high - k.low, body = Math.abs(k.close - k.open), atr = x.atr[i];
+    const atrN = Math.max(2, Number(p.pb_atr_period) || 14);
+    const range = k.high - k.low, body = Math.abs(k.close - k.open), atr = (atrN === 14 ? x.atr : I.atr(x.c, atrN))[i];
     if (!(range > 0) || !(atr > 0)) return null;
     const upW = k.high - Math.max(k.open, k.close), loW = Math.min(k.open, k.close) - k.low;
     const ef = x.ema(Number(p.pb_ema_fast) || 9), em = x.ema(Number(p.pb_ema_mid) || 21), es = x.ema(Number(p.pb_ema_slow) || 50);
@@ -210,7 +211,8 @@ const S = {
       } else run = 0;
     }
     const moveAtr = impMove / atr, slopeAtr = Math.abs(ef[i - 1] - ef[i - 1 - sb]) / atr;
-    const strongImp = imp >= (Number(p.pb_imp_min) || 2) && moveAtr >= Number(p.pb_imp_move_atr ?? 2)
+    const impMax = Number(p.pb_imp_max) || 0; // 0 = no upper limit (a very long run is often already exhausted)
+    const strongImp = imp >= (Number(p.pb_imp_min) || 2) && (!impMax || imp <= impMax) && moveAtr >= Number(p.pb_imp_move_atr ?? 2)
       && slopeAtr >= Number(p.pb_slope_atr ?? 0.5) && Math.sign(ef[i - 1] - ef[i - 1 - sb]) === dir;
     if (p.pb_imp_required !== false && !strongImp) return null;
     add(1, strongImp, `импульс ${imp} св., ${moveAtr.toFixed(1)} ATR`, `Impuls ${imp} Kerzen, ${moveAtr.toFixed(1)} ATR`, `impulse ${imp} candles, ${moveAtr.toFixed(1)} ATR`);

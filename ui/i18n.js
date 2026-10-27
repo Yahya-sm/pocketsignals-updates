@@ -197,6 +197,8 @@ const PARAM_NAMES = {
   m25_vol: ['Letzte 5 Kerzen mindestens … × Durchschnitt (0 = aus)', 'Последние 5 свечей минимум … × среднего (0 = выкл.)', 'Last 5 candles at least … × average (0 = off)'],
   pb_min_score: ['Mindestpunkte für ein Signal (von 10)', 'Минимум баллов для сигнала (из 10)', 'Minimum score for a signal (of 10)'],
   pb_shape_required: ['Nur echter Pinbar (Docht, kleiner Körper, Schluss in richtiger Hälfte)', 'Только настоящий пин-бар (тень, маленькое тело, закрытие в нужной половине)', 'Only a real pin bar (wick, small body, close in the right half)'],
+  pb_atr_period: ['ATR-Periode (Maß für Kerzengröße)', 'Период ATR (мера размера свечей)', 'ATR period (measure of candle size)'],
+  pb_imp_max: ['Impuls: höchstens … Kerzen (0 = egal)', 'Импульс: максимум … свечей (0 = без ограничения)', 'Impulse: at most … candles (0 = any)'],
   pb_imp_required: ['Nur nach starkem Impuls', 'Только после сильного импульса', 'Only after a strong impulse'],
   pb_imp_body_atr: ['Impulskerzen: Körper mindestens … × ATR', 'Свечи импульса: тело минимум … × ATR', 'Impulse candles: body at least … × ATR'],
   pb_imp_move_atr: ['Impuls gesamt mindestens … × ATR', 'Импульс всего минимум … × ATR', 'Impulse in total at least … × ATR'],
