@@ -225,7 +225,8 @@ class Engine extends EventEmitter {
         if (c.length && (live ? c[c.length - 1].time + m * 60 > last : c[c.length - 1].time + m * 60 === last + 60)) byTf[tf] = c;
       }
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
-        if (sig.strength < (this.settings.min_strength || 0)) continue;
+        // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
+        if (sig.strategy !== 'n_pinbar' && sig.strength < (this.settings.min_strength || 0)) continue;
         if ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0)) continue;
         this.scanSignals.push({ ...sig, asset: h.asset, candle: candles[candles.length - 1] });
       }

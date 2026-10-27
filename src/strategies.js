@@ -16,6 +16,7 @@ const META = {
   n_big: [L('Откат после большой свечи', 'Rücklauf nach großer Kerze', 'Pullback after big candle'), 'rev'],
   n_level: [L('Подход к уровню → отскок', 'Annäherung an ein Niveau → Rücksprung', 'Approach to a level → rebound'), 'rev'],
   n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
+  n_pinbar: [L('Импульс → откат → пин-бар → пробой', 'Impuls → Rücklauf → Pinbar → Ausbruch', 'Impulse → pullback → pin bar → breakout'), 'trend'],
   n_pulse: [L('Сильный импульс → возможный отскок', 'Starker Impuls → möglicher Rücksprung', 'Strong impulse → possible rebound'), 'rev'],
   n_vdrop: [L('Импульсное падение → отскок', 'Impulsfall → Rücksprung', 'Impulse drop → rebound'), 'rev'],
   n_cgdrop: [L('Истощение падения (ранний разворот)', 'Erschöpfung des Falls (frühe Umkehr)', 'Drop exhaustion (early reversal)'), 'rev'],
@@ -68,6 +69,13 @@ const DEFAULTS = {
   n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true, ...SHARP_BOT },
   n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT },
   n_level: { ...FILTERS, follow_move: false, lvl_first: true, lvl_len: 5, lvl_width: 3, lvl_er: 0.5 },
+  // Pin bar after impulse and pullback, entry when the next candle breaks the pin bar (M1, 60 s). Every condition
+  // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
+  n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true,
+    pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
+    pb_imp_min: 2, pb_imp_lookback: 6, pb_near_atr: 0.5,
+    pb_wick_body: 2, pb_body_max: 0.3, pb_atr_min: 0.7, pb_atr_max: 1.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2,
+    pb_rsi_period: 7, pb_rsi_min: 52, pb_rsi_max: 68, pb_room_min: 1, pb_buy: true, pb_sell: true },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
   n_vdrop: { ...REV, min_impulse_candles: 4, max_impulse_candles: 10, minimum_total_drop_atr: 2.0, min_speed_atr: 1.0, max_reversal_wait_bars: 2, impulse_rsi_filter: true, send_mirror: true },
@@ -128,7 +136,7 @@ const botSig = r => {
 // 'live' only with the forming candle; 'both' before the close (live) plus a fallback right after it.
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
-  if (name === 'n_level' || name === 'n_ma25') return 'live';
+  if (name === 'n_level' || name === 'n_ma25' || name === 'n_pinbar') return 'live';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   if (name === 'n_5x5' && p.five_bot) return 'closed';
   return 'legacy';
@@ -159,6 +167,58 @@ const S = {
       : L(`${n} зелёных свечей подряд`, `${n} grüne Kerzen in Folge`, `${n} green candles in a row`), p.sharp_expiry);
   },
   n_level(x, p) { return botSig(BP.levelTouch(x.c, x.last, p)); },        // as in the Telegram bot
+  // c[last] = the forming candle (trigger), c[last-1] = the closed pin bar; all checks use closed candles only.
+  n_pinbar(x, p) {
+    const t = x.last, i = t - 1, k = x.c[i], now = x.c[t];
+    if (i < 60) return null;
+    const range = k.high - k.low, body = Math.abs(k.close - k.open), atr = x.atr[i];
+    if (!(range > 0) || !(atr > 0)) return null;
+    const upW = k.high - Math.max(k.open, k.close), loW = Math.min(k.open, k.close) - k.low;
+    const ef = x.ema(Number(p.pb_ema_fast) || 9), em = x.ema(Number(p.pb_ema_mid) || 21), es = x.ema(Number(p.pb_ema_slow) || 50);
+    const sb = Math.max(1, Number(p.pb_slope_bars) || 3);
+    // Direction from the EMAs; if they give none, from the pin bar's long wick.
+    const up = k.close > em[i] && ef[i] > em[i] && ef[i] > ef[i - sb] && em[i] > em[i - sb];
+    const dn = k.close < em[i] && ef[i] < em[i] && ef[i] < ef[i - sb] && em[i] < em[i - sb];
+    const dir = up ? 1 : dn ? -1 : loW > upW ? 1 : upW > loW ? -1 : 0;
+    if (!dir || (dir > 0 && p.pb_buy === false) || (dir < 0 && p.pb_sell === false)) return null;
+    // Hard limits (no pin bar at all): tail against the direction, body share, size against ATR.
+    const tail = dir > 0 ? loW : upW, rel = range / atr;
+    if (body / range > Math.max(Number(p.pb_body_max) || 0.3, 0.5)) return null;
+    if (rel < (Number(p.pb_atr_hard_min) || 0) || (Number(p.pb_atr_hard_max) > 0 && rel > Number(p.pb_atr_hard_max))) return null;
+    if (p.pb_ema50 && (dir > 0 ? k.close < es[i] : k.close > es[i])) return null;
+    const why = [];
+    let score = 0;
+    const add = (pts, ok, ru, de, en) => { if (ok) { score += pts; why.push([ru, de, en]); } };
+    add(2, up || dn, 'EMA по направлению', 'EMAs in Richtung', 'EMAs aligned');
+    // Impulse: at least pb_imp_min candles in the direction within the candles before the pullback.
+    let imp = 0, run = 0;
+    for (let j = i - 1; j >= Math.max(1, i - (Number(p.pb_imp_lookback) || 6)); j--) {
+      if (I.dirOf(x.c[j]) === dir) { run++; imp = Math.max(imp, run); } else run = 0;
+    }
+    add(1, imp >= (Number(p.pb_imp_min) || 2), `импульс ${imp} св.`, `Impuls ${imp} Kerzen`, `impulse ${imp} candles`);
+    // Pullback to EMA fast/mid or a level: the pin bar's tail reaches near one of them.
+    const tip = dir > 0 ? k.low : k.high, near = (Number(p.pb_near_atr) || 0.5) * atr;
+    const nearEma = Math.abs(tip - ef[i]) <= near || Math.abs(tip - em[i]) <= near
+      || (dir > 0 ? k.low <= em[i] && k.close >= em[i] : k.high >= em[i] && k.close <= em[i]);
+    const lvl = roomAhead(x.c.slice(0, i + 1), i, -dir), nearLvl = lvl.R > 0 && lvl.dist * lvl.R <= near;
+    add(2, nearEma || nearLvl, nearEma ? 'пин-бар у EMA' : 'пин-бар у уровня', nearEma ? 'Pinbar an EMA' : 'Pinbar am Level', nearEma ? 'pin bar at EMA' : 'pin bar at level');
+    const shape = tail >= (Number(p.pb_wick_body) || 2) * Math.max(body, range * 0.02) && body / range <= (Number(p.pb_body_max) || 0.3)
+      && (dir > 0 ? k.close >= k.low + range / 2 : k.close <= k.low + range / 2);
+    add(1, shape, 'форма пин-бара', 'Pinbar-Form', 'pin bar shape');
+    const r = x.rsi(Number(p.pb_rsi_period) || 7)[i], lo = Number(p.pb_rsi_min ?? 52), hi = Number(p.pb_rsi_max ?? 68);
+    add(1, r !== null && (dir > 0 ? r >= lo && r <= hi : r <= 100 - lo && r >= 100 - hi), `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`, `RSI ${r === null ? '—' : r.toFixed(0)}`);
+    add(1, rel >= (Number(p.pb_atr_min) || 0) && rel <= (Number(p.pb_atr_max) || 99), `${rel.toFixed(1)} ATR`, `${rel.toFixed(1)} ATR`, `${rel.toFixed(1)} ATR`);
+    const broke = dir > 0 ? now.high > k.high : now.low < k.low;
+    if (p.pb_need_break !== false && !broke) return null;
+    add(1, broke, 'пробой триггера', 'Trigger durchbrochen', 'trigger broken');
+    const room = roomAhead(x.c.slice(0, i + 1), i, dir);
+    add(1, room.dist >= (Number(p.pb_room_min) || 0), 'есть место до уровня', 'Platz bis zum Level', 'room to the level');
+    if (score < (Number(p.pb_min_score) || 0)) return null;
+    const txt = n => `${score}/10 · ` + why.map(w => w[n]).join(', ');
+    const out = sig(dir, Math.min(99, score * 10), L(txt(0), txt(1), txt(2)), Number(p.expiry) || 60);
+    out.entry = Math.floor(Date.now() / 1000); out.bar = now.time; // entry now, at the break; one signal per candle
+    return out;
+  },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
   n_big(x, p) {
     if (p.bot) return botSig(BP.bigFade(x.c, x.last, p)); // Telegram-bot logic
