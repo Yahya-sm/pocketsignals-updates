@@ -49,10 +49,13 @@ class POClient extends EventEmitter {
     this.ws = ws;
     this.emit('status', 'connecting');
     ws.on('open', () => this._log('Server erreicht'));
+    // PocketOption ends the session after ~2 min ("41", code 1005) unless the client sends 42["ps"] like the website does.
+    ws.keepAlive = setInterval(() => ws.readyState === 1 && ws.send('42["ps"]'), 20000);
     ws.on('message', (d, bin) => this._onMessage(d.toString(), bin));
     ws.on('close', (code, reason) => {
       this._log(`Verbindung getrennt${code ? ' (Code ' + code + ')' : ''}${reason && String(reason) !== 'closed' ? ': ' + reason : ''}${this.authed ? '' : ' – ohne Login'}`);
       this.authed = false;
+      clearInterval(ws.keepAlive);
       this.emit('status', 'retry');
       if (this.ws === ws) this.retry = setTimeout(() => this.connect(), 5000);
     });
