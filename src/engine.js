@@ -411,7 +411,7 @@ class Engine extends EventEmitter {
         assets_off: this.settings.assets_off || [],
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
-        market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur !== false, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
+        market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

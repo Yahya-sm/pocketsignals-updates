@@ -116,7 +116,7 @@ function createWindow() {
   win.loadURL(`http://127.0.0.1:${port}/?desktop=1`);
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.on('closed', () => { win = null; app.quit(); });
-  // Mini view: when another app gets the focus, shrink to the current signals. A click on the mini view
+  // Mini view: the header button (or, if switched on, another app getting the focus) shrinks to the current signals. A click on the mini view
   // (not on a star) restores the full window via the 'expand' message; the star pins a signal instead.
   win.on('blur', () => setTimeout(() => { if (win && !win.isFocused() && !win.isMinimized()) setCompact(true); }, 80));
   // Focus from outside (taskbar, Alt+Tab, tray) opens the full window. A click inside the mini view also focuses
@@ -159,9 +159,10 @@ function placeMini() {
   setTimeout(() => { placing = false; }, 300);
 }
 
-function setCompact(on) {
+// manual: the "small" button in the window header; otherwise only when "shrink automatically" is switched on.
+function setCompact(on, manual = false) {
   if (!win || on === compact) return;
-  if (on && engine.settings.mini_on_blur === false) return;
+  if (on && !manual && engine.settings.mini_on_blur !== true) return;
   compact = on;
   if (on) {
     compactAt = Date.now();
@@ -194,6 +195,7 @@ app.whenReady().then(async () => {
   ipcMain.on('win', (_e, cmd) => {
     if (!win) return;
     if (cmd === 'min') win.minimize();
+    if (cmd === 'mini') setCompact(true, true);
     if (cmd === 'close') win.close();
     if (cmd === 'pin') { const on = !win.isAlwaysOnTop(); win.setAlwaysOnTop(on, 'screen-saver'); win.webContents.send('pinned', on); }
     if (cmd === 'opacity') { const o = win.getOpacity(); win.setOpacity(o > 0.9 ? 0.85 : o > 0.7 ? 0.65 : 1); }
