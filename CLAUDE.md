@@ -40,6 +40,11 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
   `node tools/test-bundle.js` (runs it with `process`/`Buffer` undefined) – and ideally in a real browser (`tools/serve-mobile.js`).
 - PocketOption accepts the socket only with `Origin: https://pocketoption.com`; servers differ per account/region – use the URL the
   page itself used (`config.poUrl`). Real-account sessions contain IP and user agent; other networks may be rejected.
+- **PocketOption's clock runs ~2 h ahead** (seen 27.10.2026; OTC prices carry those timestamps). `po-client` measures the
+  offset from the first live price after login (`changeSymbol` → `updateStream`), adds it to history requests and subtracts
+  it from all candle/tick times. Without it the app computed on 2-hour-old prices that did not match the chart.
+- `loadHistoryPeriod` ends **~5 minutes before now**; the newest minutes and the forming candle come from live ticks
+  (`changeSymbol` per pair → `updateHistoryNewFast` with ~10 min of ticks, then `updateStream`), merged in `engine._withLive`.
 - `loadHistoryPeriod` returns at most ~150 candles; request indexes must be unique (counter), answers are matched by index.
 - PocketOption search finds nothing with " OTC" in the query – search the bare name, click the exact label.
 - `chartPeriod` index list is `[5,15,30,60,120,180,300,600,900,1800,3600,14400,86400]` (index 3 = M1, checked by the user).

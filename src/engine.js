@@ -51,8 +51,37 @@ class Engine extends EventEmitter {
     this.po.on('status', s => { this.status = s; this.emit('state'); });
     this.po.on('assets', a => this._onAssets(a));
     this.po.on('history', h => this._onHistory(h));
-    this.po.on('ready', () => { this._rememberGood(); this.scan(); });
+    // Live prices: PocketOption's candle history ends ~5 minutes before now, the newest minutes are built from these.
+    this.ticks = new Map();      // symbol -> [[time, price], …] of the last ~15 minutes (real time)
+    this.subscribed = new Set(); // pairs with live prices on this connection
+    this.po.on('ticks', t => { this.ticks.set(t.asset, t.ticks.slice()); });
+    this.po.on('stream', rows => { for (const [a, time, price] of rows) this._addTick(a, time, price); });
+    this.po.on('ready', () => { this.subscribed.clear(); this.ticks.clear(); this._rememberGood(); this.scan(); });
     this.po.on('log', () => this.emit('state'));
+  }
+
+  _addTick(asset, time, price) {
+    const t = this.ticks.get(asset); if (!t) return; // only after the pair's tick history arrived
+    if (t.length && time <= t[t.length - 1][0]) return;
+    t.push([time, price]);
+    const cut = time - 15 * 60; let i = 0; while (i < t.length && t[i][0] < cut) i++;
+    if (i) t.splice(0, i);
+  }
+
+  // History candles (period sec) completed with candles built from the live prices: the tick candles replace the
+  // history from their second bucket on (the first one is usually incomplete). Without ticks: history unchanged.
+  _withLive(asset, candles, sec) {
+    const t = this.ticks.get(asset);
+    if (!t || t.length < 2) return candles;
+    const live = [];
+    for (const [time, price] of t) {
+      const b = Math.floor(time / sec) * sec, k = live[live.length - 1];
+      if (k && k.time === b) { k.high = Math.max(k.high, price); k.low = Math.min(k.low, price); k.close = price; }
+      else live.push({ time: b, open: price, high: price, low: price, close: price });
+    }
+    if (live.length < 2) return candles;
+    const from = live[1].time;
+    return [...candles.filter(k => k.time < from), ...live.slice(1)];
   }
 
   // A session that connected is kept as fallback for sessions taken over automatically from a login.
@@ -131,6 +160,11 @@ class Engine extends EventEmitter {
     this.scanSignals = [];
     const list = this.selectedAssets();
     this.scanCount = list.length;
+    // Live prices for every scanned pair (once per connection; the first answer brings the last ~10 minutes).
+    list.filter(a => !this.subscribed.has(a.symbol)).forEach((a, i) => {
+      this.subscribed.add(a.symbol);
+      setTimeout(() => this.po.subscribe(a.symbol), i * 150);
+    });
     // Spread the requests a little so the server is not flooded.
     list.forEach((a, i) => setTimeout(() => this.po.loadHistory(a.symbol, 60, 60 * 300), i * 40));
     // Trend candles in the trend timeframe itself (PocketOption sends at most ~150 candles per request,
@@ -165,8 +199,8 @@ class Engine extends EventEmitter {
   // Candles in a second timeframe: evaluate the strategies set to it on the newest closed candle.
   _onSecondHistory(h, sec) {
     const now = Date.now() / 1000;
-    const closed = h.data.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close }))
-      .filter(k => k.time + sec <= now).sort((a, b) => a.time - b.time);
+    const hist = h.data.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })).sort((a, b) => a.time - b.time);
+    const closed = this._withLive(h.asset, hist, sec).filter(k => k.time + sec <= now);
     if (!closed.length) return;
     const last = closed[closed.length - 1].time, key = h.asset + '|' + sec;
     if (this.lastEval.get(key) === last || last < now - 3 * sec) return; // already done / stale
@@ -188,14 +222,15 @@ class Engine extends EventEmitter {
     if (req) { // answer to a trend-timeframe request
       this.trendReq.delete(h.index);
       const c = h.data.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })).sort((a, b) => a.time - b.time);
-      this.trendCandles.set(h.asset, { tf: req.tf, at: Date.now(), candles: c });
+      this.trendCandles.set(h.asset, { tf: req.tf, at: Date.now(), candles: this._withLive(h.asset, c, req.tf * 60) });
       return;
     }
     const nowMin = Math.floor(Date.now() / 60000) * 60;
-    const all = h.data
+    const hist = h.data
       .map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close }))
       .sort((a, b) => a.time - b.time);
-    if (all.length > 1 && (all[1].time - all[0].time) % 60 !== 0) return; // not one-minute candles: ignore
+    if (hist.length > 1 && (hist[1].time - hist[0].time) % 60 !== 0) return; // not one-minute candles: ignore
+    const all = this._withLive(h.asset, hist, 60); // newest minutes (and the forming one) from the live prices
     const closed = all.filter(k => k.time < nowMin);
     if (!closed.length) return;
     this.candles.set(h.asset, closed);

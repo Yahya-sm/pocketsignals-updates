@@ -94,14 +94,49 @@ class POClient extends EventEmitter {
 
   _onEvent(ev, data) {
     switch (ev) {
-      case 'successauth': this.authed = true; this.lastError = null; this._log('Login angenommen ✓'); this.emit('status', 'connected'); this.emit('ready'); break;
+      case 'successauth':
+        this.authed = true; this.lastError = null; this._log('Login angenommen ✓'); this.emit('status', 'connected');
+        this._measureClock();
+        break;
       case 'NotAuthorized': this._log('Login ABGELEHNT – Sitzung ungültig oder abgelaufen'); this.emit('status', 'expired'); break;
       case 'updateAssets': if (!this.assetsLogged) { this.assetsLogged = true; this._log(`Paare-Liste erhalten (${(data || []).length})`); } this.emit('assets', data); break;
       case 'updateCharts': this.charts = data || []; break;
       case 'loadHistoryPeriodFast':
-      case 'loadHistoryPeriod': this.emit('history', data); break;
-      case 'updateStream': this.emit('stream', data); break;
+      case 'loadHistoryPeriod':
+        // Candle times come in PocketOption's clock: convert them to real time for the rest of the app.
+        if (data && Array.isArray(data.data) && this.clockOffset) data.data = data.data.map(k => ({ ...k, time: k.time - this.clockOffset }));
+        if (this.clockKnown) this.emit('history', data); // answers before the clock is known would be hours old
+        break;
+      case 'updateStream': // live prices [[asset, time, price], …] of the subscribed pairs
+        if (!Array.isArray(data)) break;
+        if (!this.clockKnown && Array.isArray(data[0]) && data[0][1] > 1e9) this._setClock(data[0][1]);
+        this.emit('stream', data.map(r => [r[0], r[1] - (this.clockOffset || 0), r[2]]));
+        break;
+      case 'updateHistoryNewFast': // after subscribing: the pair's prices of the last ~10 minutes, [[time, price], …]
+        if (this.clockKnown && data && data.asset && Array.isArray(data.history))
+          this.emit('ticks', { asset: data.asset, ticks: data.history.map(r => [r[0] - (this.clockOffset || 0), r[1]]) });
+        break;
     }
+  }
+
+  // Since the end of October 2026 PocketOption's clock runs ~2 h ahead (OTC prices carry those timestamps). A history
+  // request with the real time then returns candles from two hours ago – signals on old prices that don't match the
+  // chart. So after the login: subscribe to one pair, compare its first live price time with our clock, round to whole
+  // minutes, and only then start ('ready'). Without an answer within 6 s it starts with offset 0 (as before).
+  _measureClock() {
+    this.clockKnown = false;
+    clearTimeout(this.clockTimer);
+    this.send('changeSymbol', { asset: 'EURUSD_otc', period: 60 });
+    this.clockTimer = setTimeout(() => { if (!this.clockKnown) { this._log('PocketOption-Uhrzeit nicht ermittelt – rechne ohne Versatz'); this._setClock(null); } }, 6000);
+  }
+
+  _setClock(serverTime) {
+    if (this.clockKnown) return;
+    clearTimeout(this.clockTimer);
+    const off = serverTime ? Math.round((serverTime - Date.now() / 1000) / 60) * 60 : 0;
+    this.clockOffset = off; this.clockKnown = true;
+    if (off) this._log(`PocketOption-Uhr geht ${off > 0 ? '+' : ''}${(off / 3600).toFixed(2).replace(/\.?0+$/, '')} h – wird ausgeglichen`);
+    this.emit('ready');
   }
 
   send(ev, payload) {
@@ -113,9 +148,12 @@ class POClient extends EventEmitter {
     // Unique per request (a random part could repeat within one second and mix up the answers).
     this.reqNo = ((this.reqNo || 0) + 1) % 1000;
     const t = Math.floor(Date.now() / 1000), index = t * 1000 + this.reqNo;
-    this.send('loadHistoryPeriod', { asset, index, time: t, offset: seconds, period });
+    this.send('loadHistoryPeriod', { asset, index, time: t + (this.clockOffset || 0), offset: seconds, period });
     return index;
   }
+
+  // Live prices for a pair (PocketOption's history ends ~5 minutes before now; the newest minutes come from these).
+  subscribe(asset) { this.send('changeSymbol', { asset, period: 60 }); }
 
   // Saves the symbol (and optionally the timeframe in seconds) into the account's main chart, so PocketOption
   // (app or web) opens on that asset. chartPeriod is an index into PocketOption's timeframe list.
