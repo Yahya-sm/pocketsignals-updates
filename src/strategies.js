@@ -73,7 +73,7 @@ const DEFAULTS = {
   // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
   n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
-    pb_imp_min: 2, pb_imp_lookback: 6, pb_near_atr: 0.5,
+    pb_imp_required: true, pb_imp_min: 2, pb_imp_lookback: 6, pb_imp_body_atr: 0.6, pb_imp_move_atr: 2, pb_slope_atr: 0.5, pb_near_atr: 0.5,
     pb_wick_body: 2, pb_body_max: 0.3, pb_atr_min: 0.7, pb_atr_max: 1.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2,
     pb_rsi_period: 7, pb_rsi_min: 52, pb_rsi_max: 68, pb_room_min: 1, pb_buy: true, pb_sell: true },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0 },
@@ -196,12 +196,24 @@ const S = {
     let score = 0;
     const add = (pts, ok, ru, de, en) => { if (ok) { score += pts; why.push([ru, de, en]); } };
     add(2, up || dn, 'EMA по направлению', 'EMAs in Richtung', 'EMAs aligned');
-    // Impulse: at least pb_imp_min candles in the direction within the candles before the pullback.
-    let imp = 0, run = 0;
+    // Strong impulse before the pullback: at least pb_imp_min candles in a row in the direction, each with a big body
+    // (≥ pb_imp_body_atr × ATR), together moving ≥ pb_imp_move_atr × ATR, plus a steep fast EMA (≥ pb_slope_atr × ATR
+    // over pb_slope_bars candles). Small, sideways candles are no impulse.
+    const bodyMin = Number(p.pb_imp_body_atr ?? 0.6) * atr;
+    let imp = 0, run = 0, impMove = 0, runStart = 0;
     for (let j = i - 1; j >= Math.max(1, i - (Number(p.pb_imp_lookback) || 6)); j--) {
-      if (I.dirOf(x.c[j]) === dir) { run++; imp = Math.max(imp, run); } else run = 0;
+      const kj = x.c[j];
+      if (I.dirOf(kj) === dir && Math.abs(kj.close - kj.open) >= bodyMin) {
+        if (!run) runStart = kj.close;
+        run++;
+        if (run > imp) { imp = run; impMove = Math.abs(runStart - kj.open); }
+      } else run = 0;
     }
-    add(1, imp >= (Number(p.pb_imp_min) || 2), `импульс ${imp} св.`, `Impuls ${imp} Kerzen`, `impulse ${imp} candles`);
+    const moveAtr = impMove / atr, slopeAtr = Math.abs(ef[i - 1] - ef[i - 1 - sb]) / atr;
+    const strongImp = imp >= (Number(p.pb_imp_min) || 2) && moveAtr >= Number(p.pb_imp_move_atr ?? 2)
+      && slopeAtr >= Number(p.pb_slope_atr ?? 0.5) && Math.sign(ef[i - 1] - ef[i - 1 - sb]) === dir;
+    if (p.pb_imp_required !== false && !strongImp) return null;
+    add(1, strongImp, `импульс ${imp} св., ${moveAtr.toFixed(1)} ATR`, `Impuls ${imp} Kerzen, ${moveAtr.toFixed(1)} ATR`, `impulse ${imp} candles, ${moveAtr.toFixed(1)} ATR`);
     // Pullback to EMA fast/mid or a level: the pin bar's tail reaches near one of them.
     const tip = dir > 0 ? k.low : k.high, near = (Number(p.pb_near_atr) || 0.5) * atr;
     const nearEma = Math.abs(tip - ef[i]) <= near || Math.abs(tip - em[i]) <= near
