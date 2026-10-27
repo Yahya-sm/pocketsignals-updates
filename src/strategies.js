@@ -71,7 +71,7 @@ const DEFAULTS = {
   n_level: { ...FILTERS, follow_move: false, lvl_first: true, lvl_len: 5, lvl_width: 3, lvl_er: 0.5 },
   // Pin bar after impulse and pullback, entry when the next candle breaks the pin bar (M1, 60 s). Every condition
   // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
-  n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true, pb_shape_required: true,
+  n_pinbar: { expiry: 60, ...FILTERS, pb_min_score: 8, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
     pb_imp_min: 2, pb_imp_lookback: 6, pb_near_atr: 0.5,
     pb_wick_body: 2, pb_body_max: 0.3, pb_atr_min: 0.7, pb_atr_max: 1.5, pb_atr_hard_min: 0.5, pb_atr_hard_max: 2,
@@ -184,8 +184,10 @@ const S = {
     // Hard limits (no pin bar at all): tail against the direction, body share, size against ATR.
     const tail = dir > 0 ? loW : upW, rel = range / atr;
     // A real pin bar is the core of the strategy: long tail against the move, small body, close in the right half.
+    const nose = dir > 0 ? upW : loW; // the other wick: short on a pin bar (a doji has long wicks on both sides)
     const shape = tail >= (Number(p.pb_wick_body) || 2) * Math.max(body, range * 0.02) && body / range <= (Number(p.pb_body_max) || 0.3)
-      && (dir > 0 ? k.close >= k.low + range / 2 : k.close <= k.low + range / 2);
+      && (dir > 0 ? k.close >= k.low + range / 2 : k.close <= k.low + range / 2)
+      && nose <= Number(p.pb_nose_max ?? 0.5) * tail;
     if (p.pb_shape_required !== false && !shape) return null;
     if (body / range > Math.max(Number(p.pb_body_max) || 0.3, 0.5)) return null;
     if (rel < (Number(p.pb_atr_hard_min) || 0) || (Number(p.pb_atr_hard_max) > 0 && rel > Number(p.pb_atr_hard_max))) return null;

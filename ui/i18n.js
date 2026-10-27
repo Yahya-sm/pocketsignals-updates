@@ -197,6 +197,7 @@ const PARAM_NAMES = {
   m25_vol: ['Letzte 5 Kerzen mindestens … × Durchschnitt (0 = aus)', 'Последние 5 свечей минимум … × среднего (0 = выкл.)', 'Last 5 candles at least … × average (0 = off)'],
   pb_min_score: ['Mindestpunkte für ein Signal (von 10)', 'Минимум баллов для сигнала (из 10)', 'Minimum score for a signal (of 10)'],
   pb_shape_required: ['Nur echter Pinbar (Docht, kleiner Körper, Schluss in richtiger Hälfte)', 'Только настоящий пин-бар (тень, маленькое тело, закрытие в нужной половине)', 'Only a real pin bar (wick, small body, close in the right half)'],
+  pb_nose_max: ['Anderer Docht höchstens … × langer Docht (kein Doji)', 'Другая тень не больше … × длинной тени (не доджи)', 'Other wick at most … × long wick (no doji)'],
   pb_need_break: ['Nur nach Ausbruch des Pinbars (Trigger)', 'Только после пробоя пин-бара (триггер)', 'Only after the pin bar breaks (trigger)'],
   pb_ema_fast: ['Schnelle EMA', 'Быстрая EMA', 'Fast EMA'], pb_ema_mid: ['Mittlere EMA (Trend)', 'Средняя EMA (тренд)', 'Middle EMA (trend)'], pb_ema_slow: ['Langsame EMA', 'Медленная EMA', 'Slow EMA'],
   pb_ema50: ['Preis muss auf der richtigen Seite der langsamen EMA sein', 'Цена должна быть по нужную сторону медленной EMA', 'Price must be on the right side of the slow EMA'],
