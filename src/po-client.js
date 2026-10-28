@@ -18,7 +18,7 @@ class POClient extends EventEmitter {
     this.authed = false;
     this.charts = [];
     this.retry = null;
-    this.serverIdx = 0; this.fails = 0; // server rotation when one does not answer
+    this.serverIdx = 0; this.fails = 0; this.demoErrs = 0; // server rotation when one does not answer
     this.log = [];   // connection log shown in the app (Settings → Connection log)
   }
 
@@ -80,7 +80,8 @@ class POClient extends EventEmitter {
     ws.on('error', e => {
       this.lastError = e.message; this._log('Fehler: ' + e.message); this.emit('status', 'error');
       // Since 27.10.2026 PocketOption's only demo server does not answer; signals then need a real-account session.
-      if (/demo-api/.test(url)) this._log('Demo-Server von PocketOption antwortet nicht – in PocketOption aufs Real-Konto wechseln (Login wird übernommen)');
+      // Only after 3 failures in a row: a single handshake error (e.g. right after taking over the login) is harmless.
+      if (/demo-api/.test(url) && ++this.demoErrs >= 3) this._log('Demo-Server von PocketOption antwortet nicht – in PocketOption aufs Real-Konto wechseln (Login wird übernommen)');
     });
   }
 
@@ -115,7 +116,7 @@ class POClient extends EventEmitter {
     switch (ev) {
       case 'successauth':
         this.authed = true; this.lastError = null; this._log('Login angenommen ✓'); this.emit('status', 'connected');
-        this.fails = 0;
+        this.fails = 0; this.demoErrs = 0;
         // A different server than the stored one worked: keep it (the engine saves it).
         if (this.current && this.current !== this.url) { this.url = this.current; this.serverIdx = 0; this.emit('server', this.url); }
         this._measureClock();
