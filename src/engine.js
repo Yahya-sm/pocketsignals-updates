@@ -38,6 +38,16 @@ class Engine extends EventEmitter {
     this.config = readJson(this.configFile, {});
     // Until 1.0.57 a session without connection (no internet yet) was also marked "rejected" and then ignored for good.
     if (!this.config.rejectedReset) { this.config.rejected = []; this.config.rejectedReset = true; writeJson(this.configFile, this.config); }
+    // 28.10.2026, the user's choice for every device: only "reversal at a level", medium values, corridor/beyond bans off,
+    // impulse move 2 SD (measured: ~15–20 signals per 1.5 h on 14 pairs instead of 1); GBP/NZD pairs off (not tradable in PO).
+    if (!this.settings.lr_soft_1028) {
+      const s = this.settings, ss = (s.strategy_settings ||= {});
+      ss.n_levelrev = { ...ss.n_levelrev, ...strategies.PRESETS.n_levelrev[1].values, lr_use_corridor: false, lr_use_beyond: false, lr_imp_move_sd: 2 };
+      s.strategies = ['n_levelrev'];
+      if (Array.isArray(s.pairs)) s.pairs = s.pairs.filter(p => !/GBP|NZD/.test(p));
+      s.lr_soft_1028 = true;
+      writeJson(this.settingsFile, s);
+    }
     this.signals = readJson(this.signalsFile, []);
     this.assets = new Map();      // symbol -> { symbol, name, type, payout, active, key, otc, category }
     this.candles = new Map();     // symbol -> closed candles
