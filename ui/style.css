@@ -121,6 +121,9 @@ button.tag:hover { background: var(--accent); color: #fff; }
 .hist .info { flex: 1; min-width: 0; }
 .hist .info b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist small { color: var(--muted); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist { flex-wrap: wrap; cursor: pointer; }
+.hist.open small, .hist.open .info b { white-space: normal; }
+.hist .why { flex-basis: 100%; color: var(--muted); font-size: 12px; line-height: 1.35; padding: 4px 0 0 42px; }
 .hist .d { font-size: 11px; font-weight: 800; width: 34px; text-align: center; }
 .hist .d.CALL { color: var(--call); } .hist .d.PUT { color: var(--put); }
 .mini { border: 0; background: var(--card2); border-radius: 7px; padding: 5px 8px; font-size: 11px; font-weight: 700; }

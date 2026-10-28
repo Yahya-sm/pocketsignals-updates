@@ -206,10 +206,13 @@ function card(s) {
 }
 function row(s) {
   const res = s.result ? `<span class="res ${s.result}">${I18N.de['res_' + s.result] ? t('res_' + s.result) : s.result}</span>` : `<span class="res">${t('res_running')}</span>`;
-  return `<div class="hist"><span class="d ${s.dir}">${s.dir === 'CALL' ? '▲' : '▼'}<br>${s.dir}</span>
+  // Tap a row: it opens and shows the full strategy name and the reason (the narrow row cuts them off).
+  const open = openHist.has(s.id);
+  return `<div class="hist${open ? ' open' : ''}" data-hist-id="${esc(s.id)}"><span class="d ${s.dir}">${s.dir === 'CALL' ? '▲' : '▼'}<br>${s.dir}</span>
     <div class="info"><b>${esc(s.name)}</b><small>${esc(tr(s.strategyName))} · ${s.tf || 'M1'}</small>
       <small>${fmtTime(s.entryTime)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}</small></div>${res}
-    <button class="mini po" data-po="${esc(s.id)}">PO</button><button class="mini" data-tv="${esc(s.id)}">TV</button></div>`;
+    <button class="mini po" data-po="${esc(s.id)}">PO</button><button class="mini" data-tv="${esc(s.id)}">TV</button>
+    ${open ? `<div class="why">${esc(tr(s.reason) || '')}${s.entryPrice ? ` · ${s.entryPrice}${s.exitPrice ? ' → ' + s.exitPrice : ''}` : ''}</div>` : ''}</div>`;
 }
 function strategyStats() {
   const by = {};
@@ -271,7 +274,7 @@ function setPairs(keysOn, keysOff) {
 }
 const TFS = ['S10', 'S15', 'S30', 'M1', 'M2', 'M3', 'M5'];
 const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }[LANG] ?? 0] : k);
-const openStrats = new Set();
+const openStrats = new Set(), openHist = new Set();
 // Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
 function paramRows(x) {
   const row = k => k in x.params ? `<label class="prow"><span>${esc(paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
@@ -368,6 +371,8 @@ document.addEventListener('click', e => {
     else if (e.target.closest('[data-expand]') && window.desktop.expand) window.desktop.expand();
     return;
   }
+  const hr = !e.target.closest('button') && e.target.closest('[data-hist-id]');
+  if (hr) { const k = hr.dataset.histId; openHist.has(k) ? openHist.delete(k) : openHist.add(k); render(); return; }
   const el = e.target.closest('button'); if (!el) return;
   if (el.dataset.pin) togglePin(el.dataset.pin);
   if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf);
