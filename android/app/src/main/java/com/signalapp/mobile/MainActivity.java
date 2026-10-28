@@ -95,7 +95,24 @@ public class MainActivity extends Activity {
         // Since 10/2026 PocketOption sends phones to m.pocketoption.com – made for phone screens, same pair list
         // (.pair-number-wrap / .current-symbol), so switching pairs works there too. Keep the phone's own user agent.
         poUserAgent = po.getSettings().getUserAgentString();
+        // Diagnosis: errors and warnings of the PocketOption page (e.g. failed connections) → the app's connection log.
+        po.setWebChromeClient(new WebChromeClient() {
+            int sent = 0;
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
+                if (m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR && sent++ < 30)
+                    new AuthBridge().onPoLog("PO-Seite: " + m.message());
+                return false;
+            }
+        });
         po.setWebViewClient(new WebViewClient() {
+            // Diagnosis: failed loads of the PocketOption page (no network, blocked server …) → the app's log.
+            int errs = 0;
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest req, android.webkit.WebResourceError err) {
+                if (errs++ < 20) new AuthBridge().onPoLog("PO-Seite lädt nicht: " + req.getUrl().getHost() + " – " + err.getDescription());
+            }
+
             // Links to other apps (intent:, market:, tg: …) would show an error page in the WebView: open them outside instead.
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
@@ -361,11 +378,28 @@ public class MainActivity extends Activity {
         + "var o=WebSocket.prototype.send;WebSocket.prototype.send=function(d){"
         + "try{if(typeof d==='string'&&d.indexOf('42[\"auth\"')===0){seen=true;if(window.SignalAppAuth)SignalAppAuth.onAuth(d,String(this.url||''));}"
         + "else if(!seen&&!kicked&&location.pathname.indexOf('/cabinet')>=0){kicked=true;var s=this;setTimeout(function(){s.close();},500);}}catch(e){}"
-        + "return o.apply(this,arguments);};})();";
+        + "return o.apply(this,arguments);};"
+        // Diagnosis: the page's own connections (server, open, close code, error) and page errors go to the app's log.
+        + "var L=function(m){try{if(window.SignalAppAuth&&SignalAppAuth.onPoLog)SignalAppAuth.onPoLog(String(m).slice(0,200));}catch(e){}};"
+        + "var W=window.WebSocket;window.WebSocket=function(u,p){var s=p===undefined?new W(u):new W(u,p);var h=String(u).split('/')[2]||u;"
+        + "if(/po\\.market/.test(h)){var t=Date.now();s.addEventListener('open',function(){L('PO-Seite: verbunden mit '+h+' ('+(Date.now()-t)+' ms)');});"
+        + "s.addEventListener('close',function(e){L('PO-Seite: getrennt von '+h+' (Code '+e.code+')');});"
+        + "s.addEventListener('error',function(){L('PO-Seite: FEHLER Verbindung zu '+h);});}return s;};"
+        + "window.WebSocket.prototype=W.prototype;['CONNECTING','OPEN','CLOSING','CLOSED'].forEach(function(k){window.WebSocket[k]=W[k];});"
+        + "window.addEventListener('error',function(e){L('PO-Seite Fehler: '+(e.message||'?'));});"
+        + "})();";
 
     String lastAuth = null;
 
     class AuthBridge {
+        // Diagnosis line from the PocketOption page (its connections, errors) → the app's connection log.
+        @JavascriptInterface
+        public void onPoLog(String line) {
+            if (line == null) return;
+            runOnUiThread(() -> signals.evaluateJavascript(
+                "window.LocalEngine && window.LocalEngine.act({action:'polog',text:" + JSONObject.quote(line) + "})", null));
+        }
+
         @JavascriptInterface
         public void onAuth(String msg, String url) {
             if (msg == null || (msg + url).equals(lastAuth) || !msg.contains("\"session\"")) return;

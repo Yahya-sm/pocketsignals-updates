@@ -26,6 +26,7 @@ window.LocalEngine = {
       case 'ssid': engine.setSsid(String(msg.ssid || '').trim(), msg.url, !!msg.auto); return { ok: true };
       case 'clear': engine.clearSignals(); return { ok: true };
       case 'scan': engine.scan(); return { ok: true };
+      case 'polog': engine.po._log(String(msg.text || '').slice(0, 200)); return { ok: true }; // from the PocketOption tab
       default: return { ok: false };
     }
   },
