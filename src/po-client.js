@@ -18,6 +18,7 @@ class POClient extends EventEmitter {
     this.authed = false;
     this.charts = [];
     this.retry = null;
+    this.serverIdx = 0; this.fails = 0; // server rotation when one does not answer
     this.log = [];   // connection log shown in the app (Settings → Connection log)
   }
 
@@ -40,10 +41,20 @@ class POClient extends EventEmitter {
     return demo ? 'demo-api-eu.po.market' : 'api-eu.po.market';
   }
 
+  // Servers to try: the one the page used first, then PocketOption's other servers for this account type.
+  // (The login takeover can note a server the page only probed – e.g. api-spb answered 403 from the user's network.)
+  servers() {
+    const demo = /"isDemo"\s*:\s*1/.test(this.ssid || '');
+    const hosts = demo ? ['demo-api-eu', 'try-demo-eu'] : ['api-eu', 'api-msk', 'api-us-north', 'api-us-south', 'api-spb'];
+    const list = [this.url, ...hosts.map(h => `wss://${h}.po.market/socket.io/?EIO=4&transport=websocket`)].filter(Boolean);
+    return [...new Set(list)];
+  }
+
   connect() {
     if (!this.ssid) { this._log('Keine Sitzung gespeichert'); this.emit('status', 'no_ssid'); return; }
     clearTimeout(this.retry);
-    const url = this.url || `wss://${this.host}/socket.io/?EIO=4&transport=websocket`;
+    const list = this.servers(), url = list[(this.serverIdx || 0) % list.length];
+    this.current = url;
     this.denied = false; // set when PocketOption answers NotAuthorized to this session
     this._log(`Verbinde mit ${url.replace(/^wss:\/\//, '').split('/')[0]} – ${this._describeSsid()}`);
     const ws = new WebSocket(url, { headers: { Origin: 'https://pocketoption.com' } });
@@ -55,6 +66,12 @@ class POClient extends EventEmitter {
     ws.on('message', (d, bin) => this._onMessage(d.toString(), bin));
     ws.on('close', (code, reason) => {
       this._log(`Verbindung getrennt${code ? ' (Code ' + code + ')' : ''}${reason && String(reason) !== 'closed' ? ': ' + reason : ''}${this.authed ? '' : ' – ohne Login'}`);
+      // Two failures in a row without a login on this server: try PocketOption's next server.
+      if (!this.authed && this.ws === ws && !this.denied && ++this.fails >= 2) {
+        this.fails = 0; this.serverIdx = (this.serverIdx || 0) + 1;
+        const next = this.servers()[this.serverIdx % this.servers().length];
+        this._log(`Server antwortet nicht – versuche ${next.replace(/^wss:\/\//, '').split('/')[0]}`);
+      }
       this.authed = false;
       clearInterval(ws.keepAlive);
       this.emit('status', 'retry');
@@ -70,6 +87,7 @@ class POClient extends EventEmitter {
   setSsid(ssid, url) {
     this.ssid = ssid;
     this.url = PO_SERVER.test(url || '') ? url : null;
+    this.serverIdx = 0; this.fails = 0;
     if (this.ws) { const old = this.ws; this.ws = null; old.close(); }
     this.connect();
   }
@@ -97,6 +115,9 @@ class POClient extends EventEmitter {
     switch (ev) {
       case 'successauth':
         this.authed = true; this.lastError = null; this._log('Login angenommen ✓'); this.emit('status', 'connected');
+        this.fails = 0;
+        // A different server than the stored one worked: keep it (the engine saves it).
+        if (this.current && this.current !== this.url) { this.url = this.current; this.serverIdx = 0; this.emit('server', this.url); }
         this._measureClock();
         break;
       case 'NotAuthorized': this.denied = true; this._log('Login ABGELEHNT – Sitzung ungültig oder abgelaufen'); this.emit('status', 'expired'); break;

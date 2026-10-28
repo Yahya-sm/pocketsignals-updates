@@ -53,6 +53,8 @@ class Engine extends EventEmitter {
     this.po.on('status', s => { this.status = s; this.emit('state'); });
     this.po.on('assets', a => this._onAssets(a));
     this.po.on('history', h => this._onHistory(h));
+    // Another PocketOption server worked than the stored one: remember it for the next start.
+    this.po.on('server', url => { this.config.poUrl = url; writeJson(this.configFile, this.config); });
     // Live prices: PocketOption's candle history ends ~5 minutes before now, the newest minutes are built from these.
     this.ticks = new Map();      // symbol -> [[time, price], …] of the last ~15 minutes (real time)
     this.subscribed = new Set(); // pairs with live prices on this connection
@@ -428,7 +430,8 @@ class Engine extends EventEmitter {
   setSsid(ssid, url, auto = false) {
     if (!ssid) return; // an empty field must never delete the stored login
     // The apps report the logged-in session on every PocketOption page load; only reconnect on change.
-    if (ssid === this.po.ssid && (url || null) === (this.config.poUrl || null) && this.po.authed) return;
+    // Same login and connected: keep the working server even if the page reports another one (it probes several).
+    if (ssid === this.po.ssid && this.po.authed) return;
     if (auto && (this.config.rejected || []).includes(ssid)) { this.po._log('Login aus PocketOption erkannt, aber früher schon abgelehnt – ignoriert'); return; }
     this.po._log(auto ? 'Login aus PocketOption übernommen' : 'Neue Sitzung eingetragen');
     if (auto && this.po.authed) this._rememberGood();
