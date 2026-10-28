@@ -85,8 +85,7 @@ const DEFAULTS = {
   // Default = the user's examples: one big candle, then an opposite one at least as big (spike). The multi-candle run is
   // still possible (vr_imp_min > 1) but gave signals the user called junk.
   n_vrev: { expiry: 120, vr_buy: true, vr_sell: true, vr_min_bp: 1, vr_sd_period: 20, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0,
-    vr_avgbody: false, vr_steps: false, vr_body_pct: 55, vr_cover: true, vr_extreme: 0, vr_last_big: 1.5, vr_answer_pct: 100,
-    vr_spike: true, vr_swing: false, vr_swing_bars: 8, vr_tip_bars: 3, vr_w_move: 3, vr_w_extreme: 10, vr_w_body_pct: 50, vr_rev_big: 1 },
+    vr_avgbody: false, vr_steps: false, vr_body_pct: 55, vr_cover: true, vr_extreme: 0, vr_last_big: 1.5, vr_answer_pct: 100, },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
@@ -144,11 +143,6 @@ const PRESETS = {
       values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 1.5, vr_answer_pct: 80 } },
     { name: L('Шип строго (свеча ≥ 2× средней)', 'Spitze streng (Kerze ≥ 2× Durchschnitt)', 'Spike strict (candle ≥ 2× average)'),
       values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 60, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 2, vr_answer_pct: 100 } },
-    // Wave turn (user's CHF/NOK example on M2): catches the visible turns 19:54 PUT and 20:08 CALL, but measured on all
-    // pairs it lost on M1 (41 signals, 39–46 %); on M2 only 5 signals (75 % at 1 candle) – too few to trust.
-    { name: L('Шип + волна (оба режима)', 'Spitze + Welle (beide Modi)', 'Spike + wave (both modes)'),
-      values: { expiry: 120, vr_min_bp: 1, vr_spike: true, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 0,
-        vr_cover: true, vr_last_big: 1.5, vr_answer_pct: 100, vr_swing: true, vr_swing_bars: 8, vr_tip_bars: 3, vr_w_move: 3, vr_w_extreme: 10, vr_w_body_pct: 50, vr_rev_big: 1 } },
     // The user's examples (USD/COP, CHF/JPY): one big candle (≥ 1.5 × average), right after it an opposite one at least as
     // big; anywhere, also inside a trend. Measured: 13 signals in 2 h on 17 pairs, 62 % / 85 % / 85 % at 1 / 2 / 3 min.
     { name: L('Шип (большая свеча → такая же обратная)', 'Spitze (große Kerze → gleich große Gegenkerze)', 'Spike (big candle → equally big opposite)'),
@@ -200,12 +194,7 @@ const GROUPS = {
   n_vrev: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
       desc: L('Направления и экспирация. По замеру лучше всего 2 минуты (120 с): отскок короткий.', 'Richtungen und Ablaufzeit. Gemessen am besten 2 Minuten (120 s): der Rücksprung ist kurz.', 'Directions and expiry. Measured best at 2 minutes (120 s): the bounce is short.'),
-      keys: ['expiry', 'vr_buy', 'vr_sell', 'vr_min_bp', 'vr_spike', 'vr_swing'] },
-    { title: L('Режим «волна»', 'Modus „Welle“', '"Wave" mode'),
-      desc: L('Работает вместе с шипом (оба переключателя в блоке 1). Волна из нескольких свечей (могут быть разного цвета) прошла ход в SD к новому экстремуму, и первая сильная свеча разворачивает. По замеру на M1 проигрывала, на M2 сигналов пока мало для вывода.',
-        'Läuft zusammen mit der Spitze (beide Schalter in Block 1). Eine Welle aus mehreren Kerzen (auch gemischt) läuft … SD zu einem neuen Extrem, die erste starke Kerze dreht. Gemessen auf M1 verlustreich, auf M2 noch zu wenige Signale.',
-        'Runs together with the spike (both switches in block 1). A wave of several candles (mixed colours allowed) runs … SD to a new extreme, the first strong candle turns. Measured: losing on M1, too few signals on M2 yet.'),
-      keys: ['vr_w_move', 'vr_w_extreme', 'vr_swing_bars', 'vr_tip_bars', 'vr_w_body_pct', 'vr_rev_big'] },
+      keys: ['expiry', 'vr_buy', 'vr_sell', 'vr_min_bp'] },
     { title: L('2 · Импульс (вертикаль)', '2 · Impuls (senkrecht)', '2 · Impulse (vertical)'),
       desc: L('Резкое движение перед разворотом: сколько свечей подряд и насколько далеко (в SD — средних свечах). Больше = реже, но движение сильнее. «Ровные шаги»: каждая свеча закрывается дальше предыдущей. «Крупнее среднего»: тела импульса больше обычных.',
         'Die steile Bewegung vor der Umkehr: wie viele Kerzen in Folge und wie weit (in SD = Durchschnittskerzen). Größer = seltener, aber stärker. „Saubere Schritte“: jede Kerze schließt weiter. „Größer als normal“: Impulskörper größer als üblich.',
@@ -435,30 +424,6 @@ const S = {
     // Dead pairs (USD/MYR, gold OTC: candles of a few hundredths of a basis point) – "big" there is still nothing.
     if (sd / k.close * 10000 < Number(p.vr_min_bp ?? 1)) return null;
     if ((dir > 0 && p.vr_buy === false) || (dir < 0 && p.vr_sell === false)) return null;
-    // Modes can run together: wave first, then spike/run (vr_spike).
-    const wave = () => {
-      if (b < (Number(p.vr_w_body_pct) || 0) / 100 * r) return null;
-      const W = Number(p.vr_swing_bars) || 8, tb = Number(p.vr_tip_bars) || 3, ex = Number(p.vr_w_extreme) || 10;
-      if (b < (Number(p.vr_rev_big) || 1) * ab) return null;
-      let tip = dir > 0 ? Infinity : -Infinity, tipAt = -1;
-      for (let j = i - tb; j <= i; j++) if (dir > 0 ? c[j].low < tip : c[j].high > tip) { tip = dir > 0 ? c[j].low : c[j].high; tipAt = j; }
-      for (let j = Math.max(0, i - ex); j < i - tb; j++) if (dir > 0 ? c[j].low < tip : c[j].high > tip) return null; // not a new extreme
-      let from = dir > 0 ? -Infinity : Infinity;
-      for (let j = Math.max(0, tipAt - W); j < tipAt; j++) from = dir > 0 ? Math.max(from, c[j].high) : Math.min(from, c[j].low);
-      const move = Math.abs(from - tip) / sd;
-      if (!(move >= (Number(p.vr_w_move) || 3))) return null;
-      // Only the first strong candle of the turn (no second signal on the next one).
-      for (let j = tipAt + 1; j < i; j++) if (I.dirOf(c[j]) === dir && bod(j) >= (Number(p.vr_rev_big) || 1) * ab) return null;
-      // The turn has started: the close is back from the extreme by at least a third of the reversal candle's range.
-      if ((dir > 0 ? k.close - tip : tip - k.close) < r / 3) return null;
-      const s = sig(dir, Math.min(99, 60 + move * 5), L(`V-разворот волны: ход ${move.toFixed(1)} SD к экстремуму → свеча ${Math.round(100 * b / r)}%`,
-        `V-Umkehr der Welle: ${move.toFixed(1)} SD zum Extrem → Kerze ${Math.round(100 * b / r)}%`,
-        `Wave V-reversal: ${move.toFixed(1)} SD to the extreme → candle ${Math.round(100 * b / r)}%`), Number(p.expiry) || 60);
-      s.bar = k.time; s.model = 'wave';
-      return s;
-    };
-    if (p.vr_swing) { const w = wave(); if (w) return w; }
-    if (p.vr_spike === false) return null;
     // Reversal candle: big body against the run.
     if (b < (Number(p.vr_body_pct) || 0) / 100 * r) return null;
     // The run before it: candles against the trade, each closing further on (vr_steps), at most one tiny pause candle.
@@ -494,7 +459,7 @@ const S = {
     const s = sig(dir, Math.min(99, 60 + move * 5), L(`V-разворот: ${n} св. импульса, ${move.toFixed(1)} SD → свеча ${Math.round(100 * b / r)}%`,
       `V-Umkehr: ${n} Impulskerzen, ${move.toFixed(1)} SD → Kerze ${Math.round(100 * b / r)}%`,
       `V-reversal: ${n} impulse candles, ${move.toFixed(1)} SD → candle ${Math.round(100 * b / r)}%`), Number(p.expiry) || 60);
-    s.bar = k.time; s.model = 'spike';
+    s.bar = k.time;
     return s;
   },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
