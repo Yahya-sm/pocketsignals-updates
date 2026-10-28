@@ -124,6 +124,18 @@ const DEFAULTS = {
 // Ready-made setting combinations (one tap in the app). Level 4 = the user's example: a vertical move of big candles,
 // right after it a clean pin bar against it, entry on the breakout of the pin bar.
 const PRESETS = {
+  // Level 3 = exactly the user's prompt. Measured 28.10.2026 on 17 pairs / ~1.5 h: strict 0–2, medium ~8, soft ~14 signals.
+  n_levelrev: [
+    { name: L('Мягко', 'Locker', 'Loose'), values: { lr_min_strength: 4, lr_min_touches: 2, lr_near_sd: 2, lr_space_sd: 1.5, lr_corridor_sd: 2,
+      lr_flat_sd: 1.5, lr_prior_bars: 1, lr_tail_pct: 50, lr_body_pct: 35, lr_nose_pct: 25, lr_pin_min_sd: 0.7,
+      lr_imp_min: 2, lr_imp_move_sd: 2, lr_vbody_pct: 50 } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { lr_min_strength: 4, lr_min_touches: 2, lr_near_sd: 1.5, lr_space_sd: 2, lr_corridor_sd: 3,
+      lr_flat_sd: 2, lr_prior_bars: 1, lr_tail_pct: 50, lr_body_pct: 35, lr_nose_pct: 25, lr_pin_min_sd: 0.7,
+      lr_imp_min: 2, lr_imp_move_sd: 2, lr_vbody_pct: 50 } },
+    { name: L('Строго (как в промте)', 'Streng (wie im Prompt)', 'Strict (as in the prompt)'), values: { lr_min_strength: 4, lr_min_touches: 2,
+      lr_near_sd: 1.5, lr_space_sd: 2, lr_corridor_sd: 3, lr_flat_sd: 2, lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15,
+      lr_pin_min_sd: 1, lr_imp_min: 3, lr_imp_move_sd: 3, lr_vbody_pct: 60 } },
+  ],
   n_pinbar: [
     { name: L('Мягко', 'Locker', 'Loose'), values: { pb_preset: 1, pb_mode: 'trend', pb_min_score: 6, pb_imp_required: false,
       pb_imp_min: 2, pb_imp_max: 0, pb_imp_gap: 3, pb_imp_body_atr: 0.4, pb_imp_move_atr: 1.5, pb_slope_atr: 0.3,
@@ -316,11 +328,17 @@ const S = {
     const res = zones(1).filter(z => z.hi >= close - zoneW).sort((a, b) => a.lo - b.lo)[0];      // nearest above (or at) the price
     const sup = zones(-1).filter(z => z.lo <= close + zoneW).sort((a, b) => b.hi - a.hi)[0];     // nearest below (or at)
     const near = Number(p.lr_near_sd ?? 1.5) * sd;
-    const atRes = res && (k.high >= res.lo || res.lo - close <= near);
-    const atSup = sup && (k.low <= sup.hi || close - sup.hi <= near);
+    let atRes = !!res && (k.high >= res.lo || res.lo - close <= near);
+    let atSup = !!sup && (k.low <= sup.hi || close - sup.hi <= near);
     if (res && sup && res.lo - sup.hi < (Number(p.lr_corridor_sd) || 3) * sd) return null;      // narrow corridor
+    // Both "near" (happens with loose settings): the level the candle really touched wins, otherwise the closer one.
+    if (atRes && atSup) {
+      const tRes = k.high >= res.lo, tSup = k.low <= sup.hi;
+      if (tRes !== tSup) { atRes = tRes; atSup = tSup; }
+      else if (res.lo - close < close - sup.hi) atSup = false; else atRes = false;
+    }
     // --- Step 2: allowed direction from the place.
-    if (atRes === atSup) return null;                                                            // middle (or both)
+    if (!atRes && !atSup) return null;                                                           // middle
     const dir = atSup ? 1 : -1, lvl = dir > 0 ? sup : res;
     if ((dir > 0 && p.lr_buy === false) || (dir < 0 && p.lr_sell === false)) return null;
     // Bans: closed beyond the level without coming back; flat market.

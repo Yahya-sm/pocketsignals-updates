@@ -280,7 +280,7 @@ function renderStrategies(s) {
     <div class="strat-body">
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')}</small>${x.presets.map((pr, n) =>
-        `<button class="chip${x.params.pb_preset === pr.values.pb_preset ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
+        `<button class="chip${Object.entries(pr.values).every(([pk, pv]) => x.params[pk] === pv) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
       ${Object.entries(x.params).map(([k, v]) => `<label class="prow"><span>${esc(paramLabel(k))}</span>${paramInput(x.key, k, v)}</label>`).join('')}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('no_strategy')}</p>`;
