@@ -206,6 +206,7 @@ const PARAM_NAMES = {
   lr_lvl_skip: ['Letzte … Kerzen nicht für Level nutzen (Level muss schon da sein)', 'Последние … свечей не брать для уровней (уровень должен быть раньше)', 'Ignore the last … candles for levels (level must exist before)'],
   lr_min_touches: ['Level: mindestens … Berührungen (sonst nur Extrem)', 'Уровень: минимум … касаний (иначе только экстремум)', 'Level: at least … touches (else only the extreme)'],
   lr_zone_sd: ['Levelzone höchstens … × SD breit', 'Ширина зоны уровня не больше … × СД', 'Level zone at most … × SD wide'],
+  lr_zone_pad: ['Levelzone auf jeder Seite … × SD breiter (Toleranz)', 'Зона уровня шире на … × СД с каждой стороны (допуск)', 'Level zone … × SD wider on each side (tolerance)'],
   lr_near_sd: ['„Am Level“: Schluss höchstens … × SD entfernt', '«У уровня»: закрытие не дальше … × СД', '"At the level": close at most … × SD away'],
   lr_corridor_sd: ['Kein Signal im engen Korridor unter … × SD', 'Нет сигнала в узком коридоре меньше … × СД', 'No signal in a corridor under … × SD'],
   lr_space_sd: ['Platz bis zum Gegen-Level mindestens … × SD', 'Место до встречного уровня минимум … × СД', 'Room to the opposite level at least … × SD'],

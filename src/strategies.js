@@ -76,7 +76,7 @@ const DEFAULTS = {
   // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
   // model B (vertical impulse into the level → big opposite candle). SD = average candle range of lr_sd_period candles.
   n_levelrev: { expiry: 60, lr_min_strength: 4, lr_model_a: true, lr_model_b: true, lr_buy: true, lr_sell: true,
-    lr_sd_period: 20, lr_lvl_len: 50, lr_lvl_skip: 2, lr_min_touches: 2, lr_zone_sd: 1, lr_near_sd: 1.5, lr_corridor_sd: 3,
+    lr_sd_period: 20, lr_lvl_len: 50, lr_lvl_skip: 2, lr_min_touches: 2, lr_zone_sd: 1, lr_zone_pad: 0.25, lr_near_sd: 1.5, lr_corridor_sd: 3,
     lr_space_sd: 2, lr_flat_bars: 10, lr_flat_sd: 2,
     lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
     lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60 },
@@ -302,11 +302,13 @@ const S = {
     return out;
   },
   n_levelrev(x, p) {
+    // Diagnosis: a test sets globalThis.__lrWhy = [] to collect why there was no signal.
+    const no = why => { if (globalThis.__lrWhy) globalThis.__lrWhy.push(why); return null; };
     const c = x.c, i = x.last, k = c[i], N = Number(p.lr_sd_period) || 20, len = Number(p.lr_lvl_len) || 50;
-    if (i < len + 5) return null;
+    if (i < len + 5) return no('history');
     const rng = j => c[j].high - c[j].low, bod = j => Math.abs(c[j].close - c[j].open);
     let sd = 0, ab = 0; for (let j = i - N + 1; j <= i; j++) { sd += rng(j); ab += bod(j); } sd /= N; ab /= N;
-    if (!(sd > 0)) return null;
+    if (!(sd > 0)) return no('sd');
     // --- Step 1: structure. Levels only from the history before the last lr_lvl_skip candles (a level must already exist).
     const from = i - len, to = i - Number(p.lr_lvl_skip ?? 2) - 1, zoneW = (Number(p.lr_zone_sd) || 1) * sd;
     const zones = (side) => {
@@ -322,7 +324,9 @@ const S = {
       // The extreme of the whole stretch also counts as a level.
       let ext = side > 0 ? -Infinity : Infinity; for (let j = from; j <= to; j++) ext = side > 0 ? Math.max(ext, c[j].high) : Math.min(ext, c[j].low);
       const minT = Number(p.lr_min_touches) || 2;
-      return out.filter(z => z.n >= minT).concat([{ lo: ext, hi: ext, n: 1, ext: true }]);
+      // A level is a zone, not one price: widen it by lr_zone_pad × SD on both sides (a close one pip past it is still "at" it).
+      const pad = Number(p.lr_zone_pad ?? 0.25) * sd;
+      return out.filter(z => z.n >= minT).concat([{ lo: ext, hi: ext, n: 1, ext: true }]).map(z => ({ ...z, rlo: z.lo, rhi: z.hi, lo: z.lo - pad, hi: z.hi + pad })); // rlo/rhi: the level itself
     };
     const close = k.close;
     const res = zones(1).filter(z => z.hi >= close - zoneW).sort((a, b) => a.lo - b.lo)[0];      // nearest above (or at) the price
@@ -330,7 +334,7 @@ const S = {
     const near = Number(p.lr_near_sd ?? 1.5) * sd;
     let atRes = !!res && (k.high >= res.lo || res.lo - close <= near);
     let atSup = !!sup && (k.low <= sup.hi || close - sup.hi <= near);
-    if (res && sup && res.lo - sup.hi < (Number(p.lr_corridor_sd) || 3) * sd) return null;      // narrow corridor
+    if (res && sup && res.rlo - sup.rhi < (Number(p.lr_corridor_sd) || 3) * sd) return no('corridor');      // narrow corridor
     // Both "near" (happens with loose settings): the level the candle really touched wins, otherwise the closer one.
     if (atRes && atSup) {
       const tRes = k.high >= res.lo, tSup = k.low <= sup.hi;
@@ -338,17 +342,17 @@ const S = {
       else if (res.lo - close < close - sup.hi) atSup = false; else atRes = false;
     }
     // --- Step 2: allowed direction from the place.
-    if (!atRes && !atSup) return null;                                                           // middle
+    if (!atRes && !atSup) return no('middle');                                                           // middle
     const dir = atSup ? 1 : -1, lvl = dir > 0 ? sup : res;
-    if ((dir > 0 && p.lr_buy === false) || (dir < 0 && p.lr_sell === false)) return null;
+    if ((dir > 0 && p.lr_buy === false) || (dir < 0 && p.lr_sell === false)) return no('side_off');
     // Bans: closed beyond the level without coming back; flat market.
-    if (dir > 0 ? close < lvl.lo : close > lvl.hi) return null;
+    if (dir > 0 ? close < lvl.lo : close > lvl.hi) return no('beyond_level');
     const fb = Number(p.lr_flat_bars) || 10;
     let fh = -Infinity, fl = Infinity; for (let j = i - fb + 1; j <= i; j++) { fh = Math.max(fh, c[j].high); fl = Math.min(fl, c[j].low); }
-    if (fh - fl < (Number(p.lr_flat_sd) || 2) * sd) return null;
+    if (fh - fl < (Number(p.lr_flat_sd) || 2) * sd) return no('flat');
     // --- Step 3: room to the opposite level.
     const opp = dir > 0 ? res : sup;
-    if (opp && (dir > 0 ? opp.lo - close : close - opp.hi) < (Number(p.lr_space_sd) || 2) * sd) return null;
+    if (opp && (dir > 0 ? opp.rlo - close : close - opp.rhi) < (Number(p.lr_space_sd) || 2) * sd) return no('no_space');
     // --- Step 4: models (mirror for PUT: "tail" = wick on the level's side, "nose" = the other one).
     const r = rng(i), b = bod(i);
     const tail = dir > 0 ? Math.min(k.open, k.close) - k.low : k.high - Math.max(k.open, k.close);
@@ -383,12 +387,12 @@ const S = {
       B = ok && n >= iMin && n <= iMax && move >= (Number(p.lr_imp_move_sd) || 3) * sd && sum / n > ab && inZone && I.dirOf(last) === -dir
         && (b >= lastBody || (dir > 0 ? close > mid : close < mid));
     }
-    if (!A && !B) return null;
+    if (!A && !B) return no('no_model');
     // --- Step 5: strength 4 or 5.
     const pierced = dir > 0 ? k.low < lvl.lo : k.high > lvl.hi;
     const strong = (lvl.n >= 2 || lvl.ext) && (pierced || (A && B) || lvl.n >= 3);
     const power = strong ? 5 : 4;
-    if (power < (Number(p.lr_min_strength) || 4)) return null;
+    if (power < (Number(p.lr_min_strength) || 4)) return no('strength');
     const model = A && B ? 'A+B' : A ? 'A' : 'B';
     const lvlTxt = lvl.ext ? 'экстремум' : `${lvl.n} касания`, lvlDe = lvl.ext ? 'Extrem' : `${lvl.n} Berührungen`, lvlEn = lvl.ext ? 'extreme' : `${lvl.n} touches`;
     const s = sig(dir, power * 20, L(

@@ -60,6 +60,13 @@ class Engine extends EventEmitter {
     this.po.on('log', () => this.emit('state'));
   }
 
+  // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
+  // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
+  _ownTrendLogic(sig) {
+    if (sig.strategy === 'n_levelrev') return true;
+    return sig.strategy === 'n_pinbar' && strategies.paramsFor('n_pinbar', this.settings).pb_mode === 'reversal';
+  }
+
   _addTick(asset, time, price) {
     const t = this.ticks.get(asset); if (!t) return; // only after the pair's tick history arrived
     if (t.length && time <= t[t.length - 1][0]) return;
@@ -209,7 +216,7 @@ class Engine extends EventEmitter {
     const tf = 'S' + sec, trend = this.settings.trend_filter ? this.m5Trend(h.asset) : null;
     for (const sig of strategies.evaluate({ [tf]: closed }, this.enabledStrategies(), this.settings)) {
       if (sig.strength < (this.settings.min_strength || 0)) continue;
-      if ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0)) continue;
+      if (!this._ownTrendLogic(sig) && ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0))) continue;
       this.scanSignals.push({ ...sig, asset: h.asset, candle: closed[closed.length - 1], entry });
     }
   }
@@ -262,7 +269,7 @@ class Engine extends EventEmitter {
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
         if (sig.strategy !== 'n_pinbar' && sig.strategy !== 'n_levelrev' && sig.strength < (this.settings.min_strength || 0)) continue;
-        if ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0)) continue;
+        if (!this._ownTrendLogic(sig) && ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0))) continue;
         this.scanSignals.push({ ...sig, asset: h.asset, candle: candles[candles.length - 1] });
       }
     };
