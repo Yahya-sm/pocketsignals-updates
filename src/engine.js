@@ -65,7 +65,10 @@ class Engine extends EventEmitter {
     this.scanSignals = [];        // PocketOption sends candles by itself right after the login, before the first scan
     this.pendingScan = [];
     this.status = 'start';
-    this.po = new POClient(loadSsid(this.config), this.config.poUrl);
+    // A demo session allows only one connection: ours kicked the PocketOption tab off (empty demo chart on the phone,
+    // log "PO-Seite: getrennt … 1005" right after "Verbinde"). With a known real login the data goes over that one.
+    const rg = this.config.realGood, startDemo = /"isDemo"\s*:\s*1/.test(loadSsid(this.config) || '');
+    this.po = startDemo && rg && rg.ssid ? new POClient(rg.ssid, rg.url) : new POClient(loadSsid(this.config), this.config.poUrl);
     this.po.on('status', s => { this.status = s; this.emit('state'); });
     this.po.on('assets', a => this._onAssets(a));
     this.po.on('history', h => this._onHistory(h));
