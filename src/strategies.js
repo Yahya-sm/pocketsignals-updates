@@ -82,8 +82,10 @@ const DEFAULTS = {
     lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
     lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60, lr_b_early: false, lr_b_early_pct: 60 },
   // V-reversal anywhere (model B of n_levelrev without the levels): a vertical run of candles, then a big candle against it.
-  n_vrev: { expiry: 120, vr_buy: true, vr_sell: true, vr_sd_period: 20, vr_imp_min: 3, vr_imp_max: 6, vr_move_sd: 3,
-    vr_avgbody: true, vr_steps: true, vr_body_pct: 60, vr_cover: true, vr_extreme: 20, vr_last_big: 0, vr_answer_pct: 0 },
+  // Default = the user's examples: one big candle, then an opposite one at least as big (spike). The multi-candle run is
+  // still possible (vr_imp_min > 1) but gave signals the user called junk.
+  n_vrev: { expiry: 120, vr_buy: true, vr_sell: true, vr_min_bp: 1, vr_sd_period: 20, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0,
+    vr_avgbody: false, vr_steps: false, vr_body_pct: 55, vr_cover: true, vr_extreme: 0, vr_last_big: 1.5, vr_answer_pct: 100 },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
@@ -137,9 +139,10 @@ const PRESETS = {
   // V-reversal, measured 28.10.2026 (17 OTC pairs, 2 h, M1): loose 35 signals 63 %, medium 17 / 71 %, strict 13 / 69 % at 2 min
   // (1 min ~56 %, 3 min ~53 % – the bounce is short, so expiry 120 s).
   n_vrev: [
-    { name: L('Мягко', 'Locker', 'Loose'), values: { vr_imp_min: 2, vr_move_sd: 2, vr_body_pct: 50, vr_extreme: 10, vr_steps: true, vr_avgbody: true, vr_cover: true } },
-    { name: L('Средне', 'Mittel', 'Medium'), values: { vr_imp_min: 3, vr_move_sd: 2.5, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
-    { name: L('Строго', 'Streng', 'Strict'), values: { vr_imp_min: 3, vr_move_sd: 3, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
+    { name: L('Шип мягко (обратная ≥ 80 %)', 'Spitze locker (Gegenkerze ≥ 80 %)', 'Spike loose (opposite ≥ 80 %)'),
+      values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 1.5, vr_answer_pct: 80 } },
+    { name: L('Шип строго (свеча ≥ 2× средней)', 'Spitze streng (Kerze ≥ 2× Durchschnitt)', 'Spike strict (candle ≥ 2× average)'),
+      values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 60, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 2, vr_answer_pct: 100 } },
     // The user's examples (USD/COP, CHF/JPY): one big candle (≥ 1.5 × average), right after it an opposite one at least as
     // big; anywhere, also inside a trend. Measured: 13 signals in 2 h on 17 pairs, 62 % / 85 % / 85 % at 1 / 2 / 3 min.
     { name: L('Шип (большая свеча → такая же обратная)', 'Spitze (große Kerze → gleich große Gegenkerze)', 'Spike (big candle → equally big opposite)'),
@@ -191,7 +194,7 @@ const GROUPS = {
   n_vrev: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
       desc: L('Направления и экспирация. По замеру лучше всего 2 минуты (120 с): отскок короткий.', 'Richtungen und Ablaufzeit. Gemessen am besten 2 Minuten (120 s): der Rücksprung ist kurz.', 'Directions and expiry. Measured best at 2 minutes (120 s): the bounce is short.'),
-      keys: ['expiry', 'vr_buy', 'vr_sell'] },
+      keys: ['expiry', 'vr_buy', 'vr_sell', 'vr_min_bp'] },
     { title: L('2 · Импульс (вертикаль)', '2 · Impuls (senkrecht)', '2 · Impulse (vertical)'),
       desc: L('Резкое движение перед разворотом: сколько свечей подряд и насколько далеко (в SD — средних свечах). Больше = реже, но движение сильнее. «Ровные шаги»: каждая свеча закрывается дальше предыдущей. «Крупнее среднего»: тела импульса больше обычных.',
         'Die steile Bewegung vor der Umkehr: wie viele Kerzen in Folge und wie weit (in SD = Durchschnittskerzen). Größer = seltener, aber stärker. „Saubere Schritte“: jede Kerze schließt weiter. „Größer als normal“: Impulskörper größer als üblich.',
@@ -418,6 +421,8 @@ const S = {
     let sd = 0, ab = 0; for (let j = i - N + 1; j <= i; j++) { sd += rng(j); ab += bod(j); } sd /= N; ab /= N;
     const dir = I.dirOf(k), r = rng(i), b = bod(i);
     if (!dir || !(sd > 0) || !(r > 0)) return null;
+    // Dead pairs (USD/MYR, gold OTC: candles of a few hundredths of a basis point) – "big" there is still nothing.
+    if (sd / k.close * 10000 < Number(p.vr_min_bp ?? 1)) return null;
     if ((dir > 0 && p.vr_buy === false) || (dir < 0 && p.vr_sell === false)) return null;
     // Reversal candle: big body against the run.
     if (b < (Number(p.vr_body_pct) || 0) / 100 * r) return null;

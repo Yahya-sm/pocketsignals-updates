@@ -208,6 +208,7 @@ const PARAM_NAMES = {
   vr_extreme: ['Neues Extrem der letzten … Kerzen (0 = aus)', 'Новый экстремум за … свечей (0 = выкл.)', 'New extreme of the last … candles (0 = off)'],
   vr_body_pct: ['Umkehrkerze: Körper mind. %', 'Свеча разворота: тело мин. %', 'Reversal candle: body min. %'],
   vr_cover: ['Umkehrkerze überdeckt die letzte Impulskerze', 'Свеча разворота перекрывает последнюю свечу импульса', 'Reversal candle covers the last impulse candle'],
+  vr_min_bp: ['Tote Paare aus: Kerze mind. … Basispunkte (0 = aus)', 'Без «мёртвых» пар: свеча мин. … б.п. (0 = выкл.)', 'Skip dead pairs: candle at least … bp (0 = off)'],
   vr_last_big: ['Spitze: letzte Impulskerze mind. … × Durchschnitt (0 = aus)', 'Шип: последняя свеча импульса мин. … × средней (0 = выкл.)', 'Spike: last impulse candle at least … × average (0 = off)'],
   vr_answer_pct: ['Spitze: Umkehrkörper mind. % der Impulskerze (0 = aus)', 'Шип: тело разворота мин. % от свечи импульса (0 = выкл.)', 'Spike: reversal body at least % of the impulse candle (0 = off)'],
   m25_quiet: ['Ruhe davor: Kerzen ohne Kreuzung (0 = aus)', 'Спокойно перед: свечей без пересечения (0 = выкл.)', 'Calm before: candles without a cross (0 = off)'],

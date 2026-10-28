@@ -48,6 +48,12 @@ class Engine extends EventEmitter {
       s.lr_soft_1028 = true;
       writeJson(this.settingsFile, s);
     }
+    // V-reversal settings back to the new defaults (spike); the old multi-candle values gave junk signals.
+    if (!this.settings.vrev_spike_1028) {
+      if (this.settings.strategy_settings) delete this.settings.strategy_settings.n_vrev;
+      this.settings.vrev_spike_1028 = true;
+      writeJson(this.settingsFile, this.settings);
+    }
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
     if (!this.settings.pc_match_1028) {
       Object.assign(this.settings, { min_payout: 75, min_confirm: 1, min_strength: 60, trend_only: false, no_countertrend: false,
