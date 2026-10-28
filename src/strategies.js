@@ -82,7 +82,7 @@ const DEFAULTS = {
     lr_sd_period: 20, lr_lvl_len: 50, lr_lvl_skip: 2, lr_min_touches: 2, lr_zone_sd: 1, lr_zone_pad: 0.25, lr_near_sd: 1.5, lr_corridor_sd: 3,
     lr_space_sd: 2, lr_flat_bars: 10, lr_flat_sd: 2,
     lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
-    lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60 },
+    lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60, lr_b_early: false, lr_b_early_pct: 60 },
   n_pinbar: { expiry: 60, ...FILTERS, pb_preset: 2, pb_mode: 'trend', pb_min_score: 8,
     pb_imp_gap: 3, pb_ext_atr: 1.5, pb_rsi_rev: 30, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
@@ -188,7 +188,8 @@ function liveMode(name, settings) {
   if (name === 'n_level' || name === 'n_ma25' || name === 'n_pinbar') return 'live';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   if (name === 'n_5x5' && p.five_bot) return 'closed';
-  if (name === 'n_levelrev') return 'closed'; // only the last fully closed candle counts
+  // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
+  if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
   return 'legacy';
 }
 
@@ -362,10 +363,15 @@ const S = {
     if (on('lr_use_space') && opp && (dir > 0 ? opp.rlo - close : close - opp.rhi) < (Number(p.lr_space_sd) || 2) * sd) return no('no_space');
     // --- Step 4: models (mirror for PUT: "tail" = wick on the level's side, "nose" = the other one).
     const r = rng(i), b = bod(i);
+    // Early V-reversal (lr_b_early): c[i] is the forming candle – only model B, and its body must already reach
+    // lr_b_early_pct % of the candle against the impulse. Entry now; the same signal is not sent again at the close.
+    const live = k.time + 60 * (x.tfMin || 1) > Date.now() / 1000;
+    if (live && !p.lr_b_early) return no('live_off');
+    if (live && !(I.dirOf(k) === dir && b >= Number(p.lr_b_early_pct ?? 60) / 100 * r)) return no('early_body');
     const tail = dir > 0 ? Math.min(k.open, k.close) - k.low : k.high - Math.max(k.open, k.close);
     const nose = dir > 0 ? k.high - Math.max(k.open, k.close) : Math.min(k.open, k.close) - k.low;
     let A = false;
-    if (p.lr_model_a !== false && r > 0) {
+    if (!live && p.lr_model_a !== false && r > 0) {
       const pb = Number(p.lr_prior_bars) || 2;
       let against = 0; for (let j = i - 3; j < i; j++) if (I.dirOf(c[j]) === -dir) against++;
       const moved = dir > 0 ? c[i - 1].close < c[i - 3].open : c[i - 1].close > c[i - 3].open;
@@ -380,7 +386,7 @@ const S = {
         && tail > nose; // without any filter: at least the long wick on the level's side
     }
     let B = false;
-    if (p.lr_model_b !== false && I.dirOf(k) === dir && (!on('lr_b_body') || b >= (Number(p.lr_vbody_pct) || 60) / 100 * r)) {
+    if (p.lr_model_b !== false && I.dirOf(k) === dir && (live || !on('lr_b_body') || b >= (Number(p.lr_vbody_pct) || 60) / 100 * r)) {
       // Vertical impulse against the trade ending right before the signal candle, in the level zone.
       const iMin = Number(p.lr_imp_min) || 3, iMax = Number(p.lr_imp_max) || 6;
       let n = 0, opposite = 0, small = 0, ok = true, sum = 0, prevClose = null;
@@ -416,6 +422,8 @@ const S = {
       `${power}/5 · ${dir > 0 ? 'у поддержки' : 'у сопротивления'} (${lvlTxt})${pierced ? ', прокол с возвратом' : ''} · модель ${model}${A ? `, тень ${Math.round(100 * tail / r)}%` : ''}`,
       `${power}/5 · ${dir > 0 ? 'an Unterstützung' : 'an Widerstand'} (${lvlDe})${pierced ? ', durchstochen und zurück' : ''} · Modell ${model}${A ? `, Docht ${Math.round(100 * tail / r)}%` : ''}`,
       `${power}/5 · ${dir > 0 ? 'at support' : 'at resistance'} (${lvlEn})${pierced ? ', pierced and back' : ''} · model ${model}${A ? `, wick ${Math.round(100 * tail / r)}%` : ''}`), Number(p.expiry) || 60);
+    s.bar = k.time; // one signal per signal candle: an early one is not repeated after the close
+    if (live) { s.entry = Math.floor(Date.now() / 1000); s.reason = addText(s.reason, L(' · рано (свеча ещё идёт)', ' · früh (Kerze läuft noch)', ' · early (candle still running)')); }
     return s;
   },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot

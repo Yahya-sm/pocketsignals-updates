@@ -223,6 +223,8 @@ const PARAM_NAMES = {
   lr_b_zone: ['B-Filter: Impuls endet in der Levelzone', 'Фильтр B: импульс закончился в зоне уровня', 'B filter: impulse ends in the level zone'],
   lr_b_body: ['B-Filter: Signalkerze großer Körper (Mindest-%)', 'Фильтр B: большое тело сигнальной свечи (мин. %)', 'B filter: big body of the signal candle (min. %)'],
   lr_b_cover: ['B-Filter: Signalkerze deckt letzte Impulskerze ab', 'Фильтр B: сигнальная свеча перекрывает последнюю свечу импульса', 'B filter: signal candle covers the last impulse candle'],
+  lr_b_early: ['B früh: Signal schon während der Umkehrkerze (Scan unter 60 s nötig)', 'B рано: сигнал уже во время разворотной свечи (нужен скан меньше 60 с)', 'B early: signal already during the reversal candle (scan under 60 s needed)'],
+  lr_b_early_pct: ['B früh: Körper der laufenden Kerze mindestens … %', 'B рано: тело текущей свечи минимум … %', 'B early: body of the running candle at least … %'],
   lr_zone_pad: ['Levelzone auf jeder Seite … × SD breiter (Toleranz)', 'Зона уровня шире на … × СД с каждой стороны (допуск)', 'Level zone … × SD wider on each side (tolerance)'],
   lr_near_sd: ['„Am Level“: Schluss höchstens … × SD entfernt', '«У уровня»: закрытие не дальше … × СД', '"At the level": close at most … × SD away'],
   lr_corridor_sd: ['Kein Signal im engen Korridor unter … × SD', 'Нет сигнала в узком коридоре меньше … × СД', 'No signal in a corridor under … × SD'],
