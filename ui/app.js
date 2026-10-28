@@ -216,12 +216,19 @@ function strategyStats() {
   for (const s of state.signals) {
     const b = (by[s.strategy] ??= { name: s.strategyName, n: 0, w: 0, l: 0 });
     b.n++; if (s.result === 'WIN') b.w++; if (s.result === 'LOSS') b.l++;
+    // Strategies with several models (reversal at a level: A, B, A+B) also get one row per model.
+    if (s.model) {
+      const m = (by[s.strategy + '|' + s.model] ??= { name: s.strategyName, sub: t('model_' + s.model), n: 0, w: 0, l: 0 });
+      m.n++; if (s.result === 'WIN') m.w++; if (s.result === 'LOSS') m.l++;
+    }
   }
-  const rows = Object.values(by).sort((a, b) => b.n - a.n);
+  // Model rows right under their strategy.
+  const rows = Object.entries(by).filter(([k]) => !k.includes('|')).sort((a, b) => b[1].n - a[1].n)
+    .flatMap(([k, v]) => [v, ...Object.entries(by).filter(([m]) => m.startsWith(k + '|')).map(([, x]) => x).sort((a, b) => b.n - a.n)]);
   if (!rows.length) return `<p class="empty">${t('no_signals')}</p>`;
   return rows.map(b => {
     const done = b.w + b.l, r = done ? Math.round(100 * b.w / done) : null;
-    return `<div class="srow"><div class="top"><b>${esc(tr(b.name))}</b><b style="color:${r == null ? 'var(--muted)' : rateColor(r)}">${r == null ? '–' : r + '%'}</b></div>
+    return `<div class="srow${b.sub ? ' sub' : ''}"><div class="top"><b>${esc(b.sub ? '↳ ' + b.sub : tr(b.name))}</b><b style="color:${r == null ? 'var(--muted)' : rateColor(r)}">${r == null ? '–' : r + '%'}</b></div>
       <small>${t('stat_line', { n: b.n, w: b.w, l: b.l })}</small>
       <div class="meter"><i style="width:${r ?? 0}%;background:${r == null ? 'transparent' : rateColor(r)}"></i></div></div>`;
   }).join('');

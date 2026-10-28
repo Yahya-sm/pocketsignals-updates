@@ -162,6 +162,7 @@ input[type=search] { width: 100%; background: var(--card); border: 1px solid var
 .tfs { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 10px; }
 .presets small { width: 100%; color: var(--muted); }
+.srow.sub { margin-left: 16px; opacity: .9; }
 .pgroup { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; margin: 8px 0; }
 .pgroup > b { display: block; font-size: 13px; }
 .pgroup > small { display: block; color: var(--muted); margin: 2px 0 6px; line-height: 1.35; }

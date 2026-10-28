@@ -317,7 +317,7 @@ class Engine extends EventEmitter {
     if (this.signals.some(x => x.id === id)) return;
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',
-      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf,
+      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}),
       strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };

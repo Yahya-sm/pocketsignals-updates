@@ -342,6 +342,7 @@ const S = {
       `${power}/5 · ${dir > 0 ? 'у поддержки' : 'у сопротивления'} (${lvlTxt})${pierced ? ', прокол с возвратом' : ''} · модель ${model}${A ? `, тень ${Math.round(100 * tail / r)}%` : ''}`,
       `${power}/5 · ${dir > 0 ? 'an Unterstützung' : 'an Widerstand'} (${lvlDe})${pierced ? ', durchstochen und zurück' : ''} · Modell ${model}${A ? `, Docht ${Math.round(100 * tail / r)}%` : ''}`,
       `${power}/5 · ${dir > 0 ? 'at support' : 'at resistance'} (${lvlEn})${pierced ? ', pierced and back' : ''} · model ${model}${A ? `, wick ${Math.round(100 * tail / r)}%` : ''}`), Number(p.expiry) || 60);
+    s.model = model; // win rate per model in the statistics
     s.bar = k.time; // one signal per signal candle: an early one is not repeated after the close
     if (live) { s.entry = Math.floor(Date.now() / 1000); s.reason = addText(s.reason, L(' · рано (свеча ещё идёт)', ' · früh (Kerze läuft noch)', ' · early (candle still running)')); }
     return s;
