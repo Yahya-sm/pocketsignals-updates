@@ -66,6 +66,8 @@ const BIG_BOT = { bot: false, preclose_sec: 8, big_m5: true, big_quiet: false, b
 const SHARP_BOT = { bot: false, preclose_sec: 8, sharp_series: true, sharp_move: false, sharp_imp: 2, sharp_drop: 4, sharp_fresh: 5,
   sharp_m5: true, sharp_hours: false, sharp_adx: 0, sharp_day_only: false, sharp_buy: true, sharp_sell: true };
 const FIVE_BOT = { five_bot: false, candle_ma: 5, five_er_min: 0.3, five_trend: true, five_adx_min: 20, five_sar: 4, five_confirm: true, five_room: 0.7 };
+// Market rules for the reversal setups (see marketOk): volatile market only, no entry straight into a level.
+const MARKET = { mk_vol: 1, mk_big: 1.8, mk_room: 1 };
 const DEFAULTS = {
   n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true, ...SHARP_BOT },
   n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT },
@@ -73,7 +75,7 @@ const DEFAULTS = {
   // Reversal at a level (user's prompt of 28.10.2026): structure first (support/resistance from the history), the side
   // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
   // model B (vertical impulse into the level → big opposite candle). SD = average candle range of lr_sd_period candles.
-  n_levelrev: { expiry: 60, lr_min_strength: 4, lr_model_a: true, lr_model_b: true, lr_buy: true, lr_sell: true,
+  n_levelrev: { expiry: 60, ...MARKET, lr_min_strength: 4, lr_model_a: true, lr_model_b: true, lr_buy: true, lr_sell: true,
     lr_use_corridor: true, lr_use_beyond: true, lr_use_flat: true, lr_use_space: true,
     lr_a_prior: true, lr_a_touch: true, lr_a_tail: true, lr_a_body: true, lr_a_nose: true, lr_a_size: true,
     lr_b_count: true, lr_b_move: true, lr_b_avgbody: true, lr_b_steps: true, lr_b_zone: true, lr_b_body: true, lr_b_cover: true,
@@ -84,7 +86,7 @@ const DEFAULTS = {
   // V-reversal anywhere (model B of n_levelrev without the levels): a vertical run of candles, then a big candle against it.
   // Default = the user's examples: one big candle, then an opposite one at least as big (spike). The multi-candle run is
   // still possible (vr_imp_min > 1) but gave signals the user called junk.
-  n_vrev: { expiry: 120, vr_buy: true, vr_sell: true, vr_min_bp: 1, vr_sd_period: 20, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0,
+  n_vrev: { expiry: 120, ...MARKET, vr_buy: true, vr_sell: true, vr_min_bp: 1, vr_sd_period: 20, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0,
     vr_avgbody: false, vr_steps: false, vr_body_pct: 55, vr_cover: true, vr_extreme: 0, vr_last_big: 1.5, vr_answer_pct: 100, },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
@@ -161,8 +163,14 @@ const PRESETS = {
 };
 
 // Settings shown in blocks: each block says what it decides and which way is stricter. Keys not listed go to the end.
+const MARKET_GROUP = { title: L('0 · Рынок (когда вообще давать сигналы)', '0 · Markt (wann überhaupt Signale)', '0 · Market (when to signal at all)'),
+  desc: L('Сигнал только на живом рынке: последние 10 свечей в среднем не меньше X × обычного размера, и среди них есть большая свеча (≥ Y × обычной). И никогда CALL прямо под сопротивлением, PUT прямо над поддержкой: до уровня по ходу сделки должно быть не меньше Z средних свечей. 0 = выкл.',
+    'Signal nur bei lebhaftem Markt: die letzten 10 Kerzen im Schnitt mindestens X × normal, darunter eine große (≥ Y × normal). Nie CALL direkt unter Widerstand, nie PUT direkt über Unterstützung: bis zum Level in Handelsrichtung mindestens Z Durchschnittskerzen. 0 = aus.',
+    'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
+  keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
   n_levelrev: [
+    MARKET_GROUP,
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
       desc: L('Направления, модели и минимальная сила. Сила 5 = только самые сильные сигналы (меньше, но качественнее).',
         'Richtungen, Modelle und Mindeststärke. Stärke 5 = nur die stärksten Signale (weniger, aber besser).',
@@ -195,6 +203,7 @@ const GROUPS = {
       keys: ['lr_b_early', 'lr_b_early_pct'] },
   ],
   n_vrev: [
+    MARKET_GROUP,
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
       desc: L('Направления и экспирация. По замеру лучше всего 2 минуты (120 с): отскок короткий.', 'Richtungen und Ablaufzeit. Gemessen am besten 2 Minuten (120 s): der Rücksprung ist kurz.', 'Directions and expiry. Measured best at 2 minutes (120 s): the bounce is short.'),
       keys: ['expiry', 'vr_buy', 'vr_sell', 'vr_min_bp'] },
@@ -772,6 +781,25 @@ function passesFilters(x, p, s, type) {
   return true;
 }
 
+// Market rules for the reversal setups (user, 28.10.2026: "only on a volatile market; never CALL into resistance,
+// never PUT into support"). mk_vol: the last 10 candles average at least mk_vol × the average of the last 60;
+// mk_big: one of the last 10 candles is at least mk_big × that average; mk_room: room to the next level in the trade's
+// direction in average candles (no CALL right under resistance, no PUT right above support). 0 = off.
+function marketOk(x, p, dir) {
+  const c = x.c, i = x.last;
+  if (p.mk_vol || p.mk_big) {
+    if (i < 60) return false;
+    const rg = j => c[j].high - c[j].low;
+    let a60 = 0, a10 = 0, big = 0;
+    for (let j = i - 59; j <= i; j++) a60 += rg(j); a60 /= 60;
+    for (let j = i - 9; j <= i; j++) { a10 += rg(j); big = Math.max(big, rg(j)); } a10 /= 10;
+    if (p.mk_vol && a10 < p.mk_vol * a60) return false;
+    if (p.mk_big && big < p.mk_big * a60) return false;
+  }
+  if (p.mk_room && roomAhead(c, i, dir).dist < p.mk_room) return false;
+  return true;
+}
+
 // The strategy's own values: defaults overridden by the user's values – only for keys the strategy uses.
 function paramsFor(name, settings) {
   const user = settings.strategy_settings?.[name] || {};
@@ -805,7 +833,7 @@ function evaluate(candlesByTf, enabled, settings) {
       let s = null, p = base, pr = null;
       for (const set of sets) {
         let r; try { r = fn(x, set.p); } catch { r = null; }
-        if (r && r.dir && passesFilters(x, set.p, r, META[name][1])) { s = r; p = set.p; pr = set.pr; break; }
+        if (r && r.dir && passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
       }
       if (!s) continue;
       if (pr && chosen.length > 1) { s.reason = addText(s.reason, L(` · ${pr.name.ru}`, ` · ${pr.name.de}`, ` · ${pr.name.en}`)); if (!s.model) s.model = pr.name.ru; }
