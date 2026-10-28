@@ -157,8 +157,10 @@ public class MainActivity extends Activity {
         root.addView(signals, match());
         root.addView(po, match());
         root.addView(tv, match());
-        po.setVisibility(View.GONE);
-        tv.setVisibility(View.GONE);
+        // INVISIBLE, not GONE: GONE gives the view size 0, and PocketOption's mobile page then builds its chart 0×0
+        // while loading in the background – the chart stayed empty when the tab was opened.
+        po.setVisibility(View.INVISIBLE);
+        tv.setVisibility(View.INVISIBLE);
 
         // Floating "back to signals" button shown over PocketOption / TradingView.
         backBtn = new TextView(this);
@@ -217,11 +219,15 @@ public class MainActivity extends Activity {
 
     void show(WebView w) {
         if (w != tv) closeTvPopup();
-        signals.setVisibility(w == signals ? View.VISIBLE : View.GONE);
-        po.setVisibility(w == po ? View.VISIBLE : View.GONE);
-        tv.setVisibility(w == tv ? View.VISIBLE : View.GONE);
+        signals.setVisibility(w == signals ? View.VISIBLE : View.INVISIBLE);
+        po.setVisibility(w == po ? View.VISIBLE : View.INVISIBLE);
+        tv.setVisibility(w == tv ? View.VISIBLE : View.INVISIBLE);
         backBtn.setVisibility(w == signals ? View.GONE : View.VISIBLE);
+        w.bringToFront(); // the visible page on top (hidden ones keep their size but get no touches)
+        if (w == tv && tvPopup != null) tvPopup.bringToFront(); // an open TradingView sign-in window stays above
         backBtn.bringToFront();
+        // Let the page redraw its chart for the now visible size.
+        if (w != signals) w.postDelayed(() -> w.evaluateJavascript("window.dispatchEvent(new Event('resize'))", null), 300);
     }
 
     // Ask the signal page for the switch script, then run it inside PocketOption.
