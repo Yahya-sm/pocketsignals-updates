@@ -76,6 +76,9 @@ const DEFAULTS = {
   // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
   // model B (vertical impulse into the level → big opposite candle). SD = average candle range of lr_sd_period candles.
   n_levelrev: { expiry: 60, lr_min_strength: 4, lr_model_a: true, lr_model_b: true, lr_buy: true, lr_sell: true,
+    lr_use_corridor: true, lr_use_beyond: true, lr_use_flat: true, lr_use_space: true,
+    lr_a_prior: true, lr_a_touch: true, lr_a_tail: true, lr_a_body: true, lr_a_nose: true, lr_a_size: true,
+    lr_b_count: true, lr_b_move: true, lr_b_avgbody: true, lr_b_steps: true, lr_b_zone: true, lr_b_body: true, lr_b_cover: true,
     lr_sd_period: 20, lr_lvl_len: 50, lr_lvl_skip: 2, lr_min_touches: 2, lr_zone_sd: 1, lr_zone_pad: 0.25, lr_near_sd: 1.5, lr_corridor_sd: 3,
     lr_space_sd: 2, lr_flat_bars: 10, lr_flat_sd: 2,
     lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
@@ -334,7 +337,9 @@ const S = {
     const near = Number(p.lr_near_sd ?? 1.5) * sd;
     let atRes = !!res && (k.high >= res.lo || res.lo - close <= near);
     let atSup = !!sup && (k.low <= sup.hi || close - sup.hi <= near);
-    if (res && sup && res.rlo - sup.rhi < (Number(p.lr_corridor_sd) || 3) * sd) return no('corridor');      // narrow corridor
+    // Every filter can be switched off (lr_use_* / lr_a_* / lr_b_*: false); only the levels and the side stay.
+    const on = key => p[key] !== false;
+    if (on('lr_use_corridor') && res && sup && res.rlo - sup.rhi < (Number(p.lr_corridor_sd) || 3) * sd) return no('corridor');
     // Both "near" (happens with loose settings): the level the candle really touched wins, otherwise the closer one.
     if (atRes && atSup) {
       const tRes = k.high >= res.lo, tSup = k.low <= sup.hi;
@@ -346,13 +351,15 @@ const S = {
     const dir = atSup ? 1 : -1, lvl = dir > 0 ? sup : res;
     if ((dir > 0 && p.lr_buy === false) || (dir < 0 && p.lr_sell === false)) return no('side_off');
     // Bans: closed beyond the level without coming back; flat market.
-    if (dir > 0 ? close < lvl.lo : close > lvl.hi) return no('beyond_level');
-    const fb = Number(p.lr_flat_bars) || 10;
-    let fh = -Infinity, fl = Infinity; for (let j = i - fb + 1; j <= i; j++) { fh = Math.max(fh, c[j].high); fl = Math.min(fl, c[j].low); }
-    if (fh - fl < (Number(p.lr_flat_sd) || 2) * sd) return no('flat');
+    if (on('lr_use_beyond') && (dir > 0 ? close < lvl.lo : close > lvl.hi)) return no('beyond_level');
+    if (on('lr_use_flat')) {
+      const fb = Number(p.lr_flat_bars) || 10;
+      let fh = -Infinity, fl = Infinity; for (let j = i - fb + 1; j <= i; j++) { fh = Math.max(fh, c[j].high); fl = Math.min(fl, c[j].low); }
+      if (fh - fl < (Number(p.lr_flat_sd) || 2) * sd) return no('flat');
+    }
     // --- Step 3: room to the opposite level.
     const opp = dir > 0 ? res : sup;
-    if (opp && (dir > 0 ? opp.rlo - close : close - opp.rhi) < (Number(p.lr_space_sd) || 2) * sd) return no('no_space');
+    if (on('lr_use_space') && opp && (dir > 0 ? opp.rlo - close : close - opp.rhi) < (Number(p.lr_space_sd) || 2) * sd) return no('no_space');
     // --- Step 4: models (mirror for PUT: "tail" = wick on the level's side, "nose" = the other one).
     const r = rng(i), b = bod(i);
     const tail = dir > 0 ? Math.min(k.open, k.close) - k.low : k.high - Math.max(k.open, k.close);
@@ -364,28 +371,38 @@ const S = {
       const moved = dir > 0 ? c[i - 1].close < c[i - 3].open : c[i - 1].close > c[i - 3].open;
       const bodyEdge = dir > 0 ? Math.min(k.open, k.close) >= k.low + r * 2 / 3 : Math.max(k.open, k.close) <= k.high - r * 2 / 3;
       const touches = dir > 0 ? k.low <= lvl.hi : k.high >= lvl.lo;
-      A = against >= pb && moved && touches && tail >= (Number(p.lr_tail_pct) || 60) / 100 * r && b <= (Number(p.lr_body_pct) || 30) / 100 * r
-        && bodyEdge && nose <= Number(p.lr_nose_pct ?? 15) / 100 * r && r >= (Number(p.lr_pin_min_sd) || 1) * sd;
+      A = (!on('lr_a_prior') || (against >= pb && moved))
+        && (!on('lr_a_touch') || touches)
+        && (!on('lr_a_tail') || tail >= (Number(p.lr_tail_pct) || 60) / 100 * r)
+        && (!on('lr_a_body') || (b <= (Number(p.lr_body_pct) || 30) / 100 * r && bodyEdge))
+        && (!on('lr_a_nose') || nose <= Number(p.lr_nose_pct ?? 15) / 100 * r)
+        && (!on('lr_a_size') || r >= (Number(p.lr_pin_min_sd) || 1) * sd)
+        && tail > nose; // without any filter: at least the long wick on the level's side
     }
     let B = false;
-    if (p.lr_model_b !== false && I.dirOf(k) === dir && b >= (Number(p.lr_vbody_pct) || 60) / 100 * r) {
+    if (p.lr_model_b !== false && I.dirOf(k) === dir && (!on('lr_b_body') || b >= (Number(p.lr_vbody_pct) || 60) / 100 * r)) {
       // Vertical impulse against the trade ending right before the signal candle, in the level zone.
       const iMin = Number(p.lr_imp_min) || 3, iMax = Number(p.lr_imp_max) || 6;
       let n = 0, opposite = 0, small = 0, ok = true, sum = 0, prevClose = null;
       for (let j = i - 1; j >= i - iMax && j > 0; j--) {
         const d = I.dirOf(c[j]);
-        if (d === -dir) { n++; sum += bod(j); if (bod(j) < 0.3 * sd) small++; else small = 0; if (small >= 2) { ok = false; break; } }
+        const steps = on('lr_b_steps'); // each close further on, no pause of 2+ small candles
+        if (d === -dir) { n++; sum += bod(j); if (bod(j) < 0.3 * sd) small++; else small = 0; if (steps && small >= 2) { ok = false; break; } }
         else if (opposite === 0 && bod(j) < 0.3 * sd && n > 0) { opposite++; continue; }
         else break;
-        if (prevClose !== null && (dir > 0 ? c[j].close <= prevClose : c[j].close >= prevClose)) { ok = false; break; } // each close further on
+        if (steps && prevClose !== null && (dir > 0 ? c[j].close <= prevClose : c[j].close >= prevClose)) { ok = false; break; }
         prevClose = c[j].close;
       }
       const startJ = i - n - opposite, last = c[i - 1];
       const move = dir > 0 ? c[startJ].open - last.close : last.close - c[startJ].open;
       const inZone = dir > 0 ? last.low <= lvl.hi + zoneW : last.high >= lvl.lo - zoneW;
       const lastBody = bod(i - 1), mid = (last.open + last.close) / 2;
-      B = ok && n >= iMin && n <= iMax && move >= (Number(p.lr_imp_move_sd) || 3) * sd && sum / n > ab && inZone && I.dirOf(last) === -dir
-        && (b >= lastBody || (dir > 0 ? close > mid : close < mid));
+      B = ok && n >= 1 && I.dirOf(last) === -dir
+        && (!on('lr_b_count') || (n >= iMin && n <= iMax))
+        && (!on('lr_b_move') || move >= (Number(p.lr_imp_move_sd) || 3) * sd)
+        && (!on('lr_b_avgbody') || sum / n > ab)
+        && (!on('lr_b_zone') || inZone)
+        && (!on('lr_b_cover') || b >= lastBody || (dir > 0 ? close > mid : close < mid));
     }
     if (!A && !B) return no('no_model');
     // --- Step 5: strength 4 or 5.
