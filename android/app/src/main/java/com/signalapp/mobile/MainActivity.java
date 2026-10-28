@@ -205,6 +205,12 @@ public class MainActivity extends Activity {
 
         Intent svc = new Intent(this, SignalService.class);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc); else startService(svc);
+        // Wake the engine every 30 s (also in the background): a lost connection is rebuilt even if JS timers slept.
+        root.postDelayed(new Runnable() { public void run() {
+            signals.resumeTimers();
+            signals.evaluateJavascript("window.__psWake&&window.__psWake()", null);
+            root.postDelayed(this, 30000);
+        } }, 30000);
     }
 
     WebView makeWebView() {
@@ -236,7 +242,9 @@ public class MainActivity extends Activity {
 
     void show(WebView w) {
         if (w != tv) closeTvPopup();
-        signals.setVisibility(w == signals ? View.VISIBLE : View.INVISIBLE);
+        // The signal page always stays VISIBLE (just covered): a hidden WebView gets its timers throttled or frozen,
+        // then the engine stopped scanning and reconnecting while PocketOption or TradingView was shown.
+        signals.setVisibility(View.VISIBLE);
         po.setVisibility(w == po ? View.VISIBLE : View.INVISIBLE);
         tv.setVisibility(w == tv ? View.VISIBLE : View.INVISIBLE);
         backBtn.setVisibility(w == signals ? View.GONE : View.VISIBLE);

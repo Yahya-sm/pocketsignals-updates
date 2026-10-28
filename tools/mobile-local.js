@@ -50,4 +50,10 @@ const sendTvMode = () => {
 engine.on('state', sendTvMode);
 sendTvMode();
 setInterval(() => push({ type: 'state', state: engine.state() }), 15000);
+// Called by the Android app every 30 s: a hidden or backgrounded WebView may skip timers for many minutes, so the
+// reconnect after a drop never came (phone log 28.10.2026: 28 minutes without a new attempt). Reconnect if needed.
+window.__psWake = () => {
+  const p = engine.po;
+  if (p.ssid && !p.authed && (!p.ws || p.ws.readyState > 1)) { p._log('Wieder wach – verbinde neu'); p.connect(); }
+};
 engine.start();
