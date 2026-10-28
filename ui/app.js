@@ -221,7 +221,8 @@ function strategyStats() {
     b.n++; if (s.result === 'WIN') b.w++; if (s.result === 'LOSS') b.l++;
     // Strategies with several models (reversal at a level: A, B, A+B) also get one row per model.
     if (s.model) {
-      const m = (by[s.strategy + '|' + s.model] ??= { name: s.strategyName, sub: t('model_' + s.model), n: 0, w: 0, l: 0 });
+      const lbl = t('model_' + s.model), sub = lbl === 'model_' + s.model || !lbl ? s.model : lbl; // preset names have no text key
+      const m = (by[s.strategy + '|' + s.model] ??= { name: s.strategyName, sub, n: 0, w: 0, l: 0 });
       m.n++; if (s.result === 'WIN') m.w++; if (s.result === 'LOSS') m.l++;
     }
   }
@@ -302,8 +303,8 @@ function renderStrategies(s) {
       <button class="strat-arrow" data-open="${x.key}">${openStrats.has(x.key) ? '▴' : '▾'}</button></div>
     <div class="strat-body">
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
-      ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')}</small>${x.presets.map((pr, n) =>
-        `<button class="chip${Object.entries(pr.values).every(([pk, pv]) => x.params[pk] === pv) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
+      ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
+        `<button class="chip${(x.activePresets || []).includes(n) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${(x.activePresets || []).includes(n) ? '✓ ' : ''}${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
       ${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('no_strategy')}</p>`;
@@ -393,7 +394,14 @@ document.addEventListener('click', e => {
   if (el.dataset.filter) { stratFilter = el.dataset.filter; renderStrategies(state.settings); }
   if (el.dataset.preset) {
     const x = state.settings.allStrategies.find(s => s.key === el.dataset.preset), pr = x && x.presets[+el.dataset.pn];
-    if (pr) { call({ action: 'strategy', name: x.key, patch: pr.values }); toast(t('preset_set', { name: tr(pr.name) })); }
+    // Presets are switches: several can be on, a signal comes when any of them fires.
+    if (pr) {
+      const n = +el.dataset.pn, on = new Set(x.activePresets || []);
+      on.has(n) ? on.delete(n) : on.add(n);
+      x.activePresets = [...on].sort();
+      call({ action: 'strategy', name: x.key, presets: x.activePresets });
+      renderStrategies(state.settings);
+    }
   }
   if (el.dataset.reset && confirm(t('defaults_confirm'))) call({ action: 'resetStrategy', name: el.dataset.reset });
   if (el.id === 'scanBtn') { call({ action: 'scan' }); toast(t('toast_scan')); }

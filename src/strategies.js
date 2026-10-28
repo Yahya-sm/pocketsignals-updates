@@ -143,6 +143,9 @@ const PRESETS = {
       values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 1.5, vr_answer_pct: 80 } },
     { name: L('Шип строго (свеча ≥ 2× средней)', 'Spitze streng (Kerze ≥ 2× Durchschnitt)', 'Spike strict (candle ≥ 2× average)'),
       values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 60, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 2, vr_answer_pct: 100 } },
+    // Series: several candles of one colour in a row, then a big opposite candle (measured earlier: 17 signals / 71 % at 2 min).
+    { name: L('Серия (несколько свечей → большая обратная)', 'Serie (mehrere Kerzen → große Gegenkerze)', 'Run (several candles → big opposite)'),
+      values: { expiry: 120, vr_min_bp: 1, vr_imp_min: 3, vr_imp_max: 6, vr_move_sd: 2.5, vr_body_pct: 60, vr_steps: true, vr_avgbody: true, vr_extreme: 20, vr_cover: true, vr_last_big: 0, vr_answer_pct: 0 } },
     // The user's examples (USD/COP, CHF/JPY): one big candle (≥ 1.5 × average), right after it an opposite one at least as
     // big; anywhere, also inside a trend. Measured: 13 signals in 2 h on 17 pairs, 62 % / 85 % / 85 % at 1 / 2 / 3 min.
     { name: L('Шип (большая свеча → такая же обратная)', 'Spitze (große Kerze → gleich große Gegenkerze)', 'Spike (big candle → equally big opposite)'),
@@ -791,12 +794,21 @@ function evaluate(candlesByTf, enabled, settings) {
   const out = [], ctxs = {};
   for (const name of enabled) {
     const fn = S[name]; if (!fn) continue;
-    const p = paramsFor(name, settings);
+    const base = paramsFor(name, settings);
+    // Several presets can be on at once (settings.strat_presets[name] = indexes): a signal when any of them fires,
+    // the first one wins. None chosen = the strategy's own settings.
+    const chosen = (settings.strat_presets?.[name] || []).map(n => PRESETS[name]?.[n]).filter(Boolean);
+    const sets = chosen.length ? chosen.map(pr => ({ p: { ...base, ...pr.values }, pr })) : [{ p: base, pr: null }];
     for (const tf of settings.strat_tfs?.[name] || ['M1']) {
       const c = candlesByTf[tf]; if (!c || c.length < 60) continue;
       const x = (ctxs[tf] ??= ctx(c)); x.tfMin = parseInt(tf.slice(1), 10) || 1;
-      let s; try { s = fn(x, p); } catch { s = null; }
-      if (!s || !s.dir || !passesFilters(x, p, s, META[name][1])) continue;
+      let s = null, p = base, pr = null;
+      for (const set of sets) {
+        let r; try { r = fn(x, set.p); } catch { r = null; }
+        if (r && r.dir && passesFilters(x, set.p, r, META[name][1])) { s = r; p = set.p; pr = set.pr; break; }
+      }
+      if (!s) continue;
+      if (pr && chosen.length > 1) { s.reason = addText(s.reason, L(` · ${pr.name.ru}`, ` · ${pr.name.de}`, ` · ${pr.name.en}`)); if (!s.model) s.model = pr.name.ru; }
       // Reversal strategies bet against the last move; with follow_move they trade with it instead.
       let mode = 'trend';
       if (META[name][1] === 'rev') {

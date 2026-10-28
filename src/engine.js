@@ -421,11 +421,12 @@ class Engine extends EventEmitter {
   }
 
   // patch: parameter changes for one strategy; tfs: its timeframes.
-  updateStrategy(name, patch, tfs) {
+  updateStrategy(name, patch, tfs, presets) {
     if (!strategies.META[name]) return;
     const s = this.settings;
     s.strategy_settings = s.strategy_settings || {};
     if (patch) s.strategy_settings[name] = { ...(s.strategy_settings[name] || {}), ...patch };
+    if (Array.isArray(presets)) { s.strat_presets = s.strat_presets || {}; s.strat_presets[name] = presets.filter(n => Number.isInteger(n)); }
     if (tfs) { s.strat_tfs = s.strat_tfs || {}; s.strat_tfs[name] = tfs.length ? tfs : ['M1']; }
     writeJson(this.settingsFile, s);
     this.emit('state');
@@ -452,6 +453,7 @@ class Engine extends EventEmitter {
 
   resetStrategy(name) {
     if (this.settings.strategy_settings) delete this.settings.strategy_settings[name];
+    if (this.settings.strat_presets) delete this.settings.strat_presets[name];
     writeJson(this.settingsFile, this.settings);
     this.emit('state');
   }
@@ -502,6 +504,7 @@ class Engine extends EventEmitter {
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
           presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null,
+          activePresets: this.settings.strat_presets?.[k] || [],
         })),
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,
         assets_off: this.settings.assets_off || [],

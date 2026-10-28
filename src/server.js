@@ -54,7 +54,7 @@ function startServer(engine, { port = 7777, onOpenPO } = {}) {
         return { ok: true, code: engine.po.ssid };
       case 'login': if (onOpenPO && fromDesktop) onOpenPO(null, null); return { ok: true }; // open the PocketOption window to log in
       case 'settings': engine.updateSettings(msg.patch || {}); return { ok: true };
-      case 'strategy': engine.updateStrategy(msg.name, msg.patch, msg.tfs); return { ok: true };
+      case 'strategy': engine.updateStrategy(msg.name, msg.patch, msg.tfs, msg.presets); return { ok: true };
       case 'resetStrategy': engine.resetStrategy(msg.name); return { ok: true };
       case 'import': return engine.importSettings(msg.data);
       case 'export': return { ok: true, data: engine.exportSettings() };
