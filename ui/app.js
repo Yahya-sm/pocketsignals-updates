@@ -231,8 +231,9 @@ const CATS = ['forex', 'otc', 'po_crypto', 'po_goods', 'po_indices', 'po_stocks'
 // Markets: a switch per market; a market that is on can be opened to choose its pairs one by one.
 const openMarkets = new Set();
 function renderMarkets(s) {
-  const markets = s.markets || {};
-  $('#cats').innerHTML = CATS.map(k => {
+  const markets = s.markets || {}, box = $('#cats');
+  // The state arrives every second or two: rebuilding the list would throw a scrolled pair list back to the top.
+  const html = CATS.map(k => {
     const on = !s.assets_off.includes(k), pairs = markets[k] || [], chosen = pairs.filter(p => p.on).length;
     const open = on && openMarkets.has(k);
     return `<div class="mkt${open ? ' open' : ''}">
@@ -246,6 +247,10 @@ function renderMarkets(s) {
       </div>` : ''}
     </div>`;
   }).join('');
+  if (box.dataset.html === html) return;
+  const scroll = [...box.querySelectorAll('.mkt-body')].map(b => b.scrollTop);
+  box.innerHTML = html; box.dataset.html = html;
+  box.querySelectorAll('.mkt-body').forEach((b, i) => { b.scrollTop = scroll[i] || 0; });
 }
 // Changes the chosen pairs locally (instant) and in the engine.
 function setPairs(keysOn, keysOff) {
