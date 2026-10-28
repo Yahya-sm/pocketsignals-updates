@@ -162,6 +162,9 @@ input[type=search] { width: 100%; background: var(--card); border: 1px solid var
 .tfs { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 10px; }
 .presets small { width: 100%; color: var(--muted); }
+.pgroup { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; margin: 8px 0; }
+.pgroup > b { display: block; font-size: 13px; }
+.pgroup > small { display: block; color: var(--muted); margin: 2px 0 6px; line-height: 1.35; }
 .tfs label input { display: none; }
 .tfs label span { display: inline-block; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; cursor: pointer; }
 .tfs label input:checked + span { background: var(--accent); border-color: var(--accent); }

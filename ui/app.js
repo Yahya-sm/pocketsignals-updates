@@ -260,6 +260,14 @@ function setPairs(keysOn, keysOff) {
 const TFS = ['S10', 'S15', 'S30', 'M1', 'M2', 'M3', 'M5'];
 const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }[LANG] ?? 0] : k);
 const openStrats = new Set();
+// Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
+function paramRows(x) {
+  const row = k => k in x.params ? `<label class="prow"><span>${esc(paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
+  if (!x.groups) return Object.keys(x.params).map(row).join('');
+  const used = new Set(x.groups.flatMap(g => g.keys)), rest = Object.keys(x.params).filter(k => !used.has(k));
+  return x.groups.map(g => `<div class="pgroup"><b>${esc(tr(g.title))}</b><small>${esc(tr(g.desc))}</small>${g.keys.map(row).join('')}</div>`).join('')
+    + rest.map(row).join('');
+}
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
   if (typeof v === 'boolean') return `<input type="checkbox" class="sw" ${id} ${v ? 'checked' : ''}>`;
@@ -281,7 +289,7 @@ function renderStrategies(s) {
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')}</small>${x.presets.map((pr, n) =>
         `<button class="chip${Object.entries(pr.values).every(([pk, pv]) => x.params[pk] === pv) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
-      ${Object.entries(x.params).map(([k, v]) => `<label class="prow"><span>${esc(paramLabel(k))}</span>${paramInput(x.key, k, v)}</label>`).join('')}
+      ${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('no_strategy')}</p>`;
 }
