@@ -86,7 +86,7 @@ class Engine extends EventEmitter {
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
-    return sig.strategy === 'n_levelrev';
+    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_vrev';
   }
 
   _addTick(asset, time, price) {
@@ -301,7 +301,7 @@ class Engine extends EventEmitter {
       }
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
-        if (sig.strategy !== 'n_levelrev' &&sig.strength < (this.settings.min_strength || 0)) continue;
+        if (sig.strategy !== 'n_levelrev' && sig.strategy !== 'n_vrev' && sig.strength < (this.settings.min_strength || 0)) continue;
         if (!this._ownTrendLogic(sig) && ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0))) continue;
         this.scanSignals.push({ ...sig, asset: h.asset, candle: candles[candles.length - 1] });
       }

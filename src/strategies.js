@@ -17,6 +17,7 @@ const META = {
   n_level: [L('Подход к уровню → отскок', 'Annäherung an ein Niveau → Rücksprung', 'Approach to a level → rebound'), 'rev'],
   n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
   n_levelrev: [L('Разворот от уровня (пин-бар / V-разворот)', 'Umkehr am Level (Pinbar / V-Umkehr)', 'Reversal at a level (pin bar / V-turn)'), 'rev'],
+  n_vrev: [L('V-разворот (без уровней)', 'V-Umkehr (ohne Levels)', 'V-reversal (no levels)'), 'rev'],
   n_pulse: [L('Сильный импульс → возможный отскок', 'Starker Impuls → möglicher Rücksprung', 'Strong impulse → possible rebound'), 'rev'],
   n_vdrop: [L('Импульсное падение → отскок', 'Impulsfall → Rücksprung', 'Impulse drop → rebound'), 'rev'],
   n_cgdrop: [L('Истощение падения (ранний разворот)', 'Erschöpfung des Falls (frühe Umkehr)', 'Drop exhaustion (early reversal)'), 'rev'],
@@ -80,6 +81,9 @@ const DEFAULTS = {
     lr_space_sd: 2, lr_flat_bars: 10, lr_flat_sd: 2,
     lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
     lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60, lr_b_early: false, lr_b_early_pct: 60 },
+  // V-reversal anywhere (model B of n_levelrev without the levels): a vertical run of candles, then a big candle against it.
+  n_vrev: { expiry: 120, vr_buy: true, vr_sell: true, vr_sd_period: 20, vr_imp_min: 3, vr_imp_max: 6, vr_move_sd: 3,
+    vr_avgbody: true, vr_steps: true, vr_body_pct: 60, vr_cover: true, vr_extreme: 20 },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
@@ -130,6 +134,13 @@ const PRESETS = {
       lr_near_sd: 1.5, lr_space_sd: 2, lr_corridor_sd: 3, lr_flat_sd: 2, lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15,
       lr_pin_min_sd: 1, lr_imp_min: 3, lr_imp_move_sd: 3, lr_vbody_pct: 60 } },
   ],
+  // V-reversal, measured 28.10.2026 (17 OTC pairs, 2 h, M1): loose 35 signals 63 %, medium 17 / 71 %, strict 13 / 69 % at 2 min
+  // (1 min ~56 %, 3 min ~53 % – the bounce is short, so expiry 120 s).
+  n_vrev: [
+    { name: L('Мягко', 'Locker', 'Loose'), values: { vr_imp_min: 2, vr_move_sd: 2, vr_body_pct: 50, vr_extreme: 10, vr_steps: true, vr_avgbody: true, vr_cover: true } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { vr_imp_min: 3, vr_move_sd: 2.5, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { vr_imp_min: 3, vr_move_sd: 3, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
+  ],
   // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
   // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
   n_ma25: [
@@ -172,6 +183,21 @@ const GROUPS = {
         'Signal nach Modell B schon vor dem Kerzenschluss. Früherer Einstieg, aber mehr Fehlsignale. Für Qualität aus.',
         'Model B signal before the candle closes. Earlier entry, more false signals. Off for quality.'),
       keys: ['lr_b_early', 'lr_b_early_pct'] },
+  ],
+  n_vrev: [
+    { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
+      desc: L('Направления и экспирация. По замеру лучше всего 2 минуты (120 с): отскок короткий.', 'Richtungen und Ablaufzeit. Gemessen am besten 2 Minuten (120 s): der Rücksprung ist kurz.', 'Directions and expiry. Measured best at 2 minutes (120 s): the bounce is short.'),
+      keys: ['expiry', 'vr_buy', 'vr_sell'] },
+    { title: L('2 · Импульс (вертикаль)', '2 · Impuls (senkrecht)', '2 · Impulse (vertical)'),
+      desc: L('Резкое движение перед разворотом: сколько свечей подряд и насколько далеко (в SD — средних свечах). Больше = реже, но движение сильнее. «Ровные шаги»: каждая свеча закрывается дальше предыдущей. «Крупнее среднего»: тела импульса больше обычных.',
+        'Die steile Bewegung vor der Umkehr: wie viele Kerzen in Folge und wie weit (in SD = Durchschnittskerzen). Größer = seltener, aber stärker. „Saubere Schritte“: jede Kerze schließt weiter. „Größer als normal“: Impulskörper größer als üblich.',
+        'The steep move before the turn: how many candles in a row and how far (in SD = average candles). Bigger = rarer but stronger. "Clean steps": each candle closes further. "Bigger than average": impulse bodies above normal.'),
+      keys: ['vr_imp_min', 'vr_imp_max', 'vr_move_sd', 'vr_sd_period', 'vr_steps', 'vr_avgbody', 'vr_extreme'] },
+    { title: L('3 · Свеча разворота', '3 · Umkehrkerze', '3 · Reversal candle'),
+      desc: L('Большая свеча против импульса. Тело % от всей свечи: больше = решительнее разворот. «Перекрывает»: больше последней свечи импульса или закрывается за её серединой.',
+        'Große Kerze gegen den Impuls. Körper % der ganzen Kerze: größer = entschlossener. „Überdeckt“: größer als die letzte Impulskerze oder schließt hinter deren Mitte.',
+        'Big candle against the impulse. Body % of the whole candle: bigger = more decisive. "Covers": bigger than the last impulse candle or closes past its middle.'),
+      keys: ['vr_body_pct', 'vr_cover'] },
   ],
   n_ma25: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
@@ -230,6 +256,7 @@ function liveMode(name, settings) {
   if (name === 'n_5x5' && p.five_bot) return 'closed';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
+  if (name === 'n_vrev') return 'closed';
   return 'legacy';
 }
 
@@ -378,6 +405,47 @@ const S = {
     s.model = model; // win rate per model in the statistics
     s.bar = k.time; // one signal per signal candle: an early one is not repeated after the close
     if (live) { s.entry = Math.floor(Date.now() / 1000); s.reason = addText(s.reason, L(' · рано (свеча ещё идёт)', ' · früh (Kerze läuft noch)', ' · early (candle still running)')); }
+    return s;
+  },
+  n_vrev(x, p) {
+    const c = x.c, i = x.last, k = c[i], N = Number(p.vr_sd_period) || 20;
+    if (i < N + 12) return null;
+    const rng = j => c[j].high - c[j].low, bod = j => Math.abs(c[j].close - c[j].open);
+    let sd = 0, ab = 0; for (let j = i - N + 1; j <= i; j++) { sd += rng(j); ab += bod(j); } sd /= N; ab /= N;
+    const dir = I.dirOf(k), r = rng(i), b = bod(i);
+    if (!dir || !(sd > 0) || !(r > 0)) return null;
+    if ((dir > 0 && p.vr_buy === false) || (dir < 0 && p.vr_sell === false)) return null;
+    // Reversal candle: big body against the run.
+    if (b < (Number(p.vr_body_pct) || 0) / 100 * r) return null;
+    // The run before it: candles against the trade, each closing further on (vr_steps), at most one tiny pause candle.
+    const iMin = Number(p.vr_imp_min) || 3, iMax = Number(p.vr_imp_max) || 6;
+    let n = 0, pause = 0, sum = 0, prev = null;
+    for (let j = i - 1; j >= i - iMax - 1 && j > 0; j--) {
+      const d = I.dirOf(c[j]);
+      if (d === -dir) {
+        if (p.vr_steps !== false && prev !== null && (dir > 0 ? c[j].close <= prev : c[j].close >= prev)) break;
+        n++; sum += bod(j); prev = c[j].close;
+        if (n >= iMax) break;
+      } else if (!pause && n > 0 && bod(j) < 0.3 * sd) pause++;
+      else break;
+    }
+    if (n < iMin || I.dirOf(c[i - 1]) !== -dir) return null;
+    const start = c[i - n - pause], last = c[i - 1];
+    const move = (dir > 0 ? start.open - last.close : last.close - start.open) / sd;
+    if (move < (Number(p.vr_move_sd) || 0)) return null;
+    if (p.vr_avgbody !== false && !(sum / n > ab)) return null;
+    // Covers the last run candle: bigger body or closes past its middle.
+    if (p.vr_cover !== false && !(b >= bod(i - 1) || (dir > 0 ? k.close > (last.open + last.close) / 2 : k.close < (last.open + last.close) / 2))) return null;
+    // The run made a new extreme of the last vr_extreme candles (a real end of a move, not a dip inside a range).
+    const ex = Number(p.vr_extreme) || 0;
+    if (ex) {
+      const tip = dir > 0 ? Math.min(last.low, k.low) : Math.max(last.high, k.high);
+      for (let j = Math.max(0, i - ex); j < i - n - pause; j++) if (dir > 0 ? c[j].low < tip : c[j].high > tip) return null;
+    }
+    const s = sig(dir, Math.min(99, 60 + move * 5), L(`V-разворот: ${n} св. импульса, ${move.toFixed(1)} SD → свеча ${Math.round(100 * b / r)}%`,
+      `V-Umkehr: ${n} Impulskerzen, ${move.toFixed(1)} SD → Kerze ${Math.round(100 * b / r)}%`,
+      `V-reversal: ${n} impulse candles, ${move.toFixed(1)} SD → candle ${Math.round(100 * b / r)}%`), Number(p.expiry) || 60);
+    s.bar = k.time;
     return s;
   },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
