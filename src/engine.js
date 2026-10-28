@@ -48,6 +48,12 @@ class Engine extends EventEmitter {
       s.lr_soft_1028 = true;
       writeJson(this.settingsFile, s);
     }
+    // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
+    if (!this.settings.pc_match_1028) {
+      Object.assign(this.settings, { min_payout: 75, min_confirm: 1, min_strength: 60, trend_only: false, no_countertrend: false,
+        max_per_scan: 17, signals_on: true, pause_until: 0, pc_match_1028: true });
+      writeJson(this.settingsFile, this.settings);
+    }
     this.signals = readJson(this.signalsFile, []);
     this.assets = new Map();      // symbol -> { symbol, name, type, payout, active, key, otc, category }
     this.candles = new Map();     // symbol -> closed candles
@@ -183,6 +189,13 @@ class Engine extends EventEmitter {
     this.scanSignals = [];
     const list = this.selectedAssets();
     this.scanCount = list.length;
+    // Every 10 minutes a line in the connection log: what is scanned and how many signals came (for comparing devices).
+    if (!this.scanLogAt || Date.now() - this.scanLogAt > 600000) {
+      const s = this.settings, mins = this.scanLogAt ? Math.round((Date.now() - this.scanLogAt) / 60000) : 0;
+      this.po._log(`Scan: ${list.length} Paare (${this.assets.size} bekannt), Strategien ${(s.strategies || []).join(',')}, min. Auszahlung ${s.min_payout || 0}%`
+        + (mins ? `, ${this.signalsLogged || 0} Signale in ${mins} min` : ''));
+      this.scanLogAt = Date.now(); this.signalsLogged = 0;
+    }
     // Live prices for every scanned pair (once per connection; the first answer brings the last ~10 minutes).
     list.filter(a => !this.subscribed.has(a.symbol)).forEach((a, i) => {
       this.subscribed.add(a.symbol);
@@ -331,7 +344,7 @@ class Engine extends EventEmitter {
       strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
-    this.signals.unshift(sig);
+    this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
     this.signals = this.signals.slice(0, 300);
     writeJson(this.signalsFile, this.signals);
     this.emit('signal', sig);
