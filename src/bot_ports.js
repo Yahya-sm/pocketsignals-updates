@@ -213,6 +213,34 @@ function ma25(c, i, p = {}, tfMin = 2) {
     const t50 = tr.slice(-50), a50 = t50.reduce((s, v) => s + v, 0) / t50.length, vr = tr.slice(-5).reduce((s, v) => s + v, 0) / 5 / a50;
     if (!(vr >= vmin)) return { dir: 0, reason: 'мелкие свечи — пропуск' };
   }
+  // Quality filters (all off at 0 / false): pick crosses that more likely keep going instead of snapping back.
+  const zz = z.slice(-need), tr = trArr(zz), atr = tr.slice(-14).reduce((s, v) => s + v, 0) / Math.min(14, tr.length);
+  const series = (n, kind) => kind === 'SMA' ? zc.map((_, j) => j < n - 1 ? NaN : zc.slice(j - n + 1, j + 1).reduce((s, v) => s + v, 0) / n) : emaS(zc, n);
+  // 1. Calm before: the lines were apart on the old side for m25_quiet closed candles (no back-and-forth crossing = no saw).
+  const quiet = Number(p.m25_quiet) || 0;
+  if (quiet) {
+    const f = series(fast, ft), sl = series(slow, st);
+    for (let j = zc.length - quiet; j < zc.length; j++) if (!(Math.sign(f[j] - sl[j]) === s0)) return { dir: 0, reason: 'пила: недавно уже было пересечение' };
+  }
+  // 2. Clear cross: the fast line is already m25_gap × ATR past the slow one (no touch-and-back).
+  const gap = Number(p.m25_gap) || 0;
+  if (gap && atr > 0 && Math.abs(spread(now)) < gap * atr) return { dir: 0, reason: 'слабое пересечение' };
+  // 3. With the trend: price on the right side of EMA m25_trend, and that EMA points the same way.
+  const tn = Number(p.m25_trend) || 0;
+  if (tn) {
+    const e = emaS(zc, tn), L = e.length - 1;
+    if (!(s1 > 0 ? now > e[L] && e[L] > e[L - 3] : now < e[L] && e[L] < e[L - 3])) return { dir: 0, reason: 'против тренда EMA ' + tn };
+  }
+  // 4. Strong signal candle: its body already goes the signal's way and is m25_body % of its range.
+  const bp = Number(p.m25_body) || 0, k = c[i], kr = k.high - k.low;
+  if (bp && !(kr > 0 && Math.sign(k.close - k.open) === s1 && Math.abs(k.close - k.open) >= bp / 100 * kr)) return { dir: 0, reason: 'слабая свеча сигнала' };
+  // 5. RSI 14 on the signal's side of 50, but not yet overheated (CALL < m25_rsi_max, PUT > 100 − m25_rsi_max).
+  if (p.m25_rsi) {
+    const cl = zc.concat([now]), up = [], dn = [];
+    for (let j = 1; j < cl.length; j++) { const d = cl[j] - cl[j - 1]; up.push(Math.max(d, 0)); dn.push(Math.max(-d, 0)); }
+    const au = ewm(up, 1 / 14).pop(), ad = ewm(dn, 1 / 14).pop(), rsi = ad ? 100 - 100 / (1 + au / ad) : 100, mx = Number(p.m25_rsi_max) || 70;
+    if (!(s1 > 0 ? rsi > 50 && rsi < mx : rsi < 50 && rsi > 100 - mx)) return { dir: 0, reason: `RSI ${rsi.toFixed(0)} не подтверждает` };
+  }
   return { dir: s1, expiry: Number(p.m25_expiry || 120), entry: Math.floor(nowSec()), bar: c[i].time,
     reason: `⏰ вход сейчас — ${ft} ${fast} пересекла ${st} ${slow} внутри свечи` };
 }

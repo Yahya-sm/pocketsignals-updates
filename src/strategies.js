@@ -80,7 +80,8 @@ const DEFAULTS = {
     lr_space_sd: 2, lr_flat_bars: 10, lr_flat_sd: 2,
     lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
     lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60, lr_b_early: false, lr_b_early_pct: 60 },
-  n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0 },
+  n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
+    m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
   n_vdrop: { ...REV, min_impulse_candles: 4, max_impulse_candles: 10, minimum_total_drop_atr: 2.0, min_speed_atr: 1.0, max_reversal_wait_bars: 2, impulse_rsi_filter: true, send_mirror: true },
   n_cgdrop: { ...REV, minimum_total_drop_atr: 1.0, min_lower_wick_to_body: 1.5, min_reversal_body_atr: 0.25, send_mirror: true },
@@ -129,6 +130,13 @@ const PRESETS = {
       lr_near_sd: 1.5, lr_space_sd: 2, lr_corridor_sd: 3, lr_flat_sd: 2, lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15,
       lr_pin_min_sd: 1, lr_imp_min: 3, lr_imp_move_sd: 3, lr_vbody_pct: 60 } },
   ],
+  // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
+  // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
+  n_ma25: [
+    { name: L('Мягко', 'Locker', 'Loose'), values: { m25_quiet: 8, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { m25_quiet: 10, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { m25_quiet: 12, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+  ],
 };
 
 // Settings shown in blocks: each block says what it decides and which way is stricter. Keys not listed go to the end.
@@ -164,6 +172,31 @@ const GROUPS = {
         'Signal nach Modell B schon vor dem Kerzenschluss. Früherer Einstieg, aber mehr Fehlsignale. Für Qualität aus.',
         'Model B signal before the candle closes. Earlier entry, more false signals. Off for quality.'),
       keys: ['lr_b_early', 'lr_b_early_pct'] },
+  ],
+  n_ma25: [
+    { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
+      desc: L('Какие средние пересекаются, направления и экспирация.', 'Welche Durchschnitte sich kreuzen, Richtungen und Ablaufzeit.', 'Which averages cross, directions and expiry.'),
+      keys: ['m25_expiry', 'm25_fast', 'm25_fast_type', 'm25_slow', 'm25_slow_type', 'm25_buy', 'm25_sell'] },
+    { title: L('2 · Против пилы', '2 · Gegen Sägezahn', '2 · Against the saw'),
+      desc: L('Главное против «бешеного потока». «Спокойно перед»: столько свечей линии не пересекались — убирает пилу во флэте. «Сила пересечения» (ATR): быстрая линия уже ушла от медленной, а не просто коснулась. Больше = меньше сигналов, но чище.',
+        'Das Wichtigste gegen die Signalflut. „Ruhe davor“: so viele Kerzen ohne Kreuzung – entfernt das Hin und Her in Seitwärtsphasen. „Stärke der Kreuzung“ (ATR): die schnelle Linie ist schon weg von der langsamen. Größer = weniger, aber sauberer.',
+        'Main tool against the flood. "Calm before": that many candles without a cross – removes the saw in flat markets. "Cross strength" (ATR): the fast line is already away from the slow one. Bigger = fewer but cleaner.'),
+      keys: ['m25_quiet', 'm25_gap', 'm25_vol', 'flat_pips'] },
+    { title: L('3 · По тренду', '3 · Mit dem Trend', '3 · With the trend'),
+      desc: L('Сигнал только по направлению большого движения: цена с правильной стороны EMA (обычно 50) и EMA смотрит туда же. ADX — сила тренда (20+ = есть тренд). 0 = выкл.',
+        'Signal nur in Richtung der großen Bewegung: Preis auf der richtigen Seite der EMA (meist 50), die EMA zeigt dorthin. ADX = Trendstärke (20+ = Trend). 0 = aus.',
+        'Only in the direction of the bigger move: price on the right side of the EMA (usually 50) and the EMA pointing that way. ADX = trend strength (20+ = trend). 0 = off.'),
+      keys: ['m25_trend', 'min_adx', 'max_adx', 'no_countertrend'] },
+    { title: L('4 · Подтверждение', '4 · Bestätigung', '4 · Confirmation'),
+      desc: L('Свеча сигнала уже идёт в сторону сигнала с телом не меньше X % (40–60). RSI выше 50 для CALL / ниже 50 для PUT, но не перегрет (макс. 70) — чтобы не входить на самом конце движения.',
+        'Die Signalkerze läuft schon in Signalrichtung, Körper mindestens X % (40–60). RSI über 50 für CALL / unter 50 für PUT, aber nicht überhitzt (max. 70) – kein Einstieg am Ende der Bewegung.',
+        'The signal candle already moves the signal way with a body of at least X % (40–60). RSI above 50 for CALL / below 50 for PUT but not overheated (max 70) – no entry at the end of the move.'),
+      keys: ['m25_body', 'm25_rsi', 'm25_rsi_max'] },
+    { title: L('5 · Место до уровня', '5 · Platz bis zum Level', '5 · Room to the level'),
+      desc: L('Не входить прямо в уровень: до ближайшего уровня должно быть хотя бы столько средних свечей. Больше = строже.',
+        'Nicht direkt in ein Level einsteigen: bis zum nächsten Level mindestens so viele Durchschnittskerzen. Größer = strenger.',
+        'No entry straight into a level: at least that many average candles of room. Bigger = stricter.'),
+      keys: ['room_check', 'room_min'] },
   ],
 };
 
