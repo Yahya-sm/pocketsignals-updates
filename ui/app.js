@@ -513,7 +513,9 @@ async function checkGithubApk(current) {
   const newer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
   try {
     const r = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=15`, { headers: { Accept: 'application/vnd.github+json' } });
-    if (!r.ok) return { ok: false, error: 'update_offline', detail: 'GitHub ' + r.status };
+    // GitHub allows only 60 checks per hour per internet address – on mobile networks many people share one, so the
+    // check often fails. Then offer the newest APK directly (this link always points to the latest release).
+    if (!r.ok) return { ok: true, available: true, latest: t('update_newest'), url: `https://github.com/${repo}/releases/latest/download/PocketSignals.apk`, direct: true };
     const rel = (await r.json()).find(x => !x.draft && (x.assets || []).some(a => a.name.endsWith('.apk')));
     if (!rel) return { ok: true, available: false };
     const latest = String(rel.tag_name).replace(/^v/, ''), asset = rel.assets.find(a => a.name.endsWith('.apk'));
