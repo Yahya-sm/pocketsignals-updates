@@ -17,6 +17,7 @@ const META = {
   n_level: [L('Подход к уровню → отскок', 'Annäherung an ein Niveau → Rücksprung', 'Approach to a level → rebound'), 'rev'],
   n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
   n_pinbar: [L('Импульс → откат → пин-бар → пробой', 'Impuls → Rücklauf → Pinbar → Ausbruch', 'Impulse → pullback → pin bar → breakout'), 'trend'],
+  n_levelrev: [L('Разворот от уровня (пин-бар / V-разворот)', 'Umkehr am Level (Pinbar / V-Umkehr)', 'Reversal at a level (pin bar / V-turn)'), 'rev'],
   n_pulse: [L('Сильный импульс → возможный отскок', 'Starker Impuls → möglicher Rücksprung', 'Strong impulse → possible rebound'), 'rev'],
   n_vdrop: [L('Импульсное падение → отскок', 'Impulsfall → Rücksprung', 'Impulse drop → rebound'), 'rev'],
   n_cgdrop: [L('Истощение падения (ранний разворот)', 'Erschöpfung des Falls (frühe Umkehr)', 'Drop exhaustion (early reversal)'), 'rev'],
@@ -71,6 +72,14 @@ const DEFAULTS = {
   n_level: { ...FILTERS, follow_move: false, lvl_first: true, lvl_len: 5, lvl_width: 3, lvl_er: 0.5 },
   // Pin bar after impulse and pullback, entry when the next candle breaks the pin bar (M1, 60 s). Every condition
   // gives points (max. 10); pb_min_score decides. Thresholds as in the user's prompt, all adjustable.
+  // Reversal at a level (user's prompt of 28.10.2026): structure first (support/resistance from the history), the side
+  // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
+  // model B (vertical impulse into the level → big opposite candle). SD = average candle range of lr_sd_period candles.
+  n_levelrev: { expiry: 60, lr_min_strength: 4, lr_model_a: true, lr_model_b: true, lr_buy: true, lr_sell: true,
+    lr_sd_period: 20, lr_lvl_len: 50, lr_lvl_skip: 2, lr_min_touches: 2, lr_zone_sd: 1, lr_near_sd: 1.5, lr_corridor_sd: 3,
+    lr_space_sd: 2, lr_flat_bars: 10, lr_flat_sd: 2,
+    lr_prior_bars: 2, lr_tail_pct: 60, lr_body_pct: 30, lr_nose_pct: 15, lr_pin_min_sd: 1,
+    lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60 },
   n_pinbar: { expiry: 60, ...FILTERS, pb_preset: 2, pb_mode: 'trend', pb_min_score: 8,
     pb_imp_gap: 3, pb_ext_atr: 1.5, pb_rsi_rev: 30, pb_need_break: true, pb_shape_required: true, pb_nose_max: 0.5,
     pb_ema_fast: 9, pb_ema_mid: 21, pb_ema_slow: 50, pb_ema50: false, pb_slope_bars: 3,
@@ -164,6 +173,7 @@ function liveMode(name, settings) {
   if (name === 'n_level' || name === 'n_ma25' || name === 'n_pinbar') return 'live';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   if (name === 'n_5x5' && p.five_bot) return 'closed';
+  if (name === 'n_levelrev') return 'closed'; // only the last fully closed candle counts
   return 'legacy';
 }
 
@@ -278,6 +288,96 @@ const S = {
     const out = sig(dir, Math.min(99, score * 10), L(txt(0), txt(1), txt(2)), Number(p.expiry) || 60);
     out.entry = Math.floor(Date.now() / 1000); out.bar = now.time; // entry now, at the break; one signal per candle
     return out;
+  },
+  n_levelrev(x, p) {
+    const c = x.c, i = x.last, k = c[i], N = Number(p.lr_sd_period) || 20, len = Number(p.lr_lvl_len) || 50;
+    if (i < len + 5) return null;
+    const rng = j => c[j].high - c[j].low, bod = j => Math.abs(c[j].close - c[j].open);
+    let sd = 0, ab = 0; for (let j = i - N + 1; j <= i; j++) { sd += rng(j); ab += bod(j); } sd /= N; ab /= N;
+    if (!(sd > 0)) return null;
+    // --- Step 1: structure. Levels only from the history before the last lr_lvl_skip candles (a level must already exist).
+    const from = i - len, to = i - Number(p.lr_lvl_skip ?? 2) - 1, zoneW = (Number(p.lr_zone_sd) || 1) * sd;
+    const zones = (side) => {
+      const pts = [];
+      for (let j = from + 2; j <= to - 2; j++) {
+        const v = side > 0 ? c[j].high : c[j].low;
+        let ok = true; for (let q = j - 2; q <= j + 2; q++) if (q !== j && (side > 0 ? c[q].high > v : c[q].low < v)) ok = false;
+        if (ok) pts.push(v);
+      }
+      pts.sort((a, b) => a - b);
+      const out = [];
+      for (const v of pts) { const z = out[out.length - 1]; if (z && v - z.lo <= zoneW) { z.hi = v; z.n++; } else out.push({ lo: v, hi: v, n: 1 }); }
+      // The extreme of the whole stretch also counts as a level.
+      let ext = side > 0 ? -Infinity : Infinity; for (let j = from; j <= to; j++) ext = side > 0 ? Math.max(ext, c[j].high) : Math.min(ext, c[j].low);
+      const minT = Number(p.lr_min_touches) || 2;
+      return out.filter(z => z.n >= minT).concat([{ lo: ext, hi: ext, n: 1, ext: true }]);
+    };
+    const close = k.close;
+    const res = zones(1).filter(z => z.hi >= close - zoneW).sort((a, b) => a.lo - b.lo)[0];      // nearest above (or at) the price
+    const sup = zones(-1).filter(z => z.lo <= close + zoneW).sort((a, b) => b.hi - a.hi)[0];     // nearest below (or at)
+    const near = Number(p.lr_near_sd ?? 1.5) * sd;
+    const atRes = res && (k.high >= res.lo || res.lo - close <= near);
+    const atSup = sup && (k.low <= sup.hi || close - sup.hi <= near);
+    if (res && sup && res.lo - sup.hi < (Number(p.lr_corridor_sd) || 3) * sd) return null;      // narrow corridor
+    // --- Step 2: allowed direction from the place.
+    if (atRes === atSup) return null;                                                            // middle (or both)
+    const dir = atSup ? 1 : -1, lvl = dir > 0 ? sup : res;
+    if ((dir > 0 && p.lr_buy === false) || (dir < 0 && p.lr_sell === false)) return null;
+    // Bans: closed beyond the level without coming back; flat market.
+    if (dir > 0 ? close < lvl.lo : close > lvl.hi) return null;
+    const fb = Number(p.lr_flat_bars) || 10;
+    let fh = -Infinity, fl = Infinity; for (let j = i - fb + 1; j <= i; j++) { fh = Math.max(fh, c[j].high); fl = Math.min(fl, c[j].low); }
+    if (fh - fl < (Number(p.lr_flat_sd) || 2) * sd) return null;
+    // --- Step 3: room to the opposite level.
+    const opp = dir > 0 ? res : sup;
+    if (opp && (dir > 0 ? opp.lo - close : close - opp.hi) < (Number(p.lr_space_sd) || 2) * sd) return null;
+    // --- Step 4: models (mirror for PUT: "tail" = wick on the level's side, "nose" = the other one).
+    const r = rng(i), b = bod(i);
+    const tail = dir > 0 ? Math.min(k.open, k.close) - k.low : k.high - Math.max(k.open, k.close);
+    const nose = dir > 0 ? k.high - Math.max(k.open, k.close) : Math.min(k.open, k.close) - k.low;
+    let A = false;
+    if (p.lr_model_a !== false && r > 0) {
+      const pb = Number(p.lr_prior_bars) || 2;
+      let against = 0; for (let j = i - 3; j < i; j++) if (I.dirOf(c[j]) === -dir) against++;
+      const moved = dir > 0 ? c[i - 1].close < c[i - 3].open : c[i - 1].close > c[i - 3].open;
+      const bodyEdge = dir > 0 ? Math.min(k.open, k.close) >= k.low + r * 2 / 3 : Math.max(k.open, k.close) <= k.high - r * 2 / 3;
+      const touches = dir > 0 ? k.low <= lvl.hi : k.high >= lvl.lo;
+      A = against >= pb && moved && touches && tail >= (Number(p.lr_tail_pct) || 60) / 100 * r && b <= (Number(p.lr_body_pct) || 30) / 100 * r
+        && bodyEdge && nose <= Number(p.lr_nose_pct ?? 15) / 100 * r && r >= (Number(p.lr_pin_min_sd) || 1) * sd;
+    }
+    let B = false;
+    if (p.lr_model_b !== false && I.dirOf(k) === dir && b >= (Number(p.lr_vbody_pct) || 60) / 100 * r) {
+      // Vertical impulse against the trade ending right before the signal candle, in the level zone.
+      const iMin = Number(p.lr_imp_min) || 3, iMax = Number(p.lr_imp_max) || 6;
+      let n = 0, opposite = 0, small = 0, ok = true, sum = 0, prevClose = null;
+      for (let j = i - 1; j >= i - iMax && j > 0; j--) {
+        const d = I.dirOf(c[j]);
+        if (d === -dir) { n++; sum += bod(j); if (bod(j) < 0.3 * sd) small++; else small = 0; if (small >= 2) { ok = false; break; } }
+        else if (opposite === 0 && bod(j) < 0.3 * sd && n > 0) { opposite++; continue; }
+        else break;
+        if (prevClose !== null && (dir > 0 ? c[j].close <= prevClose : c[j].close >= prevClose)) { ok = false; break; } // each close further on
+        prevClose = c[j].close;
+      }
+      const startJ = i - n - opposite, last = c[i - 1];
+      const move = dir > 0 ? c[startJ].open - last.close : last.close - c[startJ].open;
+      const inZone = dir > 0 ? last.low <= lvl.hi + zoneW : last.high >= lvl.lo - zoneW;
+      const lastBody = bod(i - 1), mid = (last.open + last.close) / 2;
+      B = ok && n >= iMin && n <= iMax && move >= (Number(p.lr_imp_move_sd) || 3) * sd && sum / n > ab && inZone && I.dirOf(last) === -dir
+        && (b >= lastBody || (dir > 0 ? close > mid : close < mid));
+    }
+    if (!A && !B) return null;
+    // --- Step 5: strength 4 or 5.
+    const pierced = dir > 0 ? k.low < lvl.lo : k.high > lvl.hi;
+    const strong = (lvl.n >= 2 || lvl.ext) && (pierced || (A && B) || lvl.n >= 3);
+    const power = strong ? 5 : 4;
+    if (power < (Number(p.lr_min_strength) || 4)) return null;
+    const model = A && B ? 'A+B' : A ? 'A' : 'B';
+    const lvlTxt = lvl.ext ? 'экстремум' : `${lvl.n} касания`, lvlDe = lvl.ext ? 'Extrem' : `${lvl.n} Berührungen`, lvlEn = lvl.ext ? 'extreme' : `${lvl.n} touches`;
+    const s = sig(dir, power * 20, L(
+      `${power}/5 · ${dir > 0 ? 'у поддержки' : 'у сопротивления'} (${lvlTxt})${pierced ? ', прокол с возвратом' : ''} · модель ${model}${A ? `, тень ${Math.round(100 * tail / r)}%` : ''}`,
+      `${power}/5 · ${dir > 0 ? 'an Unterstützung' : 'an Widerstand'} (${lvlDe})${pierced ? ', durchstochen und zurück' : ''} · Modell ${model}${A ? `, Docht ${Math.round(100 * tail / r)}%` : ''}`,
+      `${power}/5 · ${dir > 0 ? 'at support' : 'at resistance'} (${lvlEn})${pierced ? ', pierced and back' : ''} · model ${model}${A ? `, wick ${Math.round(100 * tail / r)}%` : ''}`), Number(p.expiry) || 60);
+    return s;
   },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
   n_big(x, p) {
