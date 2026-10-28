@@ -44,6 +44,7 @@ class POClient extends EventEmitter {
     if (!this.ssid) { this._log('Keine Sitzung gespeichert'); this.emit('status', 'no_ssid'); return; }
     clearTimeout(this.retry);
     const url = this.url || `wss://${this.host}/socket.io/?EIO=4&transport=websocket`;
+    this.denied = false; // set when PocketOption answers NotAuthorized to this session
     this._log(`Verbinde mit ${url.replace(/^wss:\/\//, '').split('/')[0]} – ${this._describeSsid()}`);
     const ws = new WebSocket(url, { headers: { Origin: 'https://pocketoption.com' } });
     this.ws = ws;
@@ -98,7 +99,7 @@ class POClient extends EventEmitter {
         this.authed = true; this.lastError = null; this._log('Login angenommen ✓'); this.emit('status', 'connected');
         this._measureClock();
         break;
-      case 'NotAuthorized': this._log('Login ABGELEHNT – Sitzung ungültig oder abgelaufen'); this.emit('status', 'expired'); break;
+      case 'NotAuthorized': this.denied = true; this._log('Login ABGELEHNT – Sitzung ungültig oder abgelaufen'); this.emit('status', 'expired'); break;
       case 'updateAssets': if (!this.assetsLogged) { this.assetsLogged = true; this._log(`Paare-Liste erhalten (${(data || []).length})`); } this.emit('assets', data); break;
       case 'updateCharts': this.charts = data || []; break;
       case 'loadHistoryPeriodFast':

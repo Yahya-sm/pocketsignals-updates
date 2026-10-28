@@ -36,6 +36,8 @@ class Engine extends EventEmitter {
       || readJson(path.join(ROOT, '..', 'signal-app-einstellungen.json'), null) // phone bundle: built-in defaults
       || readJson(path.join(ROOT, 'defaults', 'settings.json'), {});
     this.config = readJson(this.configFile, {});
+    // Until 1.0.57 a session without connection (no internet yet) was also marked "rejected" and then ignored for good.
+    if (!this.config.rejectedReset) { this.config.rejected = []; this.config.rejectedReset = true; writeJson(this.configFile, this.config); }
     this.signals = readJson(this.signalsFile, []);
     this.assets = new Map();      // symbol -> { symbol, name, type, payout, active, key, otc, category }
     this.candles = new Map();     // symbol -> closed candles
@@ -108,9 +110,12 @@ class Engine extends EventEmitter {
     const legacy = this.config.ssidAuto === undefined && this.config.ssid && this.config.ssid !== loadSsid({});
     if (!this.config.ssidAuto && !legacy) return;
     this.autoTimer = setTimeout(() => {
-      if (this.po.authed) return;
+      // Only a session PocketOption actively rejected is bad. No connection (PC just woke up, no internet yet) is not
+      // the session's fault – before, that replaced a good login by "none" and the app showed "session not set".
+      if (this.po.authed || !this.po.denied) return;
       const bad = this.po.ssid;
       const back = this.config.lastGood && this.config.lastGood.ssid !== bad ? this.config.lastGood : { ssid: loadSsid({}), url: null };
+      if (!back.ssid) { this.po._log('Übernommene Sitzung abgelehnt – keine andere gespeichert, bitte in PocketOption neu einloggen'); return; }
       this.po._log(`Übernommene Sitzung verbindet nicht – zurück zur ${back.ssid ? 'letzten funktionierenden' : '(keiner) gespeicherten'} Sitzung`);
       this.config.rejected = [...(this.config.rejected || []), bad].slice(-10);
       this.config.ssid = back.ssid; this.config.poUrl = back.url; this.config.ssidAuto = false;
@@ -421,6 +426,7 @@ class Engine extends EventEmitter {
   // Without it (session pasted by hand) the server is guessed from the session.
   // auto: taken over from the PocketOption login (may be rejected; see _watchAutoSession).
   setSsid(ssid, url, auto = false) {
+    if (!ssid) return; // an empty field must never delete the stored login
     // The apps report the logged-in session on every PocketOption page load; only reconnect on change.
     if (ssid === this.po.ssid && (url || null) === (this.config.poUrl || null) && this.po.authed) return;
     if (auto && (this.config.rejected || []).includes(ssid)) { this.po._log('Login aus PocketOption erkannt, aber früher schon abgelehnt – ignoriert'); return; }
