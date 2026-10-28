@@ -140,10 +140,10 @@ const PRESETS = {
     { name: L('Мягко', 'Locker', 'Loose'), values: { vr_imp_min: 2, vr_move_sd: 2, vr_body_pct: 50, vr_extreme: 10, vr_steps: true, vr_avgbody: true, vr_cover: true } },
     { name: L('Средне', 'Mittel', 'Medium'), values: { vr_imp_min: 3, vr_move_sd: 2.5, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
     { name: L('Строго', 'Streng', 'Strict'), values: { vr_imp_min: 3, vr_move_sd: 3, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
-    // The user's picture: one big candle, right after it an equally big one against it. Measured: 13 signals in 2 h,
-    // 58 % / 54 % / 69 % at 1 / 2 / 3 min – so expiry 180 s.
-    { name: L('Шип (большая свеча → большая обратная)', 'Spitze (große Kerze → große Gegenkerze)', 'Spike (big candle → big opposite)'),
-      values: { expiry: 180, vr_imp_min: 1, vr_imp_max: 4, vr_move_sd: 1, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 10, vr_cover: true, vr_last_big: 1.8, vr_answer_pct: 70 } },
+    // The user's examples (USD/COP, CHF/JPY): one big candle (≥ 1.5 × average), right after it an opposite one at least as
+    // big; anywhere, also inside a trend. Measured: 13 signals in 2 h on 17 pairs, 62 % / 85 % / 85 % at 1 / 2 / 3 min.
+    { name: L('Шип (большая свеча → такая же обратная)', 'Spitze (große Kerze → gleich große Gegenkerze)', 'Spike (big candle → equally big opposite)'),
+      values: { expiry: 120, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 0, vr_cover: true, vr_last_big: 1.5, vr_answer_pct: 100 } },
   ],
   // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
   // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
