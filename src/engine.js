@@ -116,6 +116,7 @@ class Engine extends EventEmitter {
     const good = { ssid: this.po.ssid, url: this.po.url || null };
     if (JSON.stringify(good) === JSON.stringify(this.config.lastGood)) return;
     this.config.lastGood = good;
+    if (!/"isDemo"\s*:\s*1/.test(good.ssid || '')) this.config.realGood = good; // used for signals while PO shows demo
     writeJson(this.configFile, this.config);
   }
 
@@ -455,6 +456,16 @@ class Engine extends EventEmitter {
     // Same login and connected: keep the working server even if the page reports another one (it probes several).
     if (ssid === this.po.ssid && this.po.authed) return;
     if (auto && (this.config.rejected || []).includes(ssid)) { this.po._log('Login aus PocketOption erkannt, aber früher schon abgelehnt – ignoriert'); return; }
+    // The demo server often breaks off (28.10.2026: no signals on the phone in demo). The prices are the same, so with a
+    // known working real-account login the signals keep coming over that one; trading in the PO tab stays on demo.
+    const demo = x => /"isDemo"\s*:\s*1/.test(x || ''), lg = this.config.lastGood;
+    const real = this.config.realGood || (lg && lg.ssid && !demo(lg.ssid) ? lg : null);
+    if (auto && demo(ssid) && real && real.ssid) {
+      if (this.po.authed && !demo(this.po.ssid)) { this.po._log('Demo-Login erkannt – Signale weiter über das Real-Konto (gleiche Kurse)'); return; }
+      this.po._log('Demo-Login erkannt – Signale über das Real-Konto (gleiche Kurse)');
+      ssid = real.ssid; url = real.url;
+      if (ssid === this.po.ssid && this.po.authed) return;
+    }
     this.po._log(auto ? 'Login aus PocketOption übernommen' : 'Neue Sitzung eingetragen');
     if (auto && this.po.authed) this._rememberGood();
     this.config.ssid = ssid; this.config.poUrl = url || null; this.config.ssidAuto = auto;
