@@ -83,7 +83,7 @@ const DEFAULTS = {
     lr_imp_min: 3, lr_imp_max: 6, lr_imp_move_sd: 3, lr_vbody_pct: 60, lr_b_early: false, lr_b_early_pct: 60 },
   // V-reversal anywhere (model B of n_levelrev without the levels): a vertical run of candles, then a big candle against it.
   n_vrev: { expiry: 120, vr_buy: true, vr_sell: true, vr_sd_period: 20, vr_imp_min: 3, vr_imp_max: 6, vr_move_sd: 3,
-    vr_avgbody: true, vr_steps: true, vr_body_pct: 60, vr_cover: true, vr_extreme: 20 },
+    vr_avgbody: true, vr_steps: true, vr_body_pct: 60, vr_cover: true, vr_extreme: 20, vr_last_big: 0, vr_answer_pct: 0 },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
@@ -140,6 +140,10 @@ const PRESETS = {
     { name: L('Мягко', 'Locker', 'Loose'), values: { vr_imp_min: 2, vr_move_sd: 2, vr_body_pct: 50, vr_extreme: 10, vr_steps: true, vr_avgbody: true, vr_cover: true } },
     { name: L('Средне', 'Mittel', 'Medium'), values: { vr_imp_min: 3, vr_move_sd: 2.5, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
     { name: L('Строго', 'Streng', 'Strict'), values: { vr_imp_min: 3, vr_move_sd: 3, vr_body_pct: 60, vr_extreme: 20, vr_steps: true, vr_avgbody: true, vr_cover: true } },
+    // The user's picture: one big candle, right after it an equally big one against it. Measured: 13 signals in 2 h,
+    // 58 % / 54 % / 69 % at 1 / 2 / 3 min – so expiry 180 s.
+    { name: L('Шип (большая свеча → большая обратная)', 'Spitze (große Kerze → große Gegenkerze)', 'Spike (big candle → big opposite)'),
+      values: { expiry: 180, vr_imp_min: 1, vr_imp_max: 4, vr_move_sd: 1, vr_body_pct: 55, vr_steps: false, vr_avgbody: false, vr_extreme: 10, vr_cover: true, vr_last_big: 1.8, vr_answer_pct: 70 } },
   ],
   // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
   // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
@@ -194,10 +198,10 @@ const GROUPS = {
         'The steep move before the turn: how many candles in a row and how far (in SD = average candles). Bigger = rarer but stronger. "Clean steps": each candle closes further. "Bigger than average": impulse bodies above normal.'),
       keys: ['vr_imp_min', 'vr_imp_max', 'vr_move_sd', 'vr_sd_period', 'vr_steps', 'vr_avgbody', 'vr_extreme'] },
     { title: L('3 · Свеча разворота', '3 · Umkehrkerze', '3 · Reversal candle'),
-      desc: L('Большая свеча против импульса. Тело % от всей свечи: больше = решительнее разворот. «Перекрывает»: больше последней свечи импульса или закрывается за её серединой.',
-        'Große Kerze gegen den Impuls. Körper % der ganzen Kerze: größer = entschlossener. „Überdeckt“: größer als die letzte Impulskerze oder schließt hinter deren Mitte.',
-        'Big candle against the impulse. Body % of the whole candle: bigger = more decisive. "Covers": bigger than the last impulse candle or closes past its middle.'),
-      keys: ['vr_body_pct', 'vr_cover'] },
+      desc: L('Большая свеча против импульса. Тело % от всей свечи: больше = решительнее разворот. «Перекрывает»: больше последней свечи импульса или закрывается за её серединой. «Шип»: последняя свеча импульса крупная (× средней) и свеча разворота отвечает ей телом не меньше X % — как на картинке «большая вверх → большая вниз».',
+        'Große Kerze gegen den Impuls. Körper % der ganzen Kerze: größer = entschlossener. „Überdeckt“: größer als die letzte Impulskerze oder schließt hinter deren Mitte. „Spitze“: letzte Impulskerze groß (× Durchschnitt), Umkehrkerze antwortet mit mindestens X % ihres Körpers.',
+        'Big candle against the impulse. Body % of the whole candle: bigger = more decisive. "Covers": bigger than the last impulse candle or closes past its middle. "Spike": last impulse candle big (× average), the reversal candle answers with at least X % of its body.'),
+      keys: ['vr_body_pct', 'vr_cover', 'vr_last_big', 'vr_answer_pct'] },
   ],
   n_ma25: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
@@ -434,6 +438,11 @@ const S = {
     const move = (dir > 0 ? start.open - last.close : last.close - start.open) / sd;
     if (move < (Number(p.vr_move_sd) || 0)) return null;
     if (p.vr_avgbody !== false && !(sum / n > ab)) return null;
+    // Spike shape (user's picture 28.10.2026): the last run candle is a big one (≥ vr_last_big × average body) and the
+    // reversal candle answers it with a body of at least vr_answer_pct % of it – big up, big down (Λ) or the mirror (V).
+    const lb = Number(p.vr_last_big) || 0, ans = Number(p.vr_answer_pct) || 0;
+    if (lb && !(bod(i - 1) >= lb * ab)) return null;
+    if (ans && !(b >= ans / 100 * bod(i - 1))) return null;
     // Covers the last run candle: bigger body or closes past its middle.
     if (p.vr_cover !== false && !(b >= bod(i - 1) || (dir > 0 ? k.close > (last.open + last.close) / 2 : k.close < (last.open + last.close) / 2))) return null;
     // The run made a new extreme of the last vr_extreme candles (a real end of a move, not a dip inside a range).
