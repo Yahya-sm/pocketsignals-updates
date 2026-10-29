@@ -54,6 +54,8 @@ class Engine extends EventEmitter {
       this.settings.vrev_spike_1028 = true;
       writeJson(this.settingsFile, this.settings);
     }
+    // Strategies removed from the program (29.10.2026) drop out of the enabled list.
+    if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n]);
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
     if (!this.settings.pc_match_1028) {
       Object.assign(this.settings, { min_payout: 75, min_confirm: 1, min_strength: 60, trend_only: false, no_countertrend: false,
@@ -94,7 +96,7 @@ class Engine extends EventEmitter {
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
-    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_vrev' || sig.strategy === 'n_deeprev';
+    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_deeprev';
   }
 
   _addTick(asset, time, price) {
