@@ -65,6 +65,8 @@ class Engine extends EventEmitter {
     this.candles = new Map();     // symbol -> closed candles
     this.trendCandles = new Map(); // symbol -> { tf, at, candles } in the trend timeframe
     this.trendReq = new Map();     // request index -> { tf }
+    this.ctxReq = new Map();       // request index -> { m } (M5/M15 history for multi-timeframe strategies)
+    this.ctxCandles = new Map();   // symbol -> { M5, M15, at }
     this.secReq = new Map();       // request index -> { sec } for S10/S15/S30 candles
     this.lastEval = new Map();    // symbol -> time of last evaluated candle
     this.lastEvalBot = new Map(); // symbol -> last closed candle evaluated by the bot strategies
@@ -92,7 +94,7 @@ class Engine extends EventEmitter {
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
-    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_vrev';
+    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_vrev' || sig.strategy === 'n_deeprev';
   }
 
   _addTick(asset, time, price) {
@@ -223,6 +225,14 @@ class Engine extends EventEmitter {
         setTimeout(() => { this.trendReq.set(this.po.loadHistory(a.symbol, tm * 60, tm * 60 * 60), { tf: tm }); }, list.length * 40 + i * 40);
       });
     }
+    // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
+    if (this.enabledStrategies().includes('n_deeprev')) {
+      list.forEach((a, i) => {
+        const have = this.ctxCandles.get(a.symbol);
+        if (have && Date.now() - have.at < 55000) return;
+        for (const m of [5, 15]) setTimeout(() => { this.ctxReq.set(this.po.loadHistory(a.symbol, m * 60, m * 60 * 150), { m }); }, list.length * 80 + i * 60 + (m === 15 ? 30 : 0));
+      });
+    }
     // Second timeframes (S10/S15/S30) used by enabled strategies: own candles in that period.
     for (const sec of this.secondTimeframes()) {
       list.forEach((a, i) => setTimeout(() => { this.secReq.set(this.po.loadHistory(a.symbol, sec, sec * 150), { sec }); }, i * 40 + 20));
@@ -264,6 +274,16 @@ class Engine extends EventEmitter {
     if (!h || !h.asset || !Array.isArray(h.data)) return;
     const sreq = this.secReq.get(h.index);
     if (sreq) { this.secReq.delete(h.index); this._onSecondHistory(h, sreq.sec); return; }
+    const creq = this.ctxReq.get(h.index);
+    if (creq) { // M5/M15 history: closed candles only, the newest from the live prices
+      this.ctxReq.delete(h.index);
+      const sec = creq.m * 60, now = Date.now() / 1000;
+      const c = h.data.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })).sort((a, b) => a.time - b.time);
+      const all = this._withLive(h.asset, c, sec).filter(k => k.time + sec <= now);
+      const cur = this.ctxCandles.get(h.asset) || {};
+      this.ctxCandles.set(h.asset, { ...cur, ['M' + creq.m]: all, at: Date.now() });
+      return;
+    }
     const req = this.trendReq.get(h.index);
     if (req) { // answer to a trend-timeframe request
       this.trendReq.delete(h.index);
@@ -305,9 +325,10 @@ class Engine extends EventEmitter {
         // Closed: only when the higher-timeframe candle closed with this minute. Live: its candle contains the current minute.
         if (c.length && (live ? c[c.length - 1].time + m * 60 > last : c[c.length - 1].time + m * 60 === last + 60)) byTf[tf] = c;
       }
+      byTf.ctx = this.ctxCandles.get(h.asset);
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
-        if (sig.strategy !== 'n_levelrev' && sig.strategy !== 'n_vrev' && sig.strength < (this.settings.min_strength || 0)) continue;
+        if (!this._ownTrendLogic(sig) && sig.strength < (this.settings.min_strength || 0)) continue;
         if (!this._ownTrendLogic(sig) && ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0))) continue;
         this.scanSignals.push({ ...sig, asset: h.asset, candle: candles[candles.length - 1] });
       }

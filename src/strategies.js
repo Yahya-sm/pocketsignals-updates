@@ -17,6 +17,7 @@ const META = {
   n_level: [L('Подход к уровню → отскок', 'Annäherung an ein Niveau → Rücksprung', 'Approach to a level → rebound'), 'rev'],
   n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
   n_levelrev: [L('Разворот от уровня (пин-бар / V-разворот)', 'Umkehr am Level (Pinbar / V-Umkehr)', 'Reversal at a level (pin bar / V-turn)'), 'rev'],
+  n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
   n_vrev: [L('V-разворот (без уровней)', 'V-Umkehr (ohne Levels)', 'V-reversal (no levels)'), 'rev'],
   n_pulse: [L('Сильный импульс → возможный отскок', 'Starker Impuls → möglicher Rücksprung', 'Strong impulse → possible rebound'), 'rev'],
   n_vdrop: [L('Импульсное падение → отскок', 'Impulsfall → Rücksprung', 'Impulse drop → rebound'), 'rev'],
@@ -86,6 +87,11 @@ const DEFAULTS = {
   // V-reversal anywhere (model B of n_levelrev without the levels): a vertical run of candles, then a big candle against it.
   // Default = the user's examples: one big candle, then an opposite one at least as big (spike). The multi-candle run is
   // still possible (vr_imp_min > 1) but gave signals the user called junk.
+  // Reversal after a deep fall (user's prompt of 29.10.2026), see deepRev(). Conservative: all rules on.
+  n_deeprev: { expiry: 180, dr_buy: true, dr_sell: false, dr_min_conf: 6, dr_touches: 2, dr_zone_atr: 0.5, dr_near_atr: 0.7,
+    dr_use_fall: true, dr_bear: 5, dr_imp_atr: 3, dr_use_pattern: true, dr_use_break: true, dr_break_atr: 1.2,
+    dr_use_rsi: true, dr_rsi_lo: 30, dr_use_cross: true, dr_use_trend: true, dr_use_flat: true, dr_flat_atr: 3,
+    dr_use_spike: true, dr_spike: 3, dr_use_m1: true },
   n_vrev: { expiry: 120, ...MARKET, vr_buy: true, vr_sell: true, vr_min_bp: 1, vr_sd_period: 20, vr_imp_min: 1, vr_imp_max: 1, vr_move_sd: 0,
     vr_avgbody: false, vr_steps: false, vr_body_pct: 55, vr_cover: true, vr_extreme: 0, vr_last_big: 1.5, vr_answer_pct: 100, },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
@@ -202,6 +208,38 @@ const GROUPS = {
         'Model B signal before the candle closes. Earlier entry, more false signals. Off for quality.'),
       keys: ['lr_b_early', 'lr_b_early_pct'] },
   ],
+  n_deeprev: [
+    { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
+      desc: L('Направления, экспирация и минимальная уверенность (1–10). CALL — разворот вверх после падения; PUT — зеркально после роста (по умолчанию выкл.). Уверенность 7–8 = только лучшие сигналы.',
+        'Richtungen, Ablaufzeit und Mindest-Zuversicht (1–10). CALL = Umkehr nach oben nach einem Fall; PUT = gespiegelt nach einem Anstieg (standardmäßig aus). 7–8 = nur die besten.',
+        'Directions, expiry and minimum confidence (1–10). CALL = turn up after a fall; PUT = mirror after a rise (off by default). 7–8 = only the best.'),
+      keys: ['expiry', 'dr_buy', 'dr_sell', 'dr_min_conf'] },
+    { title: L('2 · Уровень (M15 и M5)', '2 · Level (M15 und M5)', '2 · Level (M15 and M5)'),
+      desc: L('Поддержка из разворотных точек M15 и M5. Без чёткого уровня сигнала нет (это правило не выключается). Больше касаний = надёжнее уровень.',
+        'Unterstützung aus Wendepunkten von M15 und M5. Ohne klares Level kein Signal (nicht abschaltbar). Mehr Berührungen = verlässlicher.',
+        'Support from M15 and M5 swing points. No clear level = no signal (cannot be switched off). More touches = more reliable.'),
+      keys: ['dr_touches', 'dr_zone_atr', 'dr_near_atr'] },
+    { title: L('3 · Падение и реакция (M5)', '3 · Fall und Reaktion (M5)', '3 · Fall and reaction (M5)'),
+      desc: L('Перед уровнем 5+ медвежьих свечей подряд или импульс в ATR. Затем реакция: длинная нижняя тень, молот, бычье поглощение или закрытие обратно выше поддержки. Сильная медвежья свеча, закрывшаяся под уровнем, = пробой, сигнала нет.',
+        'Vor dem Level 5+ rote Kerzen in Folge oder ein Impuls in ATR. Dann Reaktion: langer unterer Docht, Hammer, bullisches Engulfing oder Schluss zurück über der Unterstützung. Starke rote Kerze unter dem Level = Bruch, kein Signal.',
+        'Before the level 5+ red candles in a row or an impulse in ATR. Then a reaction: long lower wick, hammer, bullish engulfing or close back above support. A strong red candle closing below = break, no signal.'),
+      keys: ['dr_use_fall', 'dr_bear', 'dr_imp_atr', 'dr_use_pattern', 'dr_use_break', 'dr_break_atr'] },
+    { title: L('4 · RSI 14 на M5', '4 · RSI 14 auf M5', '4 · RSI 14 on M5'),
+      desc: L('RSI ниже 30 или бычья дивергенция — но не сигнал сам по себе. Нужен ещё возврат RSI выше 30 (пересечение снизу вверх).',
+        'RSI unter 30 oder bullische Divergenz – aber kein Signal allein. Dazu muss RSI wieder über 30 kreuzen.',
+        'RSI below 30 or bullish divergence – not a signal by itself. RSI must also cross back above 30.'),
+      keys: ['dr_use_rsi', 'dr_rsi_lo', 'dr_use_cross'] },
+    { title: L('5 · Когда пропускать', '5 · Wann auslassen', '5 · When to skip'),
+      desc: L('Сильный нисходящий тренд M15 — только с дивергенцией. Боковик на M15 (диапазон 12 свечей меньше X ATR) — пропуск. Резкая свеча M1 (больше X средних) — пропуск. Новости — общий новостной фильтр программы.',
+        'Starker Abwärtstrend M15 – nur mit Divergenz. Seitwärts auf M15 (Spanne 12 Kerzen unter X ATR) – auslassen. Heftige M1-Kerze (über X Durchschnitt) – auslassen. Nachrichten – allgemeiner Nachrichtenfilter.',
+        'Strong M15 downtrend – only with divergence. Sideways M15 (12-candle range below X ATR) – skip. Violent M1 candle (above X average) – skip. News – the general news filter.'),
+      keys: ['dr_use_trend', 'dr_use_flat', 'dr_flat_atr', 'dr_use_spike', 'dr_spike'] },
+    { title: L('6 · Вход на M1', '6 · Einstieg auf M1', '6 · Entry on M1'),
+      desc: L('Вход только когда свеча M1 закрылась выше максимума сигнальной свечи M5 или локального максимума M1.',
+        'Einstieg erst, wenn eine M1-Kerze über dem Hoch der M5-Signalkerze oder dem lokalen M1-Hoch schließt.',
+        'Entry only when an M1 candle closes above the M5 signal candle high or the local M1 high.'),
+      keys: ['dr_use_m1'] },
+  ],
   n_vrev: [
     MARKET_GROUP,
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
@@ -275,7 +313,7 @@ function liveMode(name, settings) {
   if (name === 'n_5x5' && p.five_bot) return 'closed';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
-  if (name === 'n_vrev') return 'closed';
+  if (name === 'n_vrev' || name === 'n_deeprev') return 'closed';
   return 'legacy';
 }
 
@@ -291,6 +329,110 @@ function ctx(c) {
     stoch: (k, d, s) => m(`st${k}-${d}-${s}`, () => I.stoch(c, k, s, d)),
     psar: (s, x) => m(`ps${s}-${x}`, () => I.psar(c, s, x)),
   };
+}
+
+// Levels from swing points (2 candles on each side) of the given candles, clustered into zones of width zw.
+function swingZones(cands, side, zw, skipLast) {
+  const pts = [];
+  for (let j = 2; j < cands.length - 2 - skipLast; j++) {
+    const v = side > 0 ? cands[j].high : cands[j].low;
+    let ok = true; for (let q = j - 2; q <= j + 2; q++) if (q !== j && (side > 0 ? cands[q].high > v : cands[q].low < v)) ok = false;
+    if (ok) pts.push(v);
+  }
+  pts.sort((a, b) => a - b);
+  const out = [];
+  for (const v of pts) { const z = out[out.length - 1]; if (z && v - z.lo <= zw) { z.hi = v; z.n++; } else out.push({ lo: v, hi: v, n: 1 }); }
+  return out;
+}
+
+// One direction of n_deeprev: dir 1 = CALL after a fall into support, −1 = PUT after a rise into resistance (mirror).
+// Returns a signal, or { why } with the first rule that failed.
+function deepRev(m1, m5, m15, p, dir, on) {
+  const ru = dir > 0, i5 = m5.length - 1, k5 = m5[i5];
+  const atr5 = I.atr(m5, 14)[i5], atr15 = I.atr(m15, 14)[m15.length - 1];
+  if (!(atr5 > 0) || !(atr15 > 0)) return { why: 'ATR' };
+  const lowOf = k => ru ? k.low : k.high, ext = (a, b) => ru ? Math.min(a, b) : Math.max(a, b);
+  const beyond = (a, b) => ru ? a < b : a > b; // a is further in the fall direction than b
+  // 1. Level: swing points of M15 (whole history) and M5 (not the last 8 candles – the level must already exist).
+  const zw = (Number(p.dr_zone_atr) || 0.5) * atr5, side = ru ? -1 : 1;
+  const zones = swingZones(m15, side, zw, 0).concat(swingZones(m5, side, zw, 8))
+    .sort((a, b) => a.lo - b.lo).reduce((acc, z) => { const l = acc[acc.length - 1]; if (l && z.lo - l.hi <= zw) { l.hi = Math.max(l.hi, z.hi); l.n += z.n; } else acc.push({ ...z }); return acc; }, [])
+    .filter(z => z.n >= (Number(p.dr_touches) || 2));
+  let tip = lowOf(m5[i5]); for (let j = i5 - 3; j < i5; j++) tip = ext(tip, lowOf(m5[j]));
+  const near = (Number(p.dr_near_atr) || 0.7) * atr5;
+  const lvl = zones.map(z => ({ ...z, d: ru ? tip - z.hi : z.lo - tip })).filter(z => z.d <= near && z.d >= -3 * zw).sort((a, b) => Math.abs(a.d) - Math.abs(b.d))[0];
+  if (!lvl) return { why: 'нет чёткого уровня рядом' };
+  const Lv = ru ? lvl.hi : lvl.lo, Lfar = ru ? lvl.lo : lvl.hi;
+  // 2. The fall: ≥ dr_bear opposite candles in a row on M5 before the reaction, or an impulse of ≥ dr_imp_atr × ATR.
+  let rb = i5; // reaction candle: the last closed M5, or the one before it
+  if (I.dirOf(m5[i5]) !== dir && I.dirOf(m5[i5 - 1]) === dir) rb = i5 - 1;
+  let n = 0; for (let j = rb - 1; j > 0 && I.dirOf(m5[j]) === -dir; j--) n++;
+  let top = -Infinity * dir; for (let j = Math.max(0, rb - 10); j < rb; j++) top = ru ? Math.max(top, m5[j].high) : Math.min(top, m5[j].low);
+  const move = Math.abs(top - tip) / atr5;
+  const fallOk = n >= (Number(p.dr_bear) || 5) || move >= (Number(p.dr_imp_atr) || 3);
+  if (on('dr_use_fall') && !fallOk) return { why: `падение слабое (${n} св., ${move.toFixed(1)} ATR)` };
+  // 3. Reaction on M5: long wick, hammer, engulfing, or close back past the level.
+  const rc = m5[rb], pv = m5[rb - 1], rr = rc.high - rc.low, bd = Math.abs(rc.close - rc.open);
+  const wick = ru ? Math.min(rc.open, rc.close) - rc.low : rc.high - Math.max(rc.open, rc.close);
+  const nose = ru ? rc.high - Math.max(rc.open, rc.close) : Math.min(rc.open, rc.close) - rc.low;
+  const pats = [];
+  if (rr > 0 && wick >= 0.5 * rr) pats.push(ru ? 'длинная нижняя тень' : 'длинная верхняя тень');
+  if (rr > 0 && wick >= 2 * bd && nose <= Math.max(bd, 0.15 * rr)) pats.push(ru ? 'молот' : 'падающая звезда');
+  if (I.dirOf(rc) === dir && I.dirOf(pv) === -dir && (ru ? rc.close >= pv.open && rc.open <= pv.close : rc.close <= pv.open && rc.open >= pv.close)) pats.push(ru ? 'бычье поглощение' : 'медвежье поглощение');
+  if (beyond(lowOf(rc), Lfar) && !beyond(rc.close, Lv)) pats.push(ru ? 'закрытие обратно выше поддержки' : 'закрытие обратно ниже сопротивления');
+  if (on('dr_use_pattern') && !pats.length) return { why: 'нет реакции цены на M5' };
+  // 7. Broken level: the last closed M5 is still beyond the level after a strong candle.
+  if (on('dr_use_break')) for (let j = i5 - 2; j <= i5; j++) {
+    const k = m5[j];
+    if (I.dirOf(k) === -dir && Math.abs(k.close - k.open) >= (Number(p.dr_break_atr) || 1.2) * atr5 && beyond(k.close, Lfar) && beyond(m5[i5].close, Lfar))
+      return { why: 'уровень пробит сильной свечой' };
+  }
+  // 4–5. RSI 14 on M5: below 30 (above 70) or divergence, and crossing 30 (70) back.
+  const rs = I.rsi(m5.map(k => k.close), 14), lo = Number(p.dr_rsi_lo) || 30, lvlR = ru ? lo : 100 - lo;
+  let rmin = ru ? 100 : 0; for (let j = Math.max(0, rb - 6); j <= i5; j++) if (rs[j] != null) rmin = ru ? Math.min(rmin, rs[j]) : Math.max(rmin, rs[j]);
+  const rsiExt = ru ? rmin < lvlR : rmin > lvlR;
+  // Divergence: the newest extreme (last 4 candles) beyond the previous one (6–24 candles back), RSI not.
+  let j2 = i5; for (let j = i5 - 3; j <= i5; j++) if (beyond(lowOf(m5[j]), lowOf(m5[j2]))) j2 = j;
+  let j1 = -1; for (let j = Math.max(1, i5 - 24); j <= i5 - 6; j++) if (j1 < 0 || beyond(lowOf(m5[j]), lowOf(m5[j1]))) j1 = j;
+  const div = j1 > 0 && rs[j1] != null && rs[j2] != null && beyond(lowOf(m5[j2]), lowOf(m5[j1])) && (ru ? rs[j2] > rs[j1] + 2 : rs[j2] < rs[j1] - 2);
+  if (on('dr_use_rsi') && !rsiExt && !div) return { why: `RSI ${rmin.toFixed(0)} без зоны и без дивергенции` };
+  let cross = false; for (let j = Math.max(1, i5 - 2); j <= i5; j++) if (rs[j - 1] != null && (ru ? rs[j - 1] < lvlR && rs[j] >= lvlR : rs[j - 1] > lvlR && rs[j] <= lvlR)) cross = true;
+  if (on('dr_use_cross') && !cross) return { why: `RSI ещё не пересёк ${lvlR} обратно` };
+  // 8. Strong M15 trend against the trade: only with divergence as extra confirmation.
+  const c15 = m15.map(k => k.close), e20 = I.ema(c15, 20), e50 = I.ema(c15, 50), q = m15.length - 1;
+  const slope = (e20[q] - e20[q - 3]) / atr15;
+  const strongTrend = e50[q] != null && (ru ? c15[q] < e50[q] && slope < -0.3 : c15[q] > e50[q] && slope > 0.3);
+  if (on('dr_use_trend') && strongTrend && !div) return { why: 'сильный тренд M15 против сделки, нет дивергенции' };
+  // 9. Sideways market on M15 / sharp move on M1.
+  let fh = -Infinity, fl = Infinity; for (let j = q - 11; j <= q; j++) { fh = Math.max(fh, m15[j].high); fl = Math.min(fl, m15[j].low); }
+  if (on('dr_use_flat') && fh - fl < (Number(p.dr_flat_atr) || 3) * atr15) return { why: 'боковик на M15' };
+  const i1 = m1.length - 1; let a1 = 0; for (let j = i1 - 20; j < i1; j++) a1 += m1[j].high - m1[j].low; a1 /= 20;
+  if (on('dr_use_spike') && m1[i1].high - m1[i1].low > (Number(p.dr_spike) || 3) * a1) return { why: 'резкое движение на M1' };
+  // 6. M1 entry: the close breaks the reaction candle's high (low) or the last local M1 high (low), freshly.
+  let loc = ru ? -Infinity : Infinity; for (let j = i1 - 4; j < i1; j++) loc = ru ? Math.max(loc, m1[j].high) : Math.min(loc, m1[j].low);
+  const trig = ru ? Math.min(rc.high, loc) : Math.max(rc.low, loc);
+  const m1ok = ru ? m1[i1].close > trig && m1[i1 - 1].close <= trig : m1[i1].close < trig && m1[i1 - 1].close >= trig;
+  if (on('dr_use_m1') && !m1ok) return { why: 'нет пробоя на M1' };
+  // Confidence 1–10.
+  let conf = 5 + (div ? 1 : 0) + (rsiExt && (ru ? rmin < lvlR - 5 : rmin > lvlR + 5) ? 1 : 0) + (lvl.n >= 3 ? 1 : 0)
+    + (pats.some(t => /поглощение/.test(t)) ? 1 : 0) + (!strongTrend ? 1 : 0) - (pats.length ? 0 : 2) - (m1ok ? 0 : 2);
+  conf = Math.max(1, Math.min(10, conf));
+  if (conf < (Number(p.dr_min_conf) || 0)) return { why: `уверенность ${conf}/10 ниже порога` };
+  const dec = Math.max(2, -Math.floor(Math.log10(atr5)) + 2);
+  const lines = [
+    `${ru ? 'CALL ↑' : 'PUT ↓'} · уверенность ${conf}/10 · анализ M15/M5, вход M1`,
+    `${ru ? 'поддержка' : 'сопротивление'} ${lvl.lo.toFixed(dec)}–${lvl.hi.toFixed(dec)} (${lvl.n} касания)`,
+    `${ru ? 'медвежьих' : 'бычьих'} свечей подряд: ${n}, ход ${move.toFixed(1)} ATR`,
+    `RSI M5 ${rs[i5] != null ? rs[i5].toFixed(0) : '–'} (экстремум ${rmin.toFixed(0)}), пересёк ${lvlR}: ${cross ? 'да' : 'нет'}, дивергенция: ${div ? 'есть' : 'нет'}`,
+    `паттерн: ${pats.join(', ') || 'нет'}`,
+    `M1: ${m1ok ? 'пробой ' + trig.toFixed(dec) : 'пробоя нет'}`,
+    `тренд M15: ${strongTrend ? 'сильный против сделки' : 'не мешает'}`,
+    'не гарантия · проверяйте на демо',
+  ];
+  const txt = lines.join(' · ');
+  const s = sig(dir, conf * 10, L(txt, txt, txt), Number(p.expiry) || 180);
+  s.bar = rc.time; // one signal per M5 reaction candle
+  return s;
 }
 
 const S = {
@@ -473,6 +615,23 @@ const S = {
       `V-reversal: ${n} impulse candles, ${move.toFixed(1)} SD → candle ${Math.round(100 * b / r)}%`), Number(p.expiry) || 60);
     s.bar = k.time;
     return s;
+  },
+  // Confirmed reversal after a deep fall (user's prompt of 29.10.2026). M15/M5 give the levels, the fall, the reaction
+  // and RSI 14; M1 gives the entry (break of the signal candle's high). CALL; with dr_sell also the mirror (PUT after
+  // a rise into resistance). Every rule can be switched off except the level. The card lists every check.
+  n_deeprev(x, p) {
+    const no = why => { if (globalThis.__drWhy) globalThis.__drWhy.push(why); return null; };
+    const m1 = x.c, m5 = x.ctx?.M5, m15 = x.ctx?.M15;
+    if (!m5 || m5.length < 40 || !m15 || m15.length < 30) return no('нет истории M5/M15');
+    const on = k => p[k] !== false;
+    for (const dir of [1, -1]) {
+      if (dir > 0 && p.dr_buy === false) continue;
+      if (dir < 0 && !p.dr_sell) continue;
+      const r = deepRev(m1, m5, m15, p, dir, on);
+      if (r && r.dir) return r;
+      if (r && r.why) no(r.why);
+    }
+    return null;
   },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
   n_big(x, p) {
@@ -830,6 +989,7 @@ function evaluate(candlesByTf, enabled, settings) {
     for (const tf of settings.strat_tfs?.[name] || ['M1']) {
       const c = candlesByTf[tf]; if (!c || c.length < 60) continue;
       const x = (ctxs[tf] ??= ctx(c)); x.tfMin = parseInt(tf.slice(1), 10) || 1;
+      x.ctx = candlesByTf.ctx; // higher timeframes from their own history (M5/M15), for multi-timeframe strategies
       let s = null, p = base, pr = null;
       for (const set of sets) {
         let r; try { r = fn(x, set.p); } catch { r = null; }
