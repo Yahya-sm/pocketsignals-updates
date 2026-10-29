@@ -20,8 +20,6 @@ const META = {
   early: [L('Ранний разворот', 'Frühe Umkehr', 'Early reversal'), 'rev'],
   n_rsi8020: [L('RSI 14 · возврат из крайних зон', 'RSI 14 · Rückkehr aus Extremzonen', 'RSI 14 · return from extreme zones'), 'rev'],
   n_rsi2: [L('RSI 2 · перегрев', 'RSI 2 · Überhitzung', 'RSI 2 · overheated'), 'rev'],
-  zzsar: [L('ZigZag + PSAR + Stochastic', 'ZigZag + PSAR + Stochastic'), 'rev'],
-  n_stoch: [L('Just Stoch', 'Just Stoch'), 'rev'],
   n_sbs: [L('SBS', 'SBS'), 'trend'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
   n_vortex: [L('Vortex + MACD', 'Vortex + MACD'), 'trend'],
@@ -74,8 +72,6 @@ const DEFAULTS = {
   early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
   n_rsi8020: { ...REV, rsi_period: 14, rsi_levels: '70/30' },
   n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
-  zzsar: { ...REV, zz_bars: 6, stoch_zone: 20, sar_step: 0.02, sar_max: 0.2 },
-  n_stoch: { ...REV, stoch_k: 14, stoch_d: 3, stoch_slow: 3, stoch_zone: 20 },
   n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   n_vortex: { ...TREND, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
@@ -539,22 +535,6 @@ const S = {
     const r = x.rsi(2)[x.last], t = p.rsi2_threshold || 5;
     if (r <= t && p.rsi2_buy !== false) return sig(1, 72, `RSI(2) = ${r.toFixed(1)}`);
     if (r >= 100 - t && p.rsi2_sell !== false) return sig(-1, 72, `RSI(2) = ${r.toFixed(1)}`);
-    return null;
-  },
-  zzsar(x, p) {
-    const i = x.last, ps = x.psar(p.sar_step || 0.02, p.sar_max || 0.2);
-    if (!ps[i] || !ps[i - 1] || ps[i].up === ps[i - 1].up) return null;
-    const d = ps[i].up ? 1 : -1, n = p.zz_bars || 6, st = x.stoch(14, 3, 3).k, z = p.stoch_zone || 20;
-    const seg = x.c.slice(i - n, i + 1), ext = d > 0 ? Math.min(...seg.map(k => k.low)) : Math.max(...seg.map(k => k.high));
-    if (!seg.some(k => (d > 0 ? k.low : k.high) === ext)) return null;
-    const wasZone = st.slice(i - n, i).some(v => v !== null && (d > 0 ? v < z : v > 100 - z));
-    if (!wasZone || (d > 0 ? st[i] <= st[i - 1] : st[i] >= st[i - 1])) return null;
-    return sig(d, 76, L('разворот PSAR от экстремума ZigZag, Stochastic разворачивается', 'PSAR dreht am ZigZag-Extrem, Stochastic dreht', 'PSAR flips at ZigZag extreme, Stochastic turns'));
-  },
-  n_stoch(x, p) {
-    const { k, d } = x.stoch(p.stoch_k || 14, p.stoch_d || 3, p.stoch_slow || 3), i = x.last, z = p.stoch_zone || 20, c = cross(k, d, i);
-    if (c > 0 && k[i - 1] < z) return sig(1, 72, L(`Stochastic %K пересёк %D вверх из зоны ${z}`, `Stochastic %K kreuzt %D aufwärts aus Zone ${z}`, `Stochastic %K crossed %D up from zone ${z}`));
-    if (c < 0 && k[i - 1] > 100 - z) return sig(-1, 72, L(`Stochastic %K пересёк %D вниз из зоны ${100 - z}`, `Stochastic %K kreuzt %D abwärts aus Zone ${100 - z}`, `Stochastic %K crossed %D down from zone ${100 - z}`));
     return null;
   },
   n_sbs(x, p) {
