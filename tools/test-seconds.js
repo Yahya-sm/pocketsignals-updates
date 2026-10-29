@@ -7,8 +7,8 @@ process.env.SIGNAL_DATA = dir;
 const Engine = require('../src/engine');
 const strategies = require('../src/strategies');
 const e = new Engine();
-Object.assign(e.settings, { strategies: ['n_sharp', 'n_big', 'n_stoch'], trend_filter: false, min_strength: 0,
-  strat_tfs: { n_sharp: ['S10'], n_big: ['S30'], n_stoch: ['S15', 'M1'] } });
+Object.assign(e.settings, { strategies: ['n_sharp', 'n_big', 'n_stochenv'], trend_filter: false, min_strength: 0,
+  strat_tfs: { n_sharp: ['S10'], n_big: ['S30'], n_stochenv: ['S15', 'M1'] } });
 let secAnswers = 0;
 const orig = e._onSecondHistory.bind(e);
 e._onSecondHistory = (h, sec) => { secAnswers++; if (secAnswers <= 3) console.log(`S${sec}: ${h.asset} – ${h.data.length} Kerzen, letzte ${new Date(h.data[h.data.length - 1].time * 1000).toLocaleTimeString()}`); orig(h, sec); };
