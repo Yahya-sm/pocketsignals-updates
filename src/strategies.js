@@ -23,27 +23,16 @@ const META = {
   n_tri: [L('Три EMA + RSI', 'Drei EMA + RSI', 'Three EMA + RSI'), 'trend'],
   n_mafr: [L('MA 2/5 + RSI 13 + фракталы', 'MA 2/5 + RSI 13 + Fraktale', 'MA 2/5 + RSI 13 + fractals'), 'trend'],
   n_rsi8020: [L('RSI 14 · возврат из крайних зон', 'RSI 14 · Rückkehr aus Extremzonen', 'RSI 14 · return from extreme zones'), 'rev'],
-  n_rsi13: [L('RSI 13 · крайние зоны', 'RSI 13 · Extremzonen', 'RSI 13 · extreme zones'), 'rev'],
   n_rsi2: [L('RSI 2 · перегрев', 'RSI 2 · Überhitzung', 'RSI 2 · overheated'), 'rev'],
   zzsar: [L('ZigZag + PSAR + Stochastic', 'ZigZag + PSAR + Stochastic'), 'rev'],
   n_stoch: [L('Just Stoch', 'Just Stoch'), 'rev'],
-  n_macross: [L('EMA Cross', 'EMA Cross'), 'trend'],
-  n_rsibreak: [L('RSI-Trend · пробой', 'RSI-Trend · Ausbruch', 'RSI trend · breakout'), 'trend'],
-  n_rsitrend: [L('Отскок от тренда (EMA 20 + RSI)', 'Rücksprung am Trend (EMA 20 + RSI)', 'Trend bounce (EMA 20 + RSI)'), 'trend'],
-  n_bbosc: [L('BBands + Oscillator', 'BBands + Oszillator', 'BBands + Oscillator'), 'rev'],
-  n_fractal: [L('Fractal Reverse', 'Fraktal-Umkehr', 'Fractal Reverse'), 'rev'],
   n_sbs: [L('SBS', 'SBS'), 'trend'],
-  n_5x5: [L('«5 на 5»', '„5 auf 5“', '"5 on 5"'), 'trend'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
   n_vortex: [L('Vortex + MACD', 'Vortex + MACD'), 'trend'],
   n_mamacd: [L('MA + MACD', 'MA + MACD'), 'trend'],
   n_psar: [L('Supertrend + PSAR', 'Supertrend + PSAR'), 'trend'],
   n_bb2: [L('BB (два)', 'BB (doppelt)', 'BB (double)'), 'rev'],
-  n_atrst: [L('ATR: тренд + откат', 'ATR: Trend + Rücklauf', 'ATR: trend + pullback'), 'trend'],
-  n_structure: [L('Структура рынка', 'Marktstruktur', 'Market structure'), 'trend'],
   n_impulse: [L('Импульсный возврат', 'Impuls-Rückkehr', 'Impulse return'), 'trend'],
-  n_pa: [L('Price Action', 'Price Action'), 'rev'],
-  n_ema5: [L('EMA 5 · серия и пересечение', 'EMA 5 · Serie und Kreuzung', 'EMA 5 · run and cross'), 'trend'],
   ma4813: [L('MA 4/8/13', 'MA 4/8/13'), 'trend'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
@@ -93,27 +82,16 @@ const DEFAULTS = {
   n_tri: { ...TREND, tri_fast: 9, tri_mid: 13, tri_slow: 21, tri_rsi_period: 5, tri_smooth_period: 3, tri_lower: 35, tri_upper: 65, min_adx: 15, max_adx: 45 },
   n_mafr: { ...TREND, mf_fast: 2, mf_slow: 5, mf_rsi: 13, mf_frac_on: true, mf_rsi_on: true, mf_frac_bars: 8 },
   n_rsi8020: { ...REV, rsi_period: 14, rsi_levels: '70/30' },
-  n_rsi13: { rsi13_expiry: 180, ...FILTERS, follow_move: false, rsi13_period: 13, rsi13_low: 20, rsi13_buy: true, rsi13_sell: true },
   n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
   zzsar: { ...REV, zz_bars: 6, stoch_zone: 20, sar_step: 0.02, sar_max: 0.2 },
   n_stoch: { ...REV, stoch_k: 14, stoch_d: 3, stoch_slow: 3, stoch_zone: 20 },
-  n_macross: { ...TREND, ma_fast: 2, ma_slow: 9, ma_fast_type: 'EMA', ma_slow_type: 'EMA' },
-  n_rsibreak: { ...TREND, rsi_period: 14, ema_trend: 20 },
-  n_rsitrend: { ...TREND, ema_fast: 20, ema_slow: 50, rsi_period: 14 },
-  n_bbosc: { ...REV, bb_period: 20, bb_mult: 2, rsi_period: 7, rsi_extreme: 25 },
-  n_fractal: { ...REV, frac_lookback: 20 },
   n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
-  n_5x5: { ...TREND, ema_fast: 5, ema_slow: 13, ...FIVE_BOT },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   n_vortex: { ...TREND, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
   n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
   n_bb2: { ...REV, bb_period: 20, bb_inner: 2, bb_outer: 3 },
-  n_atrst: { ...TREND, ema_fast: 20, ema_slow: 50, atr_min: 0.6, atr_max: 2.0, min_adx: 20 },
-  n_structure: { ...TREND },
   n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
-  n_pa: { ...REV, level_bars: 20, wick_ratio: 2.0 },
-  n_ema5: { ema5_expiry: 120, ...FILTERS, no_countertrend: false, room_check: true, room_min: 1, ema5_ma: 'SMA6', ema5_run: 5, ema5_buy: true, ema5_sell: true },
   ma4813: { ...TREND, min_adx: 15, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
 };
 
@@ -268,7 +246,6 @@ function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   if (name === 'n_ma25') return 'live';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
-  if (name === 'n_5x5' && p.five_bot) return 'closed';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
   if (name === 'n_deeprev') return 'closed';
@@ -611,12 +588,6 @@ const S = {
     if (r[i - 1] > hi && r[i] <= hi) return sig(-1, 72, L(`RSI вернулся ниже ${hi}`, `RSI zurück unter ${hi}`, `RSI back below ${hi}`));
     return null;
   },
-  n_rsi13(x, p) {
-    const r = x.rsi(p.rsi13_period || 13)[x.last], low = p.rsi13_low || 20;
-    if (r <= low && p.rsi13_buy !== false) return sig(1, 70 + (low - r), L(`RSI ${r.toFixed(0)} — перепроданность`, `RSI ${r.toFixed(0)} – überverkauft`, `RSI ${r.toFixed(0)} – oversold`), p.rsi13_expiry);
-    if (r >= 100 - low && p.rsi13_sell !== false) return sig(-1, 70 + (r - 100 + low), L(`RSI ${r.toFixed(0)} — перекупленность`, `RSI ${r.toFixed(0)} – überkauft`, `RSI ${r.toFixed(0)} – overbought`), p.rsi13_expiry);
-    return null;
-  },
   n_rsi2(x, p) {
     const r = x.rsi(2)[x.last], t = p.rsi2_threshold || 5;
     if (r <= t && p.rsi2_buy !== false) return sig(1, 72, `RSI(2) = ${r.toFixed(1)}`);
@@ -639,55 +610,12 @@ const S = {
     if (c < 0 && k[i - 1] > 100 - z) return sig(-1, 72, L(`Stochastic %K пересёк %D вниз из зоны ${100 - z}`, `Stochastic %K kreuzt %D abwärts aus Zone ${100 - z}`, `Stochastic %K crossed %D down from zone ${100 - z}`));
     return null;
   },
-  n_macross(x, p) {
-    const d = cross(I.ma(x.close, p.ma_fast, p.ma_fast_type), I.ma(x.close, p.ma_slow, p.ma_slow_type), x.last);
-    const a = `${p.ma_fast_type || 'EMA'} ${p.ma_fast}`, b = `${p.ma_slow_type || 'EMA'} ${p.ma_slow}`;
-    return d ? sig(d, 72, L(`${a} пересекла ${b}`, `${a} kreuzt ${b}`, `${a} crossed ${b}`)) : null;
-  },
-  n_rsibreak(x, p) {
-    const i = x.last, r = x.rsi(p.rsi_period || 14), e = x.ema(p.ema_trend || 20), d = cross(r, arr(r.length, 50), i);
-    if (!d || (d > 0 ? x.close[i] < e[i] : x.close[i] > e[i])) return null;
-    return sig(d, 72, d > 0
-      ? L(`RSI пересёк 50 вверх по тренду EMA ${p.ema_trend}`, `RSI kreuzt 50 aufwärts im Trend EMA ${p.ema_trend}`, `RSI crossed 50 up with EMA ${p.ema_trend} trend`)
-      : L(`RSI пересёк 50 вниз по тренду EMA ${p.ema_trend}`, `RSI kreuzt 50 abwärts im Trend EMA ${p.ema_trend}`, `RSI crossed 50 down with EMA ${p.ema_trend} trend`));
-  },
-  n_rsitrend(x, p) {
-    const i = x.last, f = x.ema(p.ema_fast || 20), s = x.ema(p.ema_slow || 50), r = x.rsi(p.rsi_period || 14), k = x.c[i];
-    const trend = f[i] > s[i] ? 1 : -1;
-    const touched = trend > 0 ? k.low <= f[i] : k.high >= f[i];
-    const turn = trend > 0 ? r[i - 1] < 50 && r[i] > r[i - 1] : r[i - 1] > 50 && r[i] < r[i - 1];
-    if (!touched || !turn || I.dirOf(k) !== trend) return null;
-    return sig(trend, 74, L(`касание EMA ${p.ema_fast}, RSI разворачивается по тренду`, `Berührung EMA ${p.ema_fast}, RSI dreht mit dem Trend`, `touch of EMA ${p.ema_fast}, RSI turns with the trend`));
-  },
-  n_bbosc(x, p) {
-    const i = x.last, bb = I.bollinger(x.close, p.bb_period || 20, p.bb_mult || 2), r = x.rsi(p.rsi_period || 7), e = p.rsi_extreme || 25;
-    if (!bb[i - 1]) return null;
-    if (x.close[i - 1] < bb[i - 1].lo && x.close[i] > bb[i].lo && r[i - 1] < e) return sig(1, 75, L('выход под нижнюю Bollinger при крайнем RSI и возврат в канал', 'unter das untere Bollinger-Band bei extremem RSI und zurück', 'below lower Bollinger band at extreme RSI and back inside'));
-    if (x.close[i - 1] > bb[i - 1].up && x.close[i] < bb[i].up && r[i - 1] > 100 - e) return sig(-1, 75, L('выход над верхней Bollinger при крайнем RSI и возврат в канал', 'über das obere Bollinger-Band bei extremem RSI und zurück', 'above upper Bollinger band at extreme RSI and back inside'));
-    return null;
-  },
-  n_fractal(x, p) {
-    const i = x.last, k = x.c[i], fr = I.fractals(x.c).filter(f => f.i >= i - (p.frac_lookback || 20) && f.i <= i - 3);
-    const lo = fr.filter(f => f.type === 'low').pop(), hi = fr.filter(f => f.type === 'high').pop();
-    if (lo && k.low < lo.price && k.close > lo.price) return sig(1, 74, L('ложный пробой фрактала вниз и возврат', 'Fehlausbruch unter Fraktal und zurück', 'false break below fractal and back'));
-    if (hi && k.high > hi.price && k.close < hi.price) return sig(-1, 74, L('ложный пробой фрактала вверх и возврат', 'Fehlausbruch über Fraktal und zurück', 'false break above fractal and back'));
-    return null;
-  },
   n_sbs(x, p) {
     const i = x.last, d = cross(x.sma(p.ma_fast || 5), x.sma(p.ma_slow || 10), i); if (!d) return null;
     const { k, d: dd } = x.stoch(p.stoch_k || 14, 3, 3);
     if (d > 0 ? k[i] < dd[i] : k[i] > dd[i]) return null;
     if (I.dirOf(x.c[i]) !== d) return null;
     return sig(d, 74, L(`MA ${p.ma_fast} пересекла MA ${p.ma_slow}, Stochastic согласен`, `MA ${p.ma_fast} kreuzt MA ${p.ma_slow}, Stochastic stimmt zu`, `MA ${p.ma_fast} crossed MA ${p.ma_slow}, Stochastic agrees`));
-  },
-  n_5x5(x, p) {
-    if (p.five_bot) { // logic and filters of the Telegram bot
-      const r = five5(x.c, x.last, p); if (!r.dir) return null;
-      return sig(r.dir, 75, L(`«5 на 5» как в боте: ${r.reason}`, `„5 auf 5“ wie im Bot: ${r.reason}`, `"5 on 5" as in the bot: ${r.reason}`));
-    }
-    const i = x.last, d = cross(x.ema(p.ema_fast || 5), x.ema(p.ema_slow || 13), i);
-    if (!d || I.dirOf(x.c[i]) !== d) return null;
-    return sig(d, 72, L(`EMA ${p.ema_fast} пересекла EMA ${p.ema_slow}`, `EMA ${p.ema_fast} kreuzt EMA ${p.ema_slow}`, `EMA ${p.ema_fast} crossed EMA ${p.ema_slow}`));
   },
   n_stochenv(x, p) {
     const i = x.last, m = x.sma(p.env_period || 20), pct = (p.env_pct || 0.1) / 100, z = p.stoch_zone || 20;
@@ -729,26 +657,6 @@ const S = {
     if (prev.high >= outer[i - 1].up && k.close < inner[i].up) return sig(-1, 76, L('касание внешней верхней BB и возврат за внутреннюю', 'äußeres oberes BB berührt, zurück unter inneres', 'outer upper BB touched, back below inner'));
     return null;
   },
-  n_atrst(x, p) {
-    const i = x.last, f = x.ema(p.ema_fast || 20), s = x.ema(p.ema_slow || 50), a = x.atr;
-    const avgA = a.slice(i - 30, i).reduce((t, v) => t + (v || 0), 0) / 30, rel = a[i] / avgA;
-    if (rel < (p.atr_min || 0.6) || rel > (p.atr_max || 2)) return null;
-    const trend = f[i] > s[i] && s[i] > s[i - 5] ? 1 : f[i] < s[i] && s[i] < s[i - 5] ? -1 : 0; if (!trend) return null;
-    const pulled = x.c.slice(i - 3, i).some(k => (trend > 0 ? k.low <= f[i] : k.high >= f[i]));
-    if (!pulled || I.dirOf(x.c[i]) !== trend || (trend > 0 ? x.close[i] < f[i] : x.close[i] > f[i])) return null;
-    return sig(trend, 75, L(`откат к EMA ${p.ema_fast} и продолжение тренда, ATR ${rel.toFixed(1)}× от среднего`,
-      `Rücklauf zur EMA ${p.ema_fast}, Trend geht weiter, ATR ${rel.toFixed(1)}× Durchschnitt`, `pullback to EMA ${p.ema_fast}, trend resumes, ATR ${rel.toFixed(1)}× average`));
-  },
-  n_structure(x, p) {
-    const fr = I.fractals(x.c), lows = fr.filter(f => f.type === 'low').slice(-2), highs = fr.filter(f => f.type === 'high').slice(-2);
-    if (lows.length < 2 || highs.length < 2) return null;
-    const k = x.c[x.last];
-    const up = lows[1].price > lows[0].price && highs[1].price > highs[0].price;
-    const dn = lows[1].price < lows[0].price && highs[1].price < highs[0].price;
-    if (up && I.dirOf(x.c[x.last - 1]) < 0 && I.dirOf(k) > 0 && k.low > lows[1].price) return sig(1, 74, L('структура HH/HL, откат закончен', 'Struktur HH/HL, Rücklauf beendet', 'HH/HL structure, pullback finished'));
-    if (dn && I.dirOf(x.c[x.last - 1]) > 0 && I.dirOf(k) < 0 && k.high < highs[1].price) return sig(-1, 74, L('структура LH/LL, откат закончен', 'Struktur LH/LL, Rücklauf beendet', 'LH/LL structure, pullback finished'));
-    return null;
-  },
   n_impulse(x, p) {
     const i = x.last, a = x.atr[i - 1]; if (!a) return null;
     for (let back = 2; back <= (p.pullback_max || 2) + 1; back++) {
@@ -758,29 +666,6 @@ const S = {
       if (pull && I.dirOf(x.c[i]) === d) return sig(d, 75, L('импульсная свеча, короткий откат и возврат', 'Impulskerze, kurzer Rücklauf und Rückkehr', 'impulse candle, short pullback and return'));
     }
     return null;
-  },
-  n_pa(x, p) {
-    const i = x.last, k = x.c[i], prev = x.c[i - 1], n = p.level_bars || 20, b = I.body(k) || 1e-9;
-    const seg = x.c.slice(i - n, i), lo = Math.min(...seg.map(c => c.low)), hi = Math.max(...seg.map(c => c.high)), a = x.atr[i] || 0;
-    const lowerW = Math.min(k.open, k.close) - k.low, upperW = k.high - Math.max(k.open, k.close);
-    const nearLo = k.low <= lo + a * 0.3, nearHi = k.high >= hi - a * 0.3;
-    const bullEng = I.dirOf(prev) < 0 && I.dirOf(k) > 0 && k.close > prev.open && k.open <= prev.close;
-    const bearEng = I.dirOf(prev) > 0 && I.dirOf(k) < 0 && k.close < prev.open && k.open >= prev.close;
-    if (nearLo && (lowerW / b >= (p.wick_ratio || 2) || bullEng)) return sig(1, 75, bullEng
-      ? L('бычье поглощение у поддержки', 'bullisches Engulfing an Unterstützung', 'bullish engulfing at support')
-      : L('пин-бар у поддержки', 'Pin-Bar an Unterstützung', 'pin bar at support'));
-    if (nearHi && (upperW / b >= (p.wick_ratio || 2) || bearEng)) return sig(-1, 75, bearEng
-      ? L('медвежье поглощение у сопротивления', 'bärisches Engulfing an Widerstand', 'bearish engulfing at resistance')
-      : L('пин-бар у сопротивления', 'Pin-Bar an Widerstand', 'pin bar at resistance'));
-    return null;
-  },
-  n_ema5(x, p) {
-    const n = parseInt(String(p.ema5_ma || 'SMA6').replace(/\D/g, ''), 10) || 6;
-    const m = String(p.ema5_ma || '').startsWith('E') ? x.ema(n) : x.sma(n), run = p.ema5_run || 5;
-    const side = i => Math.sign(x.close[i] - m[i]), now = side(x.last); if (!now) return null;
-    for (let i = 1; i <= run; i++) if (side(x.last - i) !== -now) return null;
-    if ((now > 0 && p.ema5_buy === false) || (now < 0 && p.ema5_sell === false)) return null;
-    return sig(now, 72, L(`пересечение MA ${n} после ${run} свечей`, `Kreuzung MA ${n} nach ${run} Kerzen`, `MA ${n} cross after ${run} candles`), p.ema5_expiry);
   },
   ma4813(x, p) {
     const t = p.ma3_type || 'EMA', f = Number(p.ma3_fast) || 4, m = Number(p.ma3_mid) || 8, s = Number(p.ma3_slow) || 13;
