@@ -17,11 +17,7 @@ const META = {
   n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
   n_levelrev: [L('Разворот от уровня (пин-бар / V-разворот)', 'Umkehr am Level (Pinbar / V-Umkehr)', 'Reversal at a level (pin bar / V-turn)'), 'rev'],
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
-  n_pulse: [L('Сильный импульс → возможный отскок', 'Starker Impuls → möglicher Rücksprung', 'Strong impulse → possible rebound'), 'rev'],
-  n_vdrop: [L('Импульсное падение → отскок', 'Impulsfall → Rücksprung', 'Impulse drop → rebound'), 'rev'],
   early: [L('Ранний разворот', 'Frühe Umkehr', 'Early reversal'), 'rev'],
-  n_tri: [L('Три EMA + RSI', 'Drei EMA + RSI', 'Three EMA + RSI'), 'trend'],
-  n_mafr: [L('MA 2/5 + RSI 13 + фракталы', 'MA 2/5 + RSI 13 + Fraktale', 'MA 2/5 + RSI 13 + fractals'), 'trend'],
   n_rsi8020: [L('RSI 14 · возврат из крайних зон', 'RSI 14 · Rückkehr aus Extremzonen', 'RSI 14 · return from extreme zones'), 'rev'],
   n_rsi2: [L('RSI 2 · перегрев', 'RSI 2 · Überhitzung', 'RSI 2 · overheated'), 'rev'],
   zzsar: [L('ZigZag + PSAR + Stochastic', 'ZigZag + PSAR + Stochastic'), 'rev'],
@@ -31,7 +27,6 @@ const META = {
   n_vortex: [L('Vortex + MACD', 'Vortex + MACD'), 'trend'],
   n_mamacd: [L('MA + MACD', 'MA + MACD'), 'trend'],
   n_psar: [L('Supertrend + PSAR', 'Supertrend + PSAR'), 'trend'],
-  n_bb2: [L('BB (два)', 'BB (doppelt)', 'BB (double)'), 'rev'],
   n_impulse: [L('Импульсный возврат', 'Impuls-Rückkehr', 'Impulse return'), 'trend'],
   ma4813: [L('MA 4/8/13', 'MA 4/8/13'), 'trend'],
 };
@@ -76,11 +71,7 @@ const DEFAULTS = {
     dr_use_spike: true, dr_spike: 3, dr_use_m1: true },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
-  n_pulse: { ...REV, pulse_min: 3, pulse_early_max: 4, pulse_range: 1.5, pulse_fraction: 0.6, pulse_rise: true, pulse_fall: true, pulse_late: true },
-  n_vdrop: { ...REV, min_impulse_candles: 4, max_impulse_candles: 10, minimum_total_drop_atr: 2.0, min_speed_atr: 1.0, max_reversal_wait_bars: 2, impulse_rsi_filter: true, send_mirror: true },
   early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
-  n_tri: { ...TREND, tri_fast: 9, tri_mid: 13, tri_slow: 21, tri_rsi_period: 5, tri_smooth_period: 3, tri_lower: 35, tri_upper: 65, min_adx: 15, max_adx: 45 },
-  n_mafr: { ...TREND, mf_fast: 2, mf_slow: 5, mf_rsi: 13, mf_frac_on: true, mf_rsi_on: true, mf_frac_bars: 8 },
   n_rsi8020: { ...REV, rsi_period: 14, rsi_levels: '70/30' },
   n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
   zzsar: { ...REV, zz_bars: 6, stoch_zone: 20, sar_step: 0.02, sar_max: 0.2 },
@@ -90,7 +81,6 @@ const DEFAULTS = {
   n_vortex: { ...TREND, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
   n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
-  n_bb2: { ...REV, bb_period: 20, bb_inner: 2, bb_outer: 3 },
   n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
   ma4813: { ...TREND, min_adx: 15, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
 };
@@ -527,33 +517,7 @@ const S = {
     const r = I.body(k) / ab;
     return sig(-I.dirOf(k), 70 + (r - mult) * 10, L(`крупная свеча ${r.toFixed(1)}× от средней`, `große Kerze ${r.toFixed(1)}× Durchschnitt`, `big candle ${r.toFixed(1)}× average`));
   },
-  n_pulse(x, p) {
-    const { d, n } = runLength(x.c, x.last), min = p.pulse_min || 3;
-    if (n < min || (!p.pulse_late && n > (p.pulse_early_max || 4))) return null;
-    if ((d > 0 && !p.pulse_rise) || (d < 0 && !p.pulse_fall)) return null;
-    const a = x.atr[x.last - n]; if (!a) return null;
-    const move = Math.abs(x.c[x.last].close - x.c[x.last - n + 1].open);
-    const strong = x.c.slice(x.last - n + 1).every(k => I.body(k) >= (p.pulse_fraction || 0.6) * (k.high - k.low || 1e-9));
-    if (!strong || move < (p.pulse_range || 1.5) * a) return null;
-    return sig(-d, 70 + (move / a - p.pulse_range) * 10, L(`импульс ${n} свечей = ${(move / a).toFixed(1)} ATR`, `Impuls ${n} Kerzen = ${(move / a).toFixed(1)} ATR`, `impulse ${n} candles = ${(move / a).toFixed(1)} ATR`));
-  },
   // Impulse of N candles >= X ATR, then the first candle against it -> rebound.
-  n_vdrop(x, p) {
-    const a = x.atr[x.last - 1]; if (!a) return null;
-    const rev = x.c[x.last], rd = I.dirOf(rev); if (!rd) return null;
-    for (let wait = 1; wait <= (p.max_reversal_wait_bars || 2); wait++) {
-      const end = x.last - wait;
-      const { d, n } = runLength(x.c, end);
-      if (d !== -rd || n < (p.min_impulse_candles || 4) || n > (p.max_impulse_candles || 10)) continue;
-      if (d > 0 && !p.send_mirror) return null;
-      const move = Math.abs(x.c[end].close - x.c[end - n + 1].open);
-      if (move < (p.minimum_total_drop_atr || 2) * a || move / n < (p.min_speed_atr || 1) * a / 3) continue;
-      if (p.impulse_rsi_filter) { const r = x.rsi(14)[end]; if (d < 0 ? r > 40 : r < 60) return null; }
-      return sig(rd, 70 + (move / a - 2) * 8, L(`импульс ${(move / a).toFixed(1)} ATR за ${n} свечей, первая встречная свеча`,
-        `Impuls ${(move / a).toFixed(1)} ATR in ${n} Kerzen, erste Gegenkerze`, `impulse ${(move / a).toFixed(1)} ATR in ${n} candles, first opposite candle`));
-    }
-    return null;
-  },
   // Exhaustion: strong drop, then a candle with long lower wick closing up.
   // Candle closes beyond the previous candle's extreme after a 3+ run.
   early(x, p) {
@@ -564,23 +528,6 @@ const S = {
     if (d < 0 && k.close > prev.high) return sig(1, 74, L('закрытие выше максимума свечи истощения', 'Schluss über dem Hoch der Erschöpfungskerze', 'close above the exhaustion candle high'));
     if (d > 0 && k.close < prev.low) return sig(-1, 74, L('закрытие ниже минимума свечи истощения', 'Schluss unter dem Tief der Erschöpfungskerze', 'close below the exhaustion candle low'));
     return null;
-  },
-  n_tri(x, p) {
-    const i = x.last, f = x.ema(p.tri_fast)[i], m = x.ema(p.tri_mid)[i], s = x.ema(p.tri_slow)[i];
-    const r = I.sma(x.rsi(p.tri_rsi_period).map(v => v ?? 50), p.tri_smooth_period || 3);
-    if (f > m && m > s && r[i - 1] < p.tri_lower && r[i] >= p.tri_lower) return sig(1, 76, L('три EMA вверх, RSI выходит из перепроданности', 'drei EMA aufwärts, RSI verlässt überverkauft', 'three EMAs up, RSI leaves oversold'));
-    if (f < m && m < s && r[i - 1] > p.tri_upper && r[i] <= p.tri_upper) return sig(-1, 76, L('три EMA вниз, RSI выходит из перекупленности', 'drei EMA abwärts, RSI verlässt überkauft', 'three EMAs down, RSI leaves overbought'));
-    return null;
-  },
-  n_mafr(x, p) {
-    const i = x.last, d = cross(x.ema(p.mf_fast || 2), x.ema(p.mf_slow || 5), i); if (!d) return null;
-    if (p.mf_rsi_on !== false) { const r = x.rsi(p.mf_rsi || 13)[i]; if (d > 0 ? r < 50 : r > 50) return null; }
-    if (p.mf_frac_on !== false) {
-      const fr = I.fractals(x.c).filter(f => f.i >= i - (p.mf_frac_bars || 8) && f.type === (d > 0 ? 'low' : 'high'));
-      if (!fr.length) return null;
-    }
-    return sig(d, 75, L(`EMA ${p.mf_fast}/${p.mf_slow} пересеклись, RSI ${p.mf_rsi} и фрактал подтверждают`,
-      `EMA ${p.mf_fast}/${p.mf_slow} gekreuzt, RSI ${p.mf_rsi} und Fraktal bestätigen`, `EMA ${p.mf_fast}/${p.mf_slow} crossed, RSI ${p.mf_rsi} and fractal confirm`));
   },
   n_rsi8020(x, p) {
     const [hi, lo] = String(p.rsi_levels || '70/30').split('/').map(Number), r = x.rsi(p.rsi_period || 14), i = x.last;
@@ -648,14 +595,6 @@ const S = {
     const recent = ps.slice(i - (p.sar_window || 2), i + 1).some((q, j, a) => j > 0 && q && a[j - 1] && q.up !== a[j - 1].up);
     if (!recent) return null;
     return sig(d, 77, L('разворот Supertrend и PSAR', 'Supertrend und PSAR drehen', 'Supertrend and PSAR flip'));
-  },
-  n_bb2(x, p) {
-    const i = x.last, inner = I.bollinger(x.close, p.bb_period || 20, p.bb_inner || 2), outer = I.bollinger(x.close, p.bb_period || 20, p.bb_outer || 3);
-    if (!outer[i - 1]) return null;
-    const k = x.c[i], prev = x.c[i - 1];
-    if (prev.low <= outer[i - 1].lo && k.close > inner[i].lo) return sig(1, 76, L('касание внешней нижней BB и возврат за внутреннюю', 'äußeres unteres BB berührt, zurück über inneres', 'outer lower BB touched, back above inner'));
-    if (prev.high >= outer[i - 1].up && k.close < inner[i].up) return sig(-1, 76, L('касание внешней верхней BB и возврат за внутреннюю', 'äußeres oberes BB berührt, zurück unter inneres', 'outer upper BB touched, back below inner'));
-    return null;
   },
   n_impulse(x, p) {
     const i = x.last, a = x.atr[i - 1]; if (!a) return null;
