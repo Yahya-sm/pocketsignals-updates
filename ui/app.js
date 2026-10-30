@@ -293,9 +293,12 @@ const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }
 const openStrats = new Set(), openHist = new Set(), openTests = new Set();
 // Backtest table of a strategy: folded, a tap on the title opens or closes it.
 function testTable(x) {
-  const T = x.tests; if (!T) return '';
-  const open = openTests.has(x.key), cell = v => esc(typeof v === 'string' ? v : tr(v));
-  return `<div class="tests"><button class="tests-h" data-tests="${x.key}">${open ? '▾' : '▸'} ${cell(T.title)}</button>
+  if (!x.tests) return '';
+  return (Array.isArray(x.tests) ? x.tests : [x.tests]).map((T, n) => oneTest(T, `${x.key}:${n}`)).join('');
+}
+function oneTest(T, key) {
+  const open = openTests.has(key), cell = v => esc(typeof v === 'string' ? v : tr(v));
+  return `<div class="tests"><button class="tests-h" data-tests="${key}">${open ? '▾' : '▸'} ${cell(T.title)}</button>
     ${open ? `<div class="tests-b"><table><tr>${T.cols.map(h => `<th>${cell(h)}</th>`).join('')}</tr>
       ${T.rows.map(r => `<tr>${r.map((v, n) => `<td${n ? ' class="num"' : ''}>${cell(v)}</td>`).join('')}</tr>`).join('')}</table>
       ${T.note ? `<small>${cell(T.note)}</small>` : ''}</div>` : ''}</div>`;

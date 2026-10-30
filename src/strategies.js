@@ -65,7 +65,9 @@ const DEFAULTS = {
   // still possible (vr_imp_min > 1) but gave signals the user called junk.
   // Strong trend, entry at its start (user, 30.10.2026). Also the level filter of trend strategies (room_check).
   n_strongtrend: { expiry: 120, st_buy: true, st_sell: true, st_fade: false, st_use_m5: false, st_use_m15: false, st_adx: 25, st_fresh: 3, st_adx_max: 45, st_di_gap: 5,
-    st_big_n: 3, st_big_k: 2, st_body_atr: 0.8, st_max_run: 5, st_ema: 20, st_max_ext: 2.5, room_check: true, room_min: 1 },
+    st_big_n: 3, st_big_k: 2, st_body_atr: 0.8, st_max_run: 5, st_ema: 20, st_max_ext: 2.5, room_check: true, room_min: 1,
+    st_use_vortex: false, st_vortex_period: 14, st_use_macd: false, st_macd_fast: 12, st_macd_slow: 26, st_macd_signal: 9,
+    st_use_rsi: false, st_rsi_period: 14, st_rsi_mid: 50, st_rsi_max: 0 },
   // Reversal after a deep fall (user's prompt of 29.10.2026), see deepRev(). Conservative: all rules on.
   n_deeprev: { expiry: 180, dr_buy: true, dr_sell: false, dr_min_conf: 6, dr_touches: 2, dr_zone_atr: 0.5, dr_near_atr: 0.7,
     dr_use_fall: true, dr_bear: 5, dr_imp_atr: 3, dr_use_pattern: true, dr_use_break: true, dr_break_atr: 1.2,
@@ -86,6 +88,8 @@ const DEFAULTS = {
   ma4813: { ...TREND, min_adx: 15, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
 };
 
+// Strong-trend presets start from "all extras off, no higher timeframes" so a preset never keeps a stray switch.
+const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st_use_m5: false, st_use_m15: false };
 // Ready-made setting combinations (one tap in the app).
 const PRESETS = {
   // Level 3 = exactly the user's prompt. Measured 28.10.2026 on 17 pairs / ~1.5 h: strict 0–2, medium ~8, soft ~14 signals.
@@ -104,11 +108,16 @@ const PRESETS = {
   // (1 min ~56 %, 3 min ~53 % – the bounce is short, so expiry 120 s).
   // Strong trend, measured 30.10.2026 (~5 days, 13 pairs): with the trend 37–41 % (loses); against the impulse with
   // candles ≥ 0.6 ATR 131 signals, 60 / 58 / 58 % at 1 / 2 / 3 min; M5/M15 agreement cut signals without a clear gain.
+  // Combinations from the grid search of 30.10.2026 (chosen on 3 days, checked on 2 other days), see TESTS.
   n_strongtrend: [
-    { name: L('Против импульса (лучшее на истории)', 'Gegen den Impuls (bestes im Test)', 'Against the impulse (best in the test)'),
-      values: { expiry: 60, st_fade: true, st_body_atr: 0.6, st_use_m5: false, st_use_m15: false } },
-    { name: L('По тренду (как задумано, на истории проигрывал)', 'Mit dem Trend (verlor im Test)', 'With the trend (lost in the test)'),
-      values: { expiry: 120, st_fade: false, st_body_atr: 0.8, st_use_m5: true, st_use_m15: true } },
+    { name: L('Против импульса · база', 'Gegen den Impuls · Basis', 'Against the impulse · base'),
+      values: { ...ST_OFF, expiry: 60, st_fade: true, st_body_atr: 0.6, st_adx: 25 } },
+    { name: L('+ Vortex 7', '+ Vortex 7', '+ Vortex 7'),
+      values: { ...ST_OFF, expiry: 60, st_fade: true, st_body_atr: 0.6, st_adx: 25, st_use_vortex: true, st_vortex_period: 7 } },
+    { name: L('Строже: ADX 30 + MACD 12/26/9', 'Strenger: ADX 30 + MACD 12/26/9', 'Stricter: ADX 30 + MACD 12/26/9'),
+      values: { ...ST_OFF, expiry: 60, st_fade: true, st_body_atr: 0.6, st_adx: 30, st_use_macd: true, st_macd_fast: 12, st_macd_slow: 26, st_macd_signal: 9 } },
+    { name: L('Vortex 7 + MACD 6/13/5 · 3 мин', 'Vortex 7 + MACD 6/13/5 · 3 Min', 'Vortex 7 + MACD 6/13/5 · 3 min'),
+      values: { ...ST_OFF, expiry: 180, st_fade: true, st_body_atr: 0.6, st_adx: 25, st_use_vortex: true, st_vortex_period: 7, st_use_macd: true, st_macd_fast: 6, st_macd_slow: 13, st_macd_signal: 5 } },
   ],
   // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
   // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
@@ -121,7 +130,19 @@ const PRESETS = {
 
 // Backtest results shown in the strategy (folded, opened by a tap). Rows: [variant, ...values].
 const TESTS = {
-  n_strongtrend: {
+  n_strongtrend: [{
+    title: L('Лучшие сочетания индикаторов (пресеты 1–4)', 'Beste Indikator-Kombinationen (Presets 1–4)', 'Best indicator combinations (presets 1–4)'),
+    cols: [L('Пресет', 'Preset', 'Preset'), L('Настройки', 'Einstellungen', 'Settings'), L('Экспир.', 'Ablauf', 'Expiry'), L('Сигналов / 5 дн.', 'Signale / 5 T.', 'Signals / 5 d'), L('Отбор', 'Auswahl', 'Choice'), L('Проверка', 'Prüfung', 'Check')],
+    rows: [
+      ['1', L('M1 · против импульса · свечи ≥ 0,6 ATR · ADX ≥ 25 · без доп. индикаторов', 'M1 · gegen den Impuls · Kerzen ≥ 0,6 ATR · ADX ≥ 25 · ohne Zusatz', 'M1 · against the impulse · candles ≥ 0.6 ATR · ADX ≥ 25 · no extras'), '1 мин', '131', '58%', '62%'],
+      ['2', L('как 1 + Vortex период 7', 'wie 1 + Vortex Periode 7', 'as 1 + Vortex period 7'), '1 мин', '128', '60%', '62%'],
+      ['3', L('как 1, но ADX ≥ 30 + MACD 12/26/9', 'wie 1, aber ADX ≥ 30 + MACD 12/26/9', 'as 1 but ADX ≥ 30 + MACD 12/26/9'), '1 мин', '67', '61%', '65%'],
+      ['4', L('как 1 + Vortex 7 + MACD 6/13/5', 'wie 1 + Vortex 7 + MACD 6/13/5', 'as 1 + Vortex 7 + MACD 6/13/5'), '3 мин', '120', '60%', '54%'],
+    ],
+    note: L('«Отбор» — первые 3 дня, на них сочетание выбрано; «Проверка» — 2 других дня, которые в выбор не входили (честная цифра). RSI ничего не добавил: после серии больших свечей он и так на стороне импульса. Пресет 1 — простой и надёжный, 3 — реже, но строже. Можно включить несколько пресетов сразу. По тренду (без «против импульса») на истории проигрывал. Это история, не гарантия.',
+      '„Auswahl“ = die ersten 3 Tage, auf denen die Kombination gewählt wurde; „Prüfung“ = 2 andere Tage, die nicht in die Wahl eingingen (ehrliche Zahl). RSI brachte nichts: nach großen Kerzen steht er ohnehin auf der Seite des Impulses. Preset 1 einfach und verlässlich, 3 seltener, aber strenger. Mehrere Presets gleichzeitig möglich. Mit dem Trend verlor im Test. Historie, keine Garantie.',
+      '"Choice" = the first 3 days the combination was chosen on; "Check" = 2 other days not used for the choice (the honest number). RSI added nothing: after big candles it is on the impulse side anyway. Preset 1 simple and reliable, 3 rarer but stricter. Several presets at once allowed. With the trend lost in the test. History, not a guarantee.'),
+  }, {
     title: L('Результаты проверки на истории (30.10.2026, ~5 дней, 13 пар)', 'Testergebnisse auf der Historie (30.10.2026, ~5 Tage, 13 Paare)', 'Backtest results (30.10.2026, ~5 days, 13 pairs)'),
     cols: [L('Вариант', 'Variante', 'Variant'), L('Сигналов в день', 'Signale pro Tag', 'Signals per day'), ...[1, 2, 3, 5].map(m => L(`${m} мин`, `${m} Min`, `${m} min`))],
     rows: [
@@ -135,7 +156,7 @@ const TESTS = {
     note: L('Выводы: по тренду проигрывает во всех вариантах, M5/M15 это не исправляют. Против импульса выигрывает на 1–3 минутах, на 5 минутах эффект пропадает. Самый надёжный — против импульса, свечи от 0,6 ATR (131 сигнал, ~58–60 %). Это история, не гарантия — проверяйте на демо.',
       'Fazit: mit dem Trend verliert in allen Varianten, M5/M15 ändern das nicht. Gegen den Impuls gewinnt auf 1–3 Minuten, auf 5 Minuten verschwindet der Effekt. Am verlässlichsten: gegen den Impuls, Kerzen ab 0,6 ATR (131 Signale, ~58–60 %). Historie, keine Garantie – auf Demo prüfen.',
       'Conclusion: with the trend loses in every variant, M5/M15 do not fix it. Against the impulse wins at 1–3 minutes, gone at 5 minutes. Most reliable: against the impulse, candles from 0.6 ATR (131 signals, ~58–60 %). History, not a guarantee – test on demo.'),
-  },
+  }],
 };
 
 // Settings shown in blocks: each block says what it decides and which way is stricter. Keys not listed go to the end.
@@ -199,6 +220,11 @@ const GROUPS = {
         'Höchstens N Trendkerzen in Folge und der Preis höchstens X ATR von der EMA – kein Einstieg am Ende der Bewegung. Und nicht direkt in ein Level.',
         'At most N trend candles in a row and price at most X ATR from the EMA – no entry at the end of the move. And not straight into a level.'),
       keys: ['st_max_run', 'st_ema', 'st_max_ext', 'room_check', 'room_min'] },
+    { title: L('5 · Доп. индикаторы (по желанию)', '5 · Zusatz-Indikatoren (optional)', '5 · Extra indicators (optional)'),
+      desc: L('Каждый включается отдельно и только подтверждает направление импульса: Vortex — VI+ выше VI− для роста; MACD — линия выше сигнальной; RSI — выше средней линии (50), «не выше» = 0 без ограничения. Готовые сочетания — в пресетах и в таблице результатов.',
+        'Jeder einzeln schaltbar, bestätigt nur die Impulsrichtung: Vortex – VI+ über VI− bei Anstieg; MACD – Linie über Signal; RSI – über der Mittellinie (50), „höchstens“ 0 = ohne Grenze. Fertige Kombinationen in den Presets und der Ergebnistabelle.',
+        'Each switchable, only confirms the impulse direction: Vortex – VI+ above VI− for up; MACD – line above signal; RSI – above the middle line (50), "at most" 0 = no limit. Ready combinations in the presets and the results table.'),
+      keys: ['st_use_vortex', 'st_vortex_period', 'st_use_macd', 'st_macd_fast', 'st_macd_slow', 'st_macd_signal', 'st_use_rsi', 'st_rsi_period', 'st_rsi_mid', 'st_rsi_max'] },
   ],
   n_vortex: [
     { title: L('Индикаторы (включайте любые)', 'Indikatoren (beliebig an/aus)', 'Indicators (switch any on/off)'),
@@ -567,6 +593,21 @@ const S = {
     if (p.st_adx_max && a[i].adx > p.st_adx_max) return null; // already very high: the trend may be ending
     const dir = Math.sign(a[i].pdi - a[i].mdi);
     if (!dir || Math.abs(a[i].pdi - a[i].mdi) < (Number(p.st_di_gap) || 0)) return null;
+    // Extra confirmations of the impulse, each switchable with its own settings: Vortex (VI+ above VI− for up),
+    // MACD (line above signal for up), RSI (above the middle line for up; optional upper limit, 0 = none).
+    if (p.st_use_vortex) {
+      const v = I.vortex(c, Number(p.st_vortex_period) || 14)[i];
+      if (!v || Math.sign(v.plus - v.minus) !== dir) return null;
+    }
+    if (p.st_use_macd) {
+      const mc = I.macd(x.close, Number(p.st_macd_fast) || 12, Number(p.st_macd_slow) || 26, Number(p.st_macd_signal) || 9);
+      if (mc.line[i] == null || mc.signal[i] == null || Math.sign(mc.line[i] - mc.signal[i]) !== dir) return null;
+    }
+    if (p.st_use_rsi) {
+      const r = x.rsi(Number(p.st_rsi_period) || 14)[i], mid = Number(p.st_rsi_mid ?? 50), mx = Number(p.st_rsi_max) || 0;
+      if (r == null || (dir > 0 ? r <= mid : r >= 100 - mid)) return null;
+      if (mx && (dir > 0 ? r >= mx : r <= 100 - mx)) return null;
+    }
     // Big candles: of the last st_big_n, at least st_big_k go the trend way with a body ≥ st_body_atr × ATR;
     // the signal candle itself too, with a solid body (≥ 50 % of its range).
     const n = Number(p.st_big_n) || 3, need = Number(p.st_big_k) || 2, bmin = (Number(p.st_body_atr) || 0) * atr;
