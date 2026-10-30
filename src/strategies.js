@@ -74,7 +74,7 @@ const DEFAULTS = {
   n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
   n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
-  n_vortex: { ...TREND, vortex_period: 14, macd_fast: 12, macd_slow: 26, macd_signal: 9 },
+  n_vortex: { ...TREND, vx_use_vortex: true, vortex_period: 14, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_adx_min: 25 },
   n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
   n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
@@ -145,6 +145,13 @@ const GROUPS = {
         'Signal nach Modell B schon vor dem Kerzenschluss. Früherer Einstieg, aber mehr Fehlsignale. Für Qualität aus.',
         'Model B signal before the candle closes. Earlier entry, more false signals. Off for quality.'),
       keys: ['lr_b_early', 'lr_b_early_pct'] },
+  ],
+  n_vortex: [
+    { title: L('Индикаторы (включайте любые)', 'Indikatoren (beliebig an/aus)', 'Indicators (switch any on/off)'),
+      desc: L('Можно оставить один, два или все три. Первый включённый даёт сигнал своим пересечением (Vortex: VI+/VI−, MACD: линия/сигнальная, ADX один: DI+/DI−), остальные должны смотреть в ту же сторону. ADX ещё проверяет силу тренда: не меньше заданного (25 = есть тренд).',
+        'Einer, zwei oder alle drei. Der erste eingeschaltete gibt das Signal mit seiner Kreuzung (Vortex: VI+/VI−, MACD: Linie/Signal, ADX allein: DI+/DI−), die anderen müssen in dieselbe Richtung zeigen. ADX prüft zusätzlich die Trendstärke (25 = Trend).',
+        'One, two or all three. The first one on gives the signal with its cross (Vortex: VI+/VI−, MACD: line/signal, ADX alone: DI+/DI−), the others must point the same way. ADX also checks trend strength (25 = trend).'),
+      keys: ['vx_use_vortex', 'vortex_period', 'vx_use_macd', 'macd_fast', 'macd_slow', 'macd_signal', 'vx_use_adx', 'vx_adx_min'] },
   ],
   n_deeprev: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
@@ -553,13 +560,21 @@ const S = {
     if (touchedHi && k[i - 1] > 100 - z && k[i] <= 100 - z) return sig(-1, 74, L('касание верхней Envelopes, Stochastic вышел из зоны 80', 'oberes Envelope berührt, Stochastic verlässt Zone 80', 'upper envelope touched, Stochastic leaves zone 80'));
     return null;
   },
+  // Vortex, MACD and ADX can each be switched on or off (user, 30.10.2026). The first one on gives the trigger (its
+  // cross: VI+/VI−, MACD/signal, or DI+/DI− for ADX alone); the others must point the same way (ADX also ≥ vx_adx_min).
   n_vortex(x, p) {
-    const i = x.last, v = I.vortex(x.c, p.vortex_period || 14), mc = I.macd(x.close, p.macd_fast, p.macd_slow, p.macd_signal);
-    const d = cross(v.map(q => q && q.plus), v.map(q => q && q.minus), i); if (!d) return null;
-    if (d > 0 ? mc.line[i] < mc.signal[i] : mc.line[i] > mc.signal[i]) return null;
-    return sig(d, 74, d > 0
-      ? L('Vortex: VI+ пересёк VI- вверх, MACD подтверждает', 'Vortex: VI+ kreuzt VI- aufwärts, MACD bestätigt', 'Vortex: VI+ crossed VI- up, MACD confirms')
-      : L('Vortex: VI+ пересёк VI- вниз, MACD подтверждает', 'Vortex: VI+ kreuzt VI- abwärts, MACD bestätigt', 'Vortex: VI+ crossed VI- down, MACD confirms'));
+    const i = x.last, useV = p.vx_use_vortex !== false, useM = p.vx_use_macd !== false, useA = !!p.vx_use_adx;
+    if (!useV && !useM && !useA) return null;
+    const v = I.vortex(x.c, p.vortex_period || 14), mc = I.macd(x.close, p.macd_fast, p.macd_slow, p.macd_signal), a = x.adx;
+    const vp = v.map(q => q && q.plus), vm = v.map(q => q && q.minus), dp = a.map(q => q && q.pdi), dm = a.map(q => q && q.mdi);
+    const side = (u, w) => (u[i] == null || w[i] == null ? 0 : Math.sign(u[i] - w[i]));
+    const d = useV ? cross(vp, vm, i) : useM ? cross(mc.line, mc.signal, i) : cross(dp, dm, i);
+    if (!d) return null;
+    if (useV && side(vp, vm) !== d) return null;
+    if (useM && side(mc.line, mc.signal) !== d) return null;
+    if (useA && (side(dp, dm) !== d || !a[i] || a[i].adx < (Number(p.vx_adx_min) || 0))) return null;
+    const up = d > 0, parts = [useV && 'Vortex', useM && 'MACD', useA && `ADX ${a[i].adx.toFixed(0)}`].filter(Boolean).join(' + ');
+    return sig(d, 74, L(`${parts}: ${up ? 'вверх' : 'вниз'}`, `${parts}: ${up ? 'aufwärts' : 'abwärts'}`, `${parts}: ${up ? 'up' : 'down'}`));
   },
   n_mamacd(x, p) {
     const i = x.last, e = x.ema(p.ema_period || 20), mc = I.macd(x.close, p.macd_fast || 6, p.macd_slow || 19, p.macd_signal || 6);
