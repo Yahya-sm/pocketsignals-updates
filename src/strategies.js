@@ -64,7 +64,7 @@ const DEFAULTS = {
   // Default = the user's examples: one big candle, then an opposite one at least as big (spike). The multi-candle run is
   // still possible (vr_imp_min > 1) but gave signals the user called junk.
   // Strong trend, entry at its start (user, 30.10.2026). Also the level filter of trend strategies (room_check).
-  n_strongtrend: { expiry: 120, st_buy: true, st_sell: true, st_adx: 25, st_fresh: 3, st_adx_max: 45, st_di_gap: 5,
+  n_strongtrend: { expiry: 120, st_buy: true, st_sell: true, st_fade: false, st_use_m5: false, st_use_m15: false, st_adx: 25, st_fresh: 3, st_adx_max: 45, st_di_gap: 5,
     st_big_n: 3, st_big_k: 2, st_body_atr: 0.8, st_max_run: 5, st_ema: 20, st_max_ext: 2.5, room_check: true, room_min: 1 },
   // Reversal after a deep fall (user's prompt of 29.10.2026), see deepRev(). Conservative: all rules on.
   n_deeprev: { expiry: 180, dr_buy: true, dr_sell: false, dr_min_conf: 6, dr_touches: 2, dr_zone_atr: 0.5, dr_near_atr: 0.7,
@@ -101,6 +101,14 @@ const PRESETS = {
   ],
   // V-reversal, measured 28.10.2026 (17 OTC pairs, 2 h, M1): loose 35 signals 63 %, medium 17 / 71 %, strict 13 / 69 % at 2 min
   // (1 min ~56 %, 3 min ~53 % – the bounce is short, so expiry 120 s).
+  // Strong trend, measured 30.10.2026 (~5 days, 13 pairs): with the trend 37–41 % (loses); against the impulse with
+  // candles ≥ 0.6 ATR 131 signals, 60 / 58 / 58 % at 1 / 2 / 3 min; M5/M15 agreement cut signals without a clear gain.
+  n_strongtrend: [
+    { name: L('Против импульса (лучшее на истории)', 'Gegen den Impuls (bestes im Test)', 'Against the impulse (best in the test)'),
+      values: { expiry: 60, st_fade: true, st_body_atr: 0.6, st_use_m5: false, st_use_m15: false } },
+    { name: L('По тренду (как задумано, на истории проигрывал)', 'Mit dem Trend (verlor im Test)', 'With the trend (lost in the test)'),
+      values: { expiry: 120, st_fade: false, st_body_atr: 0.8, st_use_m5: true, st_use_m15: true } },
+  ],
   // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
   // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
   n_ma25: [
@@ -152,8 +160,10 @@ const GROUPS = {
   ],
   n_strongtrend: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
-      desc: L('Вход по тренду в его начале. Направления и экспирация.', 'Einstieg mit dem Trend an seinem Anfang. Richtungen und Ablaufzeit.', 'Entry with the trend at its start. Directions and expiry.'),
-      keys: ['expiry', 'st_buy', 'st_sell'] },
+      desc: L('Вход по тренду в его начале. «Против импульса»: сигнал в обратную сторону — на откат после серии больших свечей. M5 / M15: тренд на старшем таймфрейме должен идти в ту же сторону, что и импульс на M1 (каждый можно включить или выключить).',
+        'Einstieg mit dem Trend an seinem Anfang. „Gegen den Impuls“: Signal in die Gegenrichtung – auf den Rücklauf nach großen Kerzen. M5 / M15: der Trend auf dem höheren Zeitrahmen muss in dieselbe Richtung wie der M1-Impuls gehen (jeweils an/aus).',
+        'Entry with the trend at its start. "Against the impulse": signal the other way – on the pullback after big candles. M5 / M15: the higher-timeframe trend must go the same way as the M1 impulse (each on/off).'),
+      keys: ['expiry', 'st_buy', 'st_sell', 'st_fade', 'st_use_m5', 'st_use_m15'] },
     { title: L('2 · Сила тренда (ADX)', '2 · Trendstärke (ADX)', '2 · Trend strength (ADX)'),
       desc: L('ADX только что пробил порог (за последние N свечей) и растёт — тренд набирает силу. «ADX не выше» отсекает конец тренда, когда ADX уже очень высокий. Разрыв DI+/DI− — насколько ясно направление.',
         'ADX hat gerade die Schwelle überschritten (in den letzten N Kerzen) und steigt – der Trend wird stärker. „ADX höchstens“ schneidet das Trendende ab. Abstand DI+/DI− = wie klar die Richtung ist.',
@@ -536,7 +546,6 @@ const S = {
     if (p.st_adx_max && a[i].adx > p.st_adx_max) return null; // already very high: the trend may be ending
     const dir = Math.sign(a[i].pdi - a[i].mdi);
     if (!dir || Math.abs(a[i].pdi - a[i].mdi) < (Number(p.st_di_gap) || 0)) return null;
-    if ((dir > 0 && p.st_buy === false) || (dir < 0 && p.st_sell === false)) return null;
     // Big candles: of the last st_big_n, at least st_big_k go the trend way with a body ≥ st_body_atr × ATR;
     // the signal candle itself too, with a solid body (≥ 50 % of its range).
     const n = Number(p.st_big_n) || 3, need = Number(p.st_big_k) || 2, bmin = (Number(p.st_body_atr) || 0) * atr;
@@ -549,10 +558,23 @@ const S = {
     const e = x.ema(Number(p.st_ema) || 20)[i], ext = e == null ? 0 : (k.close - e) * dir / atr;
     if (ext < 0) return null; // price on the wrong side of the EMA
     if (p.st_max_ext && ext > p.st_max_ext) return null;
-    const s = sig(dir, Math.min(99, 60 + a[i].adx), L(
-      `сильный тренд ${dir > 0 ? 'вверх' : 'вниз'}: ADX ${a[i].adx.toFixed(0)} (пробил ${thr}), ${big} из ${n} больших свечей, ${run} св. подряд, от EMA ${ext.toFixed(1)} ATR`,
-      `starker Trend ${dir > 0 ? 'aufwärts' : 'abwärts'}: ADX ${a[i].adx.toFixed(0)} (über ${thr}), ${big} von ${n} großen Kerzen, ${run} in Folge, ${ext.toFixed(1)} ATR von der EMA`,
-      `strong trend ${dir > 0 ? 'up' : 'down'}: ADX ${a[i].adx.toFixed(0)} (crossed ${thr}), ${big} of ${n} big candles, ${run} in a row, ${ext.toFixed(1)} ATR from the EMA`), Number(p.expiry) || 120);
+    // Higher timeframes (switchable): the trend on M5 / M15 goes the same way as the impulse (close on the trend side
+    // of EMA 20 and the EMA pointing that way).
+    const htf = cands => {
+      if (!cands || cands.length < 25) return 0;
+      const cl = cands.map(q => q.close), e = I.ema(cl, 20), L = cl.length - 1;
+      return cl[L] > e[L] && e[L] > e[L - 2] ? 1 : cl[L] < e[L] && e[L] < e[L - 2] ? -1 : 0;
+    };
+    const tf = [p.st_use_m5 && 'M5', p.st_use_m15 && 'M15'].filter(Boolean);
+    for (const t of tf) if (htf(x.ctx?.[t]) !== dir) return null;
+    // Against the impulse (st_fade): after such a run the price on OTC minutes more often snaps back – trade that.
+    const fade = !!p.st_fade, out = fade ? -dir : dir;
+    if ((out > 0 && p.st_buy === false) || (out < 0 && p.st_sell === false)) return null;
+    const tfTxt = tf.length ? ` · ${tf.join('+')} в ту же сторону` : '', tfDe = tf.length ? ` · ${tf.join('+')} gleich` : '', tfEn = tf.length ? ` · ${tf.join('+')} same way` : '';
+    const s = sig(out, Math.min(99, 60 + a[i].adx), L(
+      `${fade ? 'против импульса: ' : ''}сильный тренд ${dir > 0 ? 'вверх' : 'вниз'}: ADX ${a[i].adx.toFixed(0)} (пробил ${thr}), ${big} из ${n} больших свечей, ${run} св. подряд, от EMA ${ext.toFixed(1)} ATR${tfTxt}`,
+      `${fade ? 'gegen den Impuls: ' : ''}starker Trend ${dir > 0 ? 'aufwärts' : 'abwärts'}: ADX ${a[i].adx.toFixed(0)} (über ${thr}), ${big} von ${n} großen Kerzen, ${run} in Folge, ${ext.toFixed(1)} ATR von der EMA${tfDe}`,
+      `${fade ? 'against the impulse: ' : ''}strong trend ${dir > 0 ? 'up' : 'down'}: ADX ${a[i].adx.toFixed(0)} (crossed ${thr}), ${big} of ${n} big candles, ${run} in a row, ${ext.toFixed(1)} ATR from the EMA${tfEn}`), Number(p.expiry) || 120);
     s.bar = c[crossAt].time; // one signal per trend start
     return s;
   },

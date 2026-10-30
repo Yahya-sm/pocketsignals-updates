@@ -228,7 +228,8 @@ class Engine extends EventEmitter {
       });
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
-    if (this.enabledStrategies().includes('n_deeprev')) {
+    const st = strategies.paramsFor('n_strongtrend', this.settings);
+    if (this.enabledStrategies().includes('n_deeprev') || (this.enabledStrategies().includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
       list.forEach((a, i) => {
         const have = this.ctxCandles.get(a.symbol);
         if (have && Date.now() - have.at < 55000) return;
