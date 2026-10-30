@@ -60,6 +60,7 @@ function startServer(engine, { port = 7777, onOpenPO } = {}) {
       case 'export': return { ok: true, data: engine.exportSettings() };
       case 'ssid': engine.setSsid(String(msg.ssid || '').trim(), msg.url); return { ok: true };
       case 'clear': engine.clearSignals(); return { ok: true };
+      case 'mine': engine.markMine(msg.id, msg.on); return { ok: true };
       case 'scan': engine.scan(); return { ok: true };
       default: return { ok: false };
     }

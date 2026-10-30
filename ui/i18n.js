@@ -2,7 +2,8 @@
 const I18N = {
   de: {
     connecting: 'Verbinde …', pairs: '{n} Paare', all: 'Alle', scan: '⟳ Scan', scan_title: 'Jetzt prüfen', waiting: 'Warte auf Signale …',
-    next_scan: 'Nächste Prüfung in {s} s', history: 'Verlauf', stats_by_strategy: 'Statistik je Strategie', clear_history: 'Verlauf löschen',
+    next_scan: 'Nächste Prüfung in {s} s', history: 'Verlauf', stats_by_strategy: 'Statistik je Strategie', my_trades: 'Meine Trades', my_mark: 'Genommen?', my_taken_one: 'Genommen', my_taken: 'genommen',
+    my_none: 'Noch keine eigenen Trades. Tippe bei einem Signal auf „Genommen?“ (oder ＋ im Verlauf), wenn du es gehandelt hast – dann siehst du hier deine eigene Statistik, getrennt vom Bot.', clear_history: 'Verlauf löschen',
     general: 'Allgemein', language: 'Sprache', signals_on: 'Signale an', sound: 'Ton bei neuem Signal', auto_po: 'PocketOption automatisch umschalten',
     auto_po_hint: 'beim neuen Signal das Paar öffnen', market: 'Markt', m_both: 'OTC + Echt', m_otc: 'nur OTC', m_real: 'nur Echt',
     min_strength: 'Mindest-Stärke', max_per_min: 'Max. Signale pro Minute', min_payout: 'Mindest-Auszahlung %', markets: 'Märkte',
@@ -55,7 +56,8 @@ const I18N = {
   },
   ru: {
     connecting: 'Подключение …', pairs: '{n} пар', all: 'Все', scan: '⟳ Скан', scan_title: 'Проверить сейчас', waiting: 'Ожидание сигналов …',
-    next_scan: 'Следующая проверка через {s} с', history: 'История', stats_by_strategy: 'Статистика по стратегиям', clear_history: 'Очистить историю',
+    next_scan: 'Следующая проверка через {s} с', history: 'История', stats_by_strategy: 'Статистика по стратегиям', my_trades: 'Моя торговля', my_mark: 'Взял?', my_taken_one: 'Взял', my_taken: 'взято',
+    my_none: 'Пока нет ваших сделок. Нажмите на сигнале «Взял?» (или ＋ в истории), когда торговали по нему, — здесь будет ваша статистика отдельно от бота.', clear_history: 'Очистить историю',
     general: 'Общие', language: 'Язык', signals_on: 'Сигналы включены', sound: 'Звук при новом сигнале', auto_po: 'Автоматически переключать PocketOption',
     auto_po_hint: 'открывать пару при новом сигнале', market: 'Рынок', m_both: 'OTC + реальный', m_otc: 'только OTC', m_real: 'только реальный',
     min_strength: 'Мин. сила', max_per_min: 'Макс. сигналов в минуту', min_payout: 'Мин. выплата %', markets: 'Рынки',
@@ -108,7 +110,8 @@ const I18N = {
   },
   en: {
     connecting: 'Connecting …', pairs: '{n} pairs', all: 'All', scan: '⟳ Scan', scan_title: 'Check now', waiting: 'Waiting for signals …',
-    next_scan: 'Next check in {s} s', history: 'History', stats_by_strategy: 'Stats by strategy', clear_history: 'Clear history',
+    next_scan: 'Next check in {s} s', history: 'History', stats_by_strategy: 'Stats by strategy', my_trades: 'My trades', my_mark: 'Taken?', my_taken_one: 'Taken', my_taken: 'taken',
+    my_none: 'No own trades yet. Tap "Taken?" on a signal (or ＋ in the history) when you traded it – your own statistics then show here, apart from the bot.', clear_history: 'Clear history',
     general: 'General', language: 'Language', signals_on: 'Signals on', sound: 'Sound on new signal', auto_po: 'Switch PocketOption automatically',
     auto_po_hint: 'open the pair on every new signal', market: 'Market', m_both: 'OTC + real', m_otc: 'OTC only', m_real: 'Real only',
     min_strength: 'Min. strength', max_per_min: 'Max. signals per minute', min_payout: 'Min. payout %', markets: 'Markets',

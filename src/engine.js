@@ -378,7 +378,8 @@ class Engine extends EventEmitter {
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
-    this.signals = this.signals.slice(0, 300);
+    // The newest 300, plus the user's own trades (marked "taken") that are older – their statistics stay.
+    this.signals = this.signals.slice(0, 300).concat(this.signals.slice(300).filter(x => x.mine).slice(0, 1000));
     writeJson(this.signalsFile, this.signals);
     this.emit('signal', sig);
   }
@@ -508,7 +509,15 @@ class Engine extends EventEmitter {
     this._watchAutoSession();
   }
 
-  clearSignals() { this.signals = []; writeJson(this.signalsFile, this.signals); this.emit('state'); }
+  clearSignals() { this.signals = this.signals.filter(s => s.mine); writeJson(this.signalsFile, this.signals); this.emit('state'); } // own trades stay
+
+  // The user marks a signal as traded by themself ("taken"): their own statistics are counted from these.
+  markMine(id, on) {
+    const s = this.signals.find(x => x.id === id); if (!s) return;
+    s.mine = !!on;
+    writeJson(this.signalsFile, this.signals);
+    this.emit('state');
+  }
 
   state() {
     const done = this.signals.filter(s => s.result === 'WIN' || s.result === 'LOSS');
@@ -519,7 +528,7 @@ class Engine extends EventEmitter {
       session: this.po.ssid ? { length: this.po.ssid.length, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid) } : null, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid || ''),
       watching: this.selectedAssets().length, assetsKnown: this.assets.size,
       // Running signals carry the pair's current M5 trend (recomputed from the latest candles).
-      signals: this.signals.slice(0, 300).map((s, i) => (i < 30 && !s.result ? { ...s, m5: this.m5Trend(s.symbol) } : s)),
+      signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, m5: this.m5Trend(s.symbol) } : s)),
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],

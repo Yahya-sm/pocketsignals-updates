@@ -91,9 +91,10 @@ function render() {
   // No (working) PocketOption session yet: ask to log in; the app takes the session over automatically.
   $('#loginBox').hidden = !['no_ssid', 'expired'].includes(state.status) || (!isDesktop && !isAndroid);
 
-  $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats';
+  $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats'; $('#myStats').hidden = histView !== 'mine';
   $('#hist').innerHTML = state.signals.map(row).join('') || `<p class="empty">${t('no_history')}</p>`;
-  $('#stratStats').innerHTML = strategyStats();
+  $('#stratStats').innerHTML = strategyStats(state.signals);
+  if (histView === 'mine') $('#myStats').innerHTML = myStats();
 
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
@@ -199,6 +200,7 @@ function card(s) {
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
     <div class="btns">
+      <button class="mine${s.mine ? ' on' : ''}" data-mine="${esc(s.id)}">${s.mine ? '✓ ' + t('my_taken_one') : t('my_mark')}</button>
       <button class="po" data-po="${esc(s.id)}">PocketOption ↗</button>
       <button class="tv" data-tv="${esc(s.id)}">TradingView ↗</button>
     </div>
@@ -211,12 +213,25 @@ function row(s) {
   return `<div class="hist${open ? ' open' : ''}" data-hist-id="${esc(s.id)}"><span class="d ${s.dir}">${s.dir === 'CALL' ? '▲' : '▼'}<br>${s.dir}</span>
     <div class="info"><b>${esc(s.name)}</b><small>${esc(tr(s.strategyName))} · ${s.tf || 'M1'}</small>
       <small>${fmtTime(s.entryTime)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}</small></div>${res}
+    <button class="mini mine${s.mine ? ' on' : ''}" data-mine="${esc(s.id)}" title="${t('my_mark')}">${s.mine ? '✓' : '＋'}</button>
     <button class="mini po" data-po="${esc(s.id)}">PO</button><button class="mini" data-tv="${esc(s.id)}">TV</button>
     ${open ? `<div class="why">${esc(tr(s.reason) || '')}${s.entryPrice ? ` · ${s.entryPrice}${s.exitPrice ? ' → ' + s.exitPrice : ''}` : ''}</div>` : ''}</div>`;
 }
-function strategyStats() {
+// The user's own trades (signals marked "taken"): summary, per strategy, and the list – apart from the bot's statistics.
+function myStats() {
+  const mine = state.signals.filter(s => s.mine);
+  if (!mine.length) return `<p class="empty">${t('my_none')}</p>`;
+  const w = mine.filter(s => s.result === 'WIN').length, l = mine.filter(s => s.result === 'LOSS').length, r = w + l ? Math.round(100 * w / (w + l)) : null;
+  return `<div class="stats">
+      <div class="stat"><b>${mine.length}</b><span>${t('my_taken')}</span></div>
+      <div class="stat"><b style="color:var(--call)">${w}</b><span>${t('won')}</span></div>
+      <div class="stat"><b style="color:var(--put)">${l}</b><span>${t('lost')}</span></div>
+      <div class="stat"><b style="color:${r == null ? 'inherit' : rateColor(r)}">${r == null ? '–' : r + '%'}</b><span>${t('winrate')}</span></div></div>
+    ${strategyStats(mine)}${mine.map(row).join('')}`;
+}
+function strategyStats(list) {
   const by = {};
-  for (const s of state.signals) {
+  for (const s of list) {
     const b = (by[s.strategy] ??= { name: s.strategyName, n: 0, w: 0, l: 0 });
     b.n++; if (s.result === 'WIN') b.w++; if (s.result === 'LOSS') b.l++;
     // Strategies with several models (reversal at a level: A, B, A+B) also get one row per model.
@@ -375,6 +390,11 @@ document.addEventListener('click', e => {
   const hr = !e.target.closest('button') && e.target.closest('[data-hist-id]');
   if (hr) { const k = hr.dataset.histId; openHist.has(k) ? openHist.delete(k) : openHist.add(k); render(); return; }
   const el = e.target.closest('button'); if (!el) return;
+  if (el.dataset.mine) {
+    const s = state.signals.find(x => x.id === el.dataset.mine);
+    if (s) { s.mine = !s.mine; call({ action: 'mine', id: s.id, on: s.mine }); render(); }
+    return;
+  }
   if (el.dataset.pin) togglePin(el.dataset.pin);
   if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf);
   if (el.dataset.tv) { const s = state.signals.find(x => x.id === el.dataset.tv); if (s) openUrl(s.tv); }

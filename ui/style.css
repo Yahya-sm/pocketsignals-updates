@@ -101,6 +101,9 @@ button.tag:hover { background: var(--accent); color: #fff; }
 .btns .po { background: var(--po); color: #fff; }
 .btns .tv { background: #fff; color: #131722; }
 .btns button:active { transform: scale(.97); }
+.btns .mine { background: var(--card2); color: var(--text, #e6e9f0); }
+.btns .mine.on, .mini.mine.on { background: var(--call); color: #fff; }
+#myStats .stats { margin-bottom: 10px; }
 .res { font-weight: 800; font-size: 12px; padding: 2px 7px; border-radius: 5px; background: var(--card2); color: var(--muted); }
 .res.WIN { color: var(--call); background: rgba(22,199,132,.14); } .res.LOSS { color: var(--put); background: rgba(234,57,67,.14); }
 
