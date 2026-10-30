@@ -16,6 +16,7 @@ const META = {
   n_big: [L('Откат после большой свечи', 'Rücklauf nach großer Kerze', 'Pullback after big candle'), 'rev'],
   n_ma25: [L('Пересечение MA 2 / 5', 'Kreuzung MA 2 / 5', 'MA 2 / 5 cross'), 'trend'],
   n_levelrev: [L('Разворот от уровня (пин-бар / V-разворот)', 'Umkehr am Level (Pinbar / V-Umkehr)', 'Reversal at a level (pin bar / V-turn)'), 'rev'],
+  n_strongtrend: [L('Сильный тренд: вход в начале', 'Starker Trend: Einstieg am Anfang', 'Strong trend: entry at the start'), 'trend'],
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
   early: [L('Ранний разворот', 'Frühe Umkehr', 'Early reversal'), 'rev'],
   n_rsi8020: [L('RSI 14 · возврат из крайних зон', 'RSI 14 · Rückkehr aus Extremzonen', 'RSI 14 · return from extreme zones'), 'rev'],
@@ -62,6 +63,9 @@ const DEFAULTS = {
   // V-reversal anywhere (model B of n_levelrev without the levels): a vertical run of candles, then a big candle against it.
   // Default = the user's examples: one big candle, then an opposite one at least as big (spike). The multi-candle run is
   // still possible (vr_imp_min > 1) but gave signals the user called junk.
+  // Strong trend, entry at its start (user, 30.10.2026). Also the level filter of trend strategies (room_check).
+  n_strongtrend: { expiry: 120, st_buy: true, st_sell: true, st_adx: 25, st_fresh: 3, st_adx_max: 45, st_di_gap: 5,
+    st_big_n: 3, st_big_k: 2, st_body_atr: 0.8, st_max_run: 5, st_ema: 20, st_max_ext: 2.5, room_check: true, room_min: 1 },
   // Reversal after a deep fall (user's prompt of 29.10.2026), see deepRev(). Conservative: all rules on.
   n_deeprev: { expiry: 180, dr_buy: true, dr_sell: false, dr_min_conf: 6, dr_touches: 2, dr_zone_atr: 0.5, dr_near_atr: 0.7,
     dr_use_fall: true, dr_bear: 5, dr_imp_atr: 3, dr_use_pattern: true, dr_use_break: true, dr_break_atr: 1.2,
@@ -145,6 +149,26 @@ const GROUPS = {
         'Signal nach Modell B schon vor dem Kerzenschluss. Früherer Einstieg, aber mehr Fehlsignale. Für Qualität aus.',
         'Model B signal before the candle closes. Earlier entry, more false signals. Off for quality.'),
       keys: ['lr_b_early', 'lr_b_early_pct'] },
+  ],
+  n_strongtrend: [
+    { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
+      desc: L('Вход по тренду в его начале. Направления и экспирация.', 'Einstieg mit dem Trend an seinem Anfang. Richtungen und Ablaufzeit.', 'Entry with the trend at its start. Directions and expiry.'),
+      keys: ['expiry', 'st_buy', 'st_sell'] },
+    { title: L('2 · Сила тренда (ADX)', '2 · Trendstärke (ADX)', '2 · Trend strength (ADX)'),
+      desc: L('ADX только что пробил порог (за последние N свечей) и растёт — тренд набирает силу. «ADX не выше» отсекает конец тренда, когда ADX уже очень высокий. Разрыв DI+/DI− — насколько ясно направление.',
+        'ADX hat gerade die Schwelle überschritten (in den letzten N Kerzen) und steigt – der Trend wird stärker. „ADX höchstens“ schneidet das Trendende ab. Abstand DI+/DI− = wie klar die Richtung ist.',
+        'ADX has just crossed the threshold (within the last N candles) and is rising. "ADX at most" cuts off the end of a trend. DI+/DI− gap = how clear the direction is.'),
+      keys: ['st_adx', 'st_fresh', 'st_adx_max', 'st_di_gap'] },
+    { title: L('3 · Большие свечи', '3 · Große Kerzen', '3 · Big candles'),
+      desc: L('Из последних N свечей не меньше K идут по тренду с телом ≥ X × ATR; сигнальная свеча тоже большая и с плотным телом.',
+        'Von den letzten N Kerzen mindestens K in Trendrichtung mit Körper ≥ X × ATR; die Signalkerze ebenfalls groß mit festem Körper.',
+        'Of the last N candles at least K go the trend way with a body ≥ X × ATR; the signal candle too, with a solid body.'),
+      keys: ['st_big_n', 'st_big_k', 'st_body_atr'] },
+    { title: L('4 · Не опоздать', '4 · Nicht zu spät', '4 · Not too late'),
+      desc: L('Не больше N трендовых свечей подряд и цена не дальше X ATR от EMA — чтобы не входить в конце движения. И не входить прямо в уровень.',
+        'Höchstens N Trendkerzen in Folge und der Preis höchstens X ATR von der EMA – kein Einstieg am Ende der Bewegung. Und nicht direkt in ein Level.',
+        'At most N trend candles in a row and price at most X ATR from the EMA – no entry at the end of the move. And not straight into a level.'),
+      keys: ['st_max_run', 'st_ema', 'st_max_ext', 'room_check', 'room_min'] },
   ],
   n_vortex: [
     { title: L('Индикаторы (включайте любые)', 'Indikatoren (beliebig an/aus)', 'Indicators (switch any on/off)'),
@@ -241,7 +265,7 @@ function liveMode(name, settings) {
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
-  if (name === 'n_deeprev') return 'closed';
+  if (name === 'n_deeprev' || name === 'n_strongtrend') return 'closed';
   return 'legacy';
 }
 
@@ -498,6 +522,40 @@ const S = {
   // Confirmed reversal after a deep fall (user's prompt of 29.10.2026). M15/M5 give the levels, the fall, the reaction
   // and RSI 14; M1 gives the entry (break of the signal candle's high). CALL; with dr_sell also the mirror (PUT after
   // a rise into resistance). Every rule can be switched off except the level. The card lists every check.
+  // Strong trend, entry at its start (user, 30.10.2026): ADX has just crossed a strong threshold and is rising, but is
+  // not yet so high that the trend is ending; DI+/DI− clearly apart; big candles in the trend direction one after the
+  // other; not late (few trend candles so far, price not stretched far from the EMA). One signal per trend start.
+  n_strongtrend(x, p) {
+    const c = x.c, i = x.last, a = x.adx, atr = x.atr[i], k = c[i];
+    if (!a[i] || !a[i - 3] || !(atr > 0)) return null;
+    const thr = Number(p.st_adx) || 25, fresh = Number(p.st_fresh) || 3;
+    // ADX crossed the threshold within the last st_fresh candles and keeps rising.
+    let crossAt = -1; for (let j = i; j > i - fresh && j > 0; j--) if (a[j] && a[j - 1] && a[j].adx >= thr && a[j - 1].adx < thr) { crossAt = j; break; }
+    if (crossAt < 0) return null;
+    if (!(a[i].adx > a[i - 2].adx)) return null;
+    if (p.st_adx_max && a[i].adx > p.st_adx_max) return null; // already very high: the trend may be ending
+    const dir = Math.sign(a[i].pdi - a[i].mdi);
+    if (!dir || Math.abs(a[i].pdi - a[i].mdi) < (Number(p.st_di_gap) || 0)) return null;
+    if ((dir > 0 && p.st_buy === false) || (dir < 0 && p.st_sell === false)) return null;
+    // Big candles: of the last st_big_n, at least st_big_k go the trend way with a body ≥ st_body_atr × ATR;
+    // the signal candle itself too, with a solid body (≥ 50 % of its range).
+    const n = Number(p.st_big_n) || 3, need = Number(p.st_big_k) || 2, bmin = (Number(p.st_body_atr) || 0) * atr;
+    let big = 0; for (let j = i - n + 1; j <= i; j++) if (I.dirOf(c[j]) === dir && I.body(c[j]) >= bmin) big++;
+    if (big < need) return null;
+    if (I.dirOf(k) !== dir || I.body(k) < bmin || I.body(k) < 0.5 * (k.high - k.low)) return null;
+    // Not late: how many trend candles in a row so far, and how far the price is from the EMA.
+    let run = 0; for (let j = i; j >= 0 && I.dirOf(c[j]) === dir; j--) run++;
+    if (p.st_max_run && run > p.st_max_run) return null;
+    const e = x.ema(Number(p.st_ema) || 20)[i], ext = e == null ? 0 : (k.close - e) * dir / atr;
+    if (ext < 0) return null; // price on the wrong side of the EMA
+    if (p.st_max_ext && ext > p.st_max_ext) return null;
+    const s = sig(dir, Math.min(99, 60 + a[i].adx), L(
+      `сильный тренд ${dir > 0 ? 'вверх' : 'вниз'}: ADX ${a[i].adx.toFixed(0)} (пробил ${thr}), ${big} из ${n} больших свечей, ${run} св. подряд, от EMA ${ext.toFixed(1)} ATR`,
+      `starker Trend ${dir > 0 ? 'aufwärts' : 'abwärts'}: ADX ${a[i].adx.toFixed(0)} (über ${thr}), ${big} von ${n} großen Kerzen, ${run} in Folge, ${ext.toFixed(1)} ATR von der EMA`,
+      `strong trend ${dir > 0 ? 'up' : 'down'}: ADX ${a[i].adx.toFixed(0)} (crossed ${thr}), ${big} of ${n} big candles, ${run} in a row, ${ext.toFixed(1)} ATR from the EMA`), Number(p.expiry) || 120);
+    s.bar = c[crossAt].time; // one signal per trend start
+    return s;
+  },
   n_deeprev(x, p) {
     const no = why => { if (globalThis.__drWhy) globalThis.__drWhy.push(why); return null; };
     const m1 = x.c, m5 = x.ctx?.M5, m15 = x.ctx?.M15;

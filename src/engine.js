@@ -96,7 +96,7 @@ class Engine extends EventEmitter {
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
-    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_deeprev';
+    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_deeprev' || sig.strategy === 'n_strongtrend';
   }
 
   _addTick(asset, time, price) {
