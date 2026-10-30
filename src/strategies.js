@@ -78,7 +78,8 @@ const DEFAULTS = {
   n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
   n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
-  n_vortex: { ...TREND, vx_use_vortex: true, vortex_period: 14, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_adx_min: 25 },
+  n_vortex: { ...TREND, vx_use_vortex: true, vortex_period: 14, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_adx_period: 14, vx_adx_min: 25,
+    vx_use_rsi: false, vx_rsi_period: 14, vx_rsi_mid: 50, vx_rsi_max: 70 },
   n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
   n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
@@ -182,10 +183,11 @@ const GROUPS = {
   ],
   n_vortex: [
     { title: L('Индикаторы (включайте любые)', 'Indikatoren (beliebig an/aus)', 'Indicators (switch any on/off)'),
-      desc: L('Можно оставить один, два или все три. Первый включённый даёт сигнал своим пересечением (Vortex: VI+/VI−, MACD: линия/сигнальная, ADX один: DI+/DI−), остальные должны смотреть в ту же сторону. ADX ещё проверяет силу тренда: не меньше заданного (25 = есть тренд).',
-        'Einer, zwei oder alle drei. Der erste eingeschaltete gibt das Signal mit seiner Kreuzung (Vortex: VI+/VI−, MACD: Linie/Signal, ADX allein: DI+/DI−), die anderen müssen in dieselbe Richtung zeigen. ADX prüft zusätzlich die Trendstärke (25 = Trend).',
-        'One, two or all three. The first one on gives the signal with its cross (Vortex: VI+/VI−, MACD: line/signal, ADX alone: DI+/DI−), the others must point the same way. ADX also checks trend strength (25 = trend).'),
-      keys: ['vx_use_vortex', 'vortex_period', 'vx_use_macd', 'macd_fast', 'macd_slow', 'macd_signal', 'vx_use_adx', 'vx_adx_min'] },
+      desc: L('Можно оставить один, два или все три. Первый включённый даёт сигнал своим пересечением (Vortex: VI+/VI−, MACD: линия/сигнальная, ADX один: DI+/DI−), остальные должны смотреть в ту же сторону. ADX ещё проверяет силу тренда: не меньше заданного (25 = есть тренд). RSI только подтверждает: для CALL выше средней линии (50), но не выше «перегрева» (70); для PUT зеркально. Один RSI сигнал не даёт.',
+        'Einer, zwei oder alle drei. Der erste eingeschaltete gibt das Signal mit seiner Kreuzung (Vortex: VI+/VI−, MACD: Linie/Signal, ADX allein: DI+/DI−), die anderen müssen in dieselbe Richtung zeigen. ADX prüft zusätzlich die Trendstärke (25 = Trend). RSI bestätigt nur: für CALL über der Mittellinie (50), aber unter „überhitzt“ (70); PUT gespiegelt. RSI allein gibt kein Signal.',
+        'One, two or all three. The first one on gives the signal with its cross (Vortex: VI+/VI−, MACD: line/signal, ADX alone: DI+/DI−), the others must point the same way. ADX also checks trend strength (25 = trend). RSI only confirms: for CALL above the middle line (50) but below "overheated" (70); PUT mirrored. RSI alone gives no signal.'),
+      keys: ['vx_use_vortex', 'vortex_period', 'vx_use_macd', 'macd_fast', 'macd_slow', 'macd_signal', 'vx_use_adx', 'vx_adx_period', 'vx_adx_min',
+        'vx_use_rsi', 'vx_rsi_period', 'vx_rsi_mid', 'vx_rsi_max'] },
   ],
   n_deeprev: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
@@ -643,9 +645,10 @@ const S = {
   // Vortex, MACD and ADX can each be switched on or off (user, 30.10.2026). The first one on gives the trigger (its
   // cross: VI+/VI−, MACD/signal, or DI+/DI− for ADX alone); the others must point the same way (ADX also ≥ vx_adx_min).
   n_vortex(x, p) {
-    const i = x.last, useV = p.vx_use_vortex !== false, useM = p.vx_use_macd !== false, useA = !!p.vx_use_adx;
-    if (!useV && !useM && !useA) return null;
-    const v = I.vortex(x.c, p.vortex_period || 14), mc = I.macd(x.close, p.macd_fast, p.macd_slow, p.macd_signal), a = x.adx;
+    const i = x.last, useV = p.vx_use_vortex !== false, useM = p.vx_use_macd !== false, useA = !!p.vx_use_adx, useR = !!p.vx_use_rsi;
+    if (!useV && !useM && !useA) return null; // RSI alone gives no trigger, only a confirmation
+    const ap = Number(p.vx_adx_period) || 14;
+    const v = I.vortex(x.c, p.vortex_period || 14), mc = I.macd(x.close, p.macd_fast, p.macd_slow, p.macd_signal), a = ap === 14 ? x.adx : I.adx(x.c, ap);
     const vp = v.map(q => q && q.plus), vm = v.map(q => q && q.minus), dp = a.map(q => q && q.pdi), dm = a.map(q => q && q.mdi);
     const side = (u, w) => (u[i] == null || w[i] == null ? 0 : Math.sign(u[i] - w[i]));
     const d = useV ? cross(vp, vm, i) : useM ? cross(mc.line, mc.signal, i) : cross(dp, dm, i);
@@ -653,7 +656,14 @@ const S = {
     if (useV && side(vp, vm) !== d) return null;
     if (useM && side(mc.line, mc.signal) !== d) return null;
     if (useA && (side(dp, dm) !== d || !a[i] || a[i].adx < (Number(p.vx_adx_min) || 0))) return null;
-    const up = d > 0, parts = [useV && 'Vortex', useM && 'MACD', useA && `ADX ${a[i].adx.toFixed(0)}`].filter(Boolean).join(' + ');
+    // RSI: on the signal's side of the middle line, but not overheated (CALL below vx_rsi_max, PUT above 100 − it).
+    let rv = null;
+    if (useR) {
+      rv = x.rsi(Number(p.vx_rsi_period) || 14)[i];
+      const mid = Number(p.vx_rsi_mid ?? 50), mx = Number(p.vx_rsi_max) || 100;
+      if (rv == null || (d > 0 ? !(rv > mid && rv < mx) : !(rv < 100 - mid && rv > 100 - mx))) return null;
+    }
+    const up = d > 0, parts = [useV && 'Vortex', useM && 'MACD', useA && `ADX ${a[i].adx.toFixed(0)}`, useR && `RSI ${rv.toFixed(0)}`].filter(Boolean).join(' + ');
     return sig(d, 74, L(`${parts}: ${up ? 'вверх' : 'вниз'}`, `${parts}: ${up ? 'aufwärts' : 'abwärts'}`, `${parts}: ${up ? 'up' : 'down'}`));
   },
   n_mamacd(x, p) {
