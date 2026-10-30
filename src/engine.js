@@ -536,7 +536,7 @@ class Engine extends EventEmitter {
         allStrategies: strategies.list.map(k => ({
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
-          presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null,
+          presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null,
           activePresets: this.settings.strat_presets?.[k] || [],
         })),
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,

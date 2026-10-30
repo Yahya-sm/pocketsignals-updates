@@ -290,7 +290,16 @@ function setPairs(keysOn, keysOff) {
 }
 const TFS = ['S10', 'S15', 'S30', 'M1', 'M2', 'M3', 'M5'];
 const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }[LANG] ?? 0] : k);
-const openStrats = new Set(), openHist = new Set();
+const openStrats = new Set(), openHist = new Set(), openTests = new Set();
+// Backtest table of a strategy: folded, a tap on the title opens or closes it.
+function testTable(x) {
+  const T = x.tests; if (!T) return '';
+  const open = openTests.has(x.key), cell = v => esc(typeof v === 'string' ? v : tr(v));
+  return `<div class="tests"><button class="tests-h" data-tests="${x.key}">${open ? '▾' : '▸'} ${cell(T.title)}</button>
+    ${open ? `<div class="tests-b"><table><tr>${T.cols.map(h => `<th>${cell(h)}</th>`).join('')}</tr>
+      ${T.rows.map(r => `<tr>${r.map((v, n) => `<td${n ? ' class="num"' : ''}>${cell(v)}</td>`).join('')}</tr>`).join('')}</table>
+      ${T.note ? `<small>${cell(T.note)}</small>` : ''}</div>` : ''}</div>`;
+}
 // Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
 function paramRows(x) {
   const row = k => k in x.params ? `<label class="prow"><span>${esc(paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
@@ -320,6 +329,7 @@ function renderStrategies(s) {
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
         `<button class="chip${(x.activePresets || []).includes(n) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${(x.activePresets || []).includes(n) ? '✓ ' : ''}${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
+      ${testTable(x)}
       ${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('no_strategy')}</p>`;
@@ -410,6 +420,7 @@ document.addEventListener('click', e => {
   if (el.dataset.mkt) { const k = el.dataset.mkt; openMarkets.has(k) ? openMarkets.delete(k) : openMarkets.add(k); renderMarkets(state.settings); }
   if (el.dataset.pairsAll) setPairs((state.settings.markets[el.dataset.pairsAll] || []).map(p => p.key), []);
   if (el.dataset.pairsNone) setPairs([], (state.settings.markets[el.dataset.pairsNone] || []).map(p => p.key));
+  if (el.dataset.tests) { const k = el.dataset.tests; openTests.has(k) ? openTests.delete(k) : openTests.add(k); renderStrategies(state.settings); }
   if (el.dataset.open) { const k = el.dataset.open; openStrats.has(k) ? openStrats.delete(k) : openStrats.add(k); renderStrategies(state.settings); }
   if (el.dataset.filter) { stratFilter = el.dataset.filter; renderStrategies(state.settings); }
   if (el.dataset.preset) {

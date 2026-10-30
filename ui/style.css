@@ -168,6 +168,13 @@ input[type=search] { width: 100%; background: var(--card); border: 1px solid var
 .tfs { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 10px; }
 .presets small { width: 100%; color: var(--muted); }
+.tests { margin: 8px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.tests-h { width: 100%; text-align: left; background: var(--card2); border: 0; padding: 8px 10px; font-weight: 700; font-size: 12px; color: inherit; }
+.tests-b { padding: 6px 8px; overflow-x: auto; }
+.tests table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.tests th, .tests td { padding: 4px 5px; border-bottom: 1px solid var(--line); text-align: left; }
+.tests td.num, .tests th + th { text-align: right; white-space: nowrap; }
+.tests small { display: block; color: var(--muted); margin-top: 6px; line-height: 1.35; }
 .srow.sub { margin-left: 16px; opacity: .9; }
 .pgroup { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; margin: 8px 0; }
 .pgroup > b { display: block; font-size: 13px; }

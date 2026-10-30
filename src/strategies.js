@@ -119,6 +119,25 @@ const PRESETS = {
   ],
 };
 
+// Backtest results shown in the strategy (folded, opened by a tap). Rows: [variant, ...values].
+const TESTS = {
+  n_strongtrend: {
+    title: L('Результаты проверки на истории (30.10.2026, ~5 дней, 13 пар)', 'Testergebnisse auf der Historie (30.10.2026, ~5 Tage, 13 Paare)', 'Backtest results (30.10.2026, ~5 days, 13 pairs)'),
+    cols: [L('Вариант', 'Variante', 'Variant'), L('Сигналов в день', 'Signale pro Tag', 'Signals per day'), ...[1, 2, 3, 5].map(m => L(`${m} мин`, `${m} Min`, `${m} min`))],
+    rows: [
+      [L('По тренду, без фильтров', 'Mit dem Trend, ohne Filter', 'With the trend, no filters'), '5,5', '37%', '41%', '30%', '48%'],
+      [L('По тренду + M5 + M15', 'Mit dem Trend + M5 + M15', 'With the trend + M5 + M15'), '3,9', '42%', '32%', '37%', '58%'],
+      [L('Против импульса, свечи 0,8 ATR', 'Gegen den Impuls, Kerzen 0,8 ATR', 'Against the impulse, candles 0.8 ATR'), '6,5', '66%', '56%', '69%', '50%'],
+      [L('Против импульса + M15', 'Gegen den Impuls + M15', 'Against the impulse + M15'), '4,9', '63%', '63%', '67%', '46%'],
+      [L('Против импульса, свечи 0,6 ATR', 'Gegen den Impuls, Kerzen 0,6 ATR', 'Against the impulse, candles 0.6 ATR'), '26,6', '60%', '58%', '58%', '50%'],
+      [L('Против импульса 0,6 + M15', 'Gegen den Impuls 0,6 + M15', 'Against the impulse 0.6 + M15'), '15,6', '58%', '63%', '57%', '49%'],
+    ],
+    note: L('Выводы: по тренду проигрывает во всех вариантах, M5/M15 это не исправляют. Против импульса выигрывает на 1–3 минутах, на 5 минутах эффект пропадает. Самый надёжный — против импульса, свечи от 0,6 ATR (131 сигнал, ~58–60 %). Это история, не гарантия — проверяйте на демо.',
+      'Fazit: mit dem Trend verliert in allen Varianten, M5/M15 ändern das nicht. Gegen den Impuls gewinnt auf 1–3 Minuten, auf 5 Minuten verschwindet der Effekt. Am verlässlichsten: gegen den Impuls, Kerzen ab 0,6 ATR (131 Signale, ~58–60 %). Historie, keine Garantie – auf Demo prüfen.',
+      'Conclusion: with the trend loses in every variant, M5/M15 do not fix it. Against the impulse wins at 1–3 minutes, gone at 5 minutes. Most reliable: against the impulse, candles from 0.6 ATR (131 signals, ~58–60 %). History, not a guarantee – test on demo.'),
+  },
+};
+
 // Settings shown in blocks: each block says what it decides and which way is stricter. Keys not listed go to the end.
 const MARKET_GROUP = { title: L('0 · Рынок (когда вообще давать сигналы)', '0 · Markt (wann überhaupt Signale)', '0 · Market (when to signal at all)'),
   desc: L('Сигнал только на живом рынке: последние 10 свечей в среднем не меньше X × обычного размера, и среди них есть большая свеча (≥ Y × обычной). И никогда CALL прямо под сопротивлением, PUT прямо над поддержкой: до уровня по ходу сделки должно быть не меньше Z средних свечей. 0 = выкл.',
@@ -791,4 +810,4 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, paramsFor, liveMode, list: Object.keys(META) };
+module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, paramsFor, liveMode, list: Object.keys(META) };
