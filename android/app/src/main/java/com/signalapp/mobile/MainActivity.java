@@ -203,14 +203,29 @@ public class MainActivity extends Activity {
 
         handleAction(getIntent()); // app was started from a notification button
 
-        Intent svc = new Intent(this, SignalService.class);
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc); else startService(svc);
-        // Wake the engine every 30 s (also in the background): a lost connection is rebuilt even if JS timers slept.
+        if (bgOn()) startSignalService();
+        // Wake the engine every 30 s while signals may run (screen on, or "signals with the screen off" switched on):
+        // a lost connection is rebuilt even if JS timers slept.
         root.postDelayed(new Runnable() { public void run() {
-            signals.resumeTimers();
-            signals.evaluateJavascript("window.__psWake&&window.__psWake()", null);
+            if (bgOn() || isScreenOn()) {
+                signals.resumeTimers();
+                signals.evaluateJavascript("window.__psWake&&window.__psWake()", null);
+            }
             root.postDelayed(this, 30000);
         } }, 30000);
+    }
+
+    // "Signals with the screen off" (switch in the app, green/red), stored on the phone. On: foreground service with a
+    // wake lock keeps the engine scanning in the background. Off: no service – Android pauses the app with the screen.
+    boolean bgOn() { return getSharedPreferences("app", MODE_PRIVATE).getBoolean("bg_signals", true); }
+    boolean isScreenOn() { return ((android.os.PowerManager) getSystemService(POWER_SERVICE)).isInteractive(); }
+    void startSignalService() {
+        Intent svc = new Intent(this, SignalService.class);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc); else startService(svc);
+    }
+    void setBg(boolean on) {
+        getSharedPreferences("app", MODE_PRIVATE).edit().putBoolean("bg_signals", on).apply();
+        if (on) startSignalService(); else stopService(new Intent(this, SignalService.class));
     }
 
     WebView makeWebView() {
@@ -274,6 +289,12 @@ public class MainActivity extends Activity {
     }
 
     class Bridge {
+        @JavascriptInterface
+        public boolean getBackground() { return bgOn(); }
+
+        @JavascriptInterface
+        public void setBackground(boolean on) { runOnUiThread(() -> setBg(on)); }
+
         @JavascriptInterface
         public void openPocketOption(String name, String symbol) {
             runOnUiThread(() -> {

@@ -68,8 +68,17 @@ function assetIcon(name) {
 }
 const rateColor = r => r >= 60 ? 'var(--call)' : r >= 50 ? 'var(--warn)' : 'var(--put)';
 
+// Android: "signals with the screen off" switch – green = keep scanning in the background, red = stop with the screen.
+const hasBg = !!(window.AndroidApp && window.AndroidApp.setBackground);
+function renderBg() {
+  const b = $('#bgBtn'); if (!b || !hasBg) return;
+  const on = window.AndroidApp.getBackground();
+  b.hidden = false; b.className = 'bgbtn ' + (on ? 'on' : 'off');
+  b.textContent = on ? t('bg_on') : t('bg_off'); b.title = t('bg_hint');
+}
 function render() {
   if (!state) return;
+  renderBg();
   $('#dot').className = 'dot' + (state.connected ? ' ok' : '');
   $('#mode').textContent = state.demo ? 'DEMO' : 'REAL';
   $('#mode').className = 'mode' + (state.demo ? '' : ' real');
@@ -403,6 +412,13 @@ document.addEventListener('click', e => {
   const hr = !e.target.closest('button') && e.target.closest('[data-hist-id]');
   if (hr) { const k = hr.dataset.histId; openHist.has(k) ? openHist.delete(k) : openHist.add(k); render(); return; }
   const el = e.target.closest('button'); if (!el) return;
+  if (el.id === 'bgBtn' && hasBg) {
+    const on = !window.AndroidApp.getBackground();
+    window.AndroidApp.setBackground(on);
+    toast(on ? t('bg_on_toast') : t('bg_off_toast'));
+    setTimeout(renderBg, 150);
+    return;
+  }
   if (el.dataset.mine) {
     const s = state.signals.find(x => x.id === el.dataset.mine);
     if (s) { s.mine = !s.mine; call({ action: 'mine', id: s.id, on: s.mine }); render(); }
