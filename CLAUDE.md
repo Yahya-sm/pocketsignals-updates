@@ -20,7 +20,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - `defaults/settings.json` – start settings for new installs (no secrets).
 
 ## Strategies added 28.10–02.11.2026 (details in the code comments)
-- `src/pro_strategies.js`: ADX/DMI Micro-Impulse (A/B/C/D), Breakout + Retest, APC Pro – stateless functions of the candles
+- `src/pro_strategies.js`: only Breakout + Retest (`n_bor`, single preset STRICT) is left – ADX/DMI Micro-Impulse and APC Pro were
+  removed on 02.11.2026 at the user's request (~50 % in the tests). Stateless function of the candles
   (events derived from history, one signal per event via the `bar` key), shared RSI filter / MAM-lite / AEI note. Result
   tables come from `tools/gen-pro-tests.js` → `src/pro_tests_data.js`; unit tests: `node tools/test-pro.js`.
   Every new module in `src/` must be listed in `tools/build-mobile.js` (MODULES) or the phone engine crashes.

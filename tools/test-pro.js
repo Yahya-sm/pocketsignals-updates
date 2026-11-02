@@ -1,4 +1,4 @@
-// Automatic tests of the three strategies of src/pro_strategies.js (ADX/DMI Micro-Impulse, Breakout + Retest, APC Pro).
+// Automatic tests of src/pro_strategies.js (Breakout + Retest).
 // Synthetic candles with known structure + seeded property tests. Run: node tools/test-pro.js
 const path = require('path');
 const I = require('../src/indicators'), S = require('../src/strategies');
@@ -76,114 +76,8 @@ function borSeries() {
   t('MAM hour filter blocks outside the hours', PRO.mamCheck(act, 139, hourOnly, 60).block);
 }
 
-// ---------- APC Pro ----------
-function apcSeries() {
-  const c = [];
-  for (let k = 0; k < 60; k++) { const m = 100 + 0.15 * Math.sin(k), o = m - 0.05, cl = m + 0.05; c.push(mk(k, o, cl, m + 0.25, m - 0.25)); } // calm, ATR ≈ 0.5
-  let px = c[59].close;
-  for (let k = 0; k < 4; k++) { c.push(mk(60 + k, px, px + 0.6, px + 0.65, px - 0.02)); px += 0.6; }       // impulse: 4 bullish candles, 2.4 ≈ 4.8 ATR
-  const top = px;                                                                                           // 102.4+
-  c.push(mk(64, top, top - 0.3, top + 0.02, top - 0.35));                                                   // pullback 1
-  c.push(mk(65, top - 0.3, top - 0.55, top - 0.28, top - 0.6));                                             // pullback 2 (≈ 23% of the impulse)
-  c.push(mk(66, top - 0.55, top - 0.15, top - 0.1, top - 0.58));                                            // resumption 1
-  c.push(mk(67, top - 0.15, top + 0.25, top + 0.3, top - 0.18));                                            // resumption 2: breaks the pullback high
-  return c;
-}
-{
-  const base = { apc_rsi_mode: 0, apc_ext_mode: 0, apc_exh_on: false };
-  const c = apcSeries(), r = run('n_apc', c, base);
-  t('APC CALL: impulse → pullback → resumption', r.length === 1 && r[0].dir === 1, r.map(x => x.dir));
-  t('APC one signal per impulse (bar = impulse extreme candle)', r[0] && r[0].bar === c[63].time, r[0] && r[0].bar);
-  t('APC PUT is the exact mirror', run('n_apc', mirror(c), base).length === 1 && run('n_apc', mirror(c), base)[0].dir === -1);
-  t('APC no signal before the resumption candle breaks the level', run('n_apc', c.slice(0, 67), base).length === 0);
-  const deep = apcSeries(); deep[65] = mk(65, deep[64].close, deep[64].close - 1.7, deep[64].close - 0.05, deep[64].close - 1.75); // pullback too deep
-  t('APC pullback deeper than the maximum → cancelled', run('n_apc', deep, base).length === 0);
-  const brk = apcSeries(); brk[65] = mk(65, brk[64].close, brk[60].open - 0.2, brk[64].close, brk[60].open - 0.25); // through the impulse start
-  t('APC impulse start broken → invalidated', run('n_apc', brk, base).length === 0);
-  const jump = apcSeries(); for (let k = 60; k < 64; k++) { jump[k] = mk(k, jump[k].open, jump[k].open + 3, jump[k].open + 3.05, jump[k].open - 0.02); }
-  t('APC absurd jump (> max ATR) is not an impulse', run('n_apc', jump, base).length === 0);
-  t('APC RSI overheat blocks after a strong impulse (mode ON), advisory only warns',
-    run('n_apc', c, { ...base, apc_rsi_mode: 1, apc_rsi_hi: 55 }).length === 0 && run('n_apc', c, { ...base, apc_rsi_mode: 2, apc_rsi_hi: 55 }).length === 1);
-  t('APC advisory note is in the reason', /перегрев/.test(run('n_apc', c, { ...base, apc_rsi_mode: 2, apc_rsi_hi: 55 })[0].reason.ru));
-  t('APC extension filter blocks when the path is too long', run('n_apc', c, { ...base, apc_ext_mode: 1, apc_ext_atr: 1 }).length === 0);
-  t('APC respects the PUT/CALL switches', run('n_apc', c, { ...base, apc_buy: false }).length === 0);
-  t('APC context TF needed but missing → no signal', run('n_apc', c, { ...base, apc_ctx_m15: true }).length === 0);
-  t('APC reason never shows a made-up win percentage', !/\d+\s*%\s*(win|выигр|Gewinn)/i.test(JSON.stringify(r[0].reason)));
-}
-
-// ---------- ADX / DMI Micro-Impulse: property tests on a seeded random series ----------
-function regimeSeries(n) {
-  const c = []; let px = 100, drift = 0;
-  for (let k = 0; k < n; k++) {
-    if (k % 70 === 0) drift = (rng() - 0.5) * 0.5 * (rng() < 0.6 ? 1 : 0);
-    const o = px, cl = px + drift + (rng() - 0.5) * 0.4; px = cl;
-    c.push(mk(k, o, cl, Math.max(o, cl) + rng() * 0.15, Math.min(o, cl) - rng() * 0.15));
-  }
-  return c;
-}
-{
-  const c = regimeSeries(900), a = I.adx(c, 14), N = c.length;
-  const sweep = (p) => { const out = []; for (let i = 100; i < N; i++) { const r = run('n_adxmicro', c.slice(0, i + 1), p); if (r.length) out.push({ i, s: r[0] }); } return out; };
-
-  const A = sweep({ am_mode: 'A' }), dI = (i) => Math.sign(a[i].pdi - a[i].mdi);
-  t('A: some signals on the test series', A.length > 3, A.length);
-  t('A: every signal is a DI cross with ADX ≥ 25 and the DI direction', A.every(({ i, s }) => a[i].adx >= 25 && a[i - 1] && Math.sign(a[i].pdi - a[i].mdi) === s.dir && Math.sign(a[i - 1].pdi - a[i - 1].mdi) === -s.dir));
-
-  const B = sweep({ am_mode: 'B', am_adx_thr: 25, am_hyst: 2, am_cooldown: 0 });
-  t('B: some signals on the test series', B.length > 3, B.length);
-  t('B: trigger = ADX crosses the threshold between two consecutive bars', B.every(({ i }) => a[i - 1].adx < 25 && a[i].adx >= 25));
-  t('B: direction = the dominant DI line', B.every(({ i, s }) => dI(i) === s.dir));
-  let reArm = true;
-  for (let q = 1; q < B.length; q++) { let mn = Infinity; for (let j = B[q - 1].i; j < B[q].i; j++) mn = Math.min(mn, a[j].adx); if (mn > 25 - 2) reArm = false; }
-  t('B: re-armed only after ADX fell to ≤ threshold − hysteresis (no repeats while ADX stays high)', reArm);
-  const Bh = sweep({ am_mode: 'B', am_adx_thr: 25, am_hyst: 6, am_cooldown: 0 });
-  t('B: a bigger hysteresis never gives more signals', Bh.length <= B.length, [Bh.length, B.length]);
-  t('B: DI filter (gap ≥ 8) only removes signals', sweep({ am_mode: 'B', am_cooldown: 0, am_use_di_gap: true, am_di_gap: 8 }).length <= B.length);
-  t('B: ADX-rising filter only removes signals', sweep({ am_mode: 'B', am_cooldown: 0, am_use_adx_rise: true, am_adx_rise: 1.5 }).length <= B.length);
-
-  const Cp = sweep({ am_mode: 'C', am_cross_mode: 'PRE', am_conv_min: 0.8 });
-  t('C PRE: some early candidates on the test series', Cp.length > 3, Cp.length);
-  t('C PRE: candidate is on the not-yet-crossed side, lines converging', Cp.every(({ i, s }) => dI(i) === -s.dir && Math.abs(a[i - 1].pdi - a[i - 1].mdi) - Math.abs(a[i].pdi - a[i].mdi) >= 0.8));
-  t('C PRE: ADX ≥ 25 is NOT required (some candidates below it)', Cp.some(({ i }) => a[i].adx < 25));
-  t('C PRE: consecutive evaluations of one candidate share the same event key (no double signal)', Cp.every((x, q) => q === 0 || Cp[q - 1].i + 1 !== x.i || Cp[q - 1].s.bar === x.s.bar));
-  const Cc = sweep({ am_mode: 'C', am_cross_mode: 'CROSS', am_conv_min: 0.8 });
-  t('C CROSS: only real DI crosses', Cc.every(({ i, s }) => dI(i) === s.dir && dI(i - 1) === -s.dir));
-  const Cb = sweep({ am_mode: 'C', am_cross_mode: 'BOTH', am_conv_min: 0.8 });
-  t('C BOTH ⊆ PRE ∪ CROSS (nothing new appears)', Cb.every(({ i }) => Cp.some(x => x.i === i) || Cc.some(x => x.i === i)));
-  t('C BOTH: a cross right after a fired candidate is not a second signal', Cb.length <= Cp.length + Cc.length);
-
-  // D CUSTOM: ALL needs every trigger, ANY needs one
-  const Dall = sweep({ am_mode: 'D', am_t_dicross: true, am_t_adxcross: true, am_logic: 'ALL', am_cooldown: 0 }), Dany = sweep({ am_mode: 'D', am_t_dicross: true, am_t_adxcross: true, am_logic: 'ANY', am_cooldown: 0 });
-  t('D: no trigger switched on → no signal', sweep({ am_mode: 'D', am_t_dicross: false }).length === 0);
-  t('D: ALL ⊆ ANY', Dall.every(({ i }) => Dany.some(x => x.i === i)), [Dall.length, Dany.length]);
-  t('D: ALL = both a DI cross and an ADX cross on the same bar', Dall.every(({ i }) => a[i - 1].adx < 25 && a[i].adx >= 25 && Math.sign(a[i].pdi - a[i].mdi) !== Math.sign(a[i - 1].pdi - a[i - 1].mdi)));
-  // RSI modes through the strategy: OFF must not change anything
-  t('RSI OFF leaves A unchanged', JSON.stringify(sweep({ am_mode: 'A', rsi_mode: 0 }).map(x => x.i)) === JSON.stringify(A.map(x => x.i)));
-  t('RSI filter only removes signals', sweep({ am_mode: 'A', rsi_mode: 1 }).length <= A.length && sweep({ am_mode: 'A', rsi_mode: 2 }).length <= A.length);
-  // CLOSED ignores a forming candle; LIVE sees it (Date.now is moved so the last candle is "forming")
-  const realNow = Date.now;
-  try {
-    let diff = 0, same = 0;
-    for (let i = 200; i < 400; i++) {
-      const closedOnly = c.slice(0, i), withForming = c.slice(0, i + 1);
-      Date.now = () => (c[i].time + 30) * 1000; // 30 s into candle i
-      const rc = run('n_adxmicro', withForming, { am_mode: 'B', am_cooldown: 0 }), rb = run('n_adxmicro', closedOnly, { am_mode: 'B', am_cooldown: 0 });
-      if (JSON.stringify(rc.map(x => [x.dir, x.bar])) === JSON.stringify(rb.map(x => [x.dir, x.bar]))) same++; else diff++;
-    }
-    t('CLOSED: a forming candle changes nothing', diff === 0, { same, diff });
-    let live = 0, provisional = 0;
-    for (let i = 200; i < 900; i++) {
-      Date.now = () => (c[i].time + 30) * 1000;
-      const r = run('n_adxmicro', c.slice(0, i + 1), { am_mode: 'B', am_live: true, am_cooldown: 0 });
-      if (r.length) { live++; if (/ПРЕДВАРИТЕЛЬНО/.test(r[0].reason.ru) && r[0].entry) provisional++; }
-    }
-    t('LIVE: provisional signals are marked and enter now', live > 0 && provisional === live, { live, provisional });
-  } finally { Date.now = realNow; }
-  t('liveMode follows the source switch', S.liveMode('n_adxmicro', { strategy_settings: { n_adxmicro: { am_live: true } } }) === 'live' && S.liveMode('n_adxmicro', {}) === 'closed');
-}
-
 // ---------- integration ----------
-t('three strategies registered with names, defaults, own-trend logic', ['n_adxmicro', 'n_bor', 'n_apc'].every(n => S.META[n] && S.NAMES[n] && S.DEFAULTS[n] && S.OWN_LOGIC.includes(n)));
-t('AUTO trading does not exist in the defaults (no auto key)', !['n_adxmicro', 'n_bor', 'n_apc'].some(n => Object.keys(S.DEFAULTS[n]).some(k => /auto|martin/i.test(k))));
+t('strategy registered with names, defaults, own-trend logic', ['n_bor'].every(n => S.META[n] && S.NAMES[n] && S.DEFAULTS[n] && S.OWN_LOGIC.includes(n)));
+t('AUTO trading does not exist in the defaults (no auto key)', !['n_bor'].some(n => Object.keys(S.DEFAULTS[n]).some(k => /auto|martin/i.test(k))));
 console.log(`\n${ok} passed, ${bad} failed`);
 process.exit(bad ? 1 : 0);

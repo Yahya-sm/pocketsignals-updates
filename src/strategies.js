@@ -852,7 +852,7 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-// ADX/DMI Micro-Impulse, Breakout + Retest, APC Pro (src/pro_strategies.js): registered here like the others.
+// Breakout + Retest (src/pro_strategies.js): registered here like the others.
 const PRO = require('./pro_strategies')({ I, L, sig, roomAhead });
 Object.assign(META, PRO.META); Object.assign(DEFAULTS, PRO.DEFAULTS); Object.assign(S, PRO.S);
 Object.assign(PRESETS, PRO.PRESETS); Object.assign(GROUPS, PRO.GROUPS); Object.assign(TESTS, PRO.TESTS);
