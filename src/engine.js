@@ -54,13 +54,6 @@ class Engine extends EventEmitter {
       this.settings.vrev_spike_1028 = true;
       writeJson(this.settingsFile, this.settings);
     }
-    // 02.11.2026: of the new strategies only Breakout + Retest STRICT is kept (it is now the only BOR preset).
-    if (!this.settings.bor_strict_1102) {
-      const sp = (this.settings.strat_presets ||= {});
-      if (sp.n_bor) sp.n_bor = [0];
-      this.settings.bor_strict_1102 = true;
-      writeJson(this.settingsFile, this.settings);
-    }
     // Strategies removed from the program (29.10.2026) drop out of the enabled list.
     if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n]);
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).

@@ -20,10 +20,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - `defaults/settings.json` – start settings for new installs (no secrets).
 
 ## Strategies added 28.10–02.11.2026 (details in the code comments)
-- `src/pro_strategies.js`: only Breakout + Retest (`n_bor`, single preset STRICT) is left – ADX/DMI Micro-Impulse and APC Pro were
-  removed on 02.11.2026 at the user's request (~50 % in the tests). Stateless function of the candles
-  (events derived from history, one signal per event via the `bar` key), shared RSI filter / MAM-lite / AEI note. Result
-  tables come from `tools/gen-pro-tests.js` → `src/pro_tests_data.js`; unit tests: `node tools/test-pro.js`.
+- The 02.11.2026 "pro" strategies (ADX/DMI Micro-Impulse, APC Pro, Breakout + Retest `n_bor`) were all removed at the user's
+  request (~50 % in the tests, BOR called unreliable); `pro_strategies.js` is gone.
   Every new module in `src/` must be listed in `tools/build-mobile.js` (MODULES) or the phone engine crashes.
 - Backtests (walk-forward, last 2 days unseen, break-even at payout p = 1/(1+p)): all strategies sit at ~50 % on OTC M1–M5;
   never present a short backtest as proof. LIVE (forming candle) cannot be backtested – the app stores no ticks.

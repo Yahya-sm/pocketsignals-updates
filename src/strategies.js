@@ -318,7 +318,6 @@ const botSig = r => {
 // 'live' only with the forming candle; 'both' before the close (live) plus a fallback right after it.
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
-  const pm = PRO.liveMode(name, p); if (pm) return pm; // the three strategies of the 02.11.2026 specs
   if (name === 'n_ma25') return 'live';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
@@ -852,11 +851,6 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-// Breakout + Retest (src/pro_strategies.js): registered here like the others.
-const PRO = require('./pro_strategies')({ I, L, sig, roomAhead });
-Object.assign(META, PRO.META); Object.assign(DEFAULTS, PRO.DEFAULTS); Object.assign(S, PRO.S);
-Object.assign(PRESETS, PRO.PRESETS); Object.assign(GROUPS, PRO.GROUPS); Object.assign(TESTS, PRO.TESTS);
-Object.assign(NAMES, Object.fromEntries(Object.entries(PRO.META).map(([k, v]) => [k, v[0]])));
-const HELP = PRO.HELP, LABELS = PRO.LABELS, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', ...PRO.OWN];
+const HELP = {}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend'];
 
 module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
