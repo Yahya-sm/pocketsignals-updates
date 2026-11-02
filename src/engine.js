@@ -519,6 +519,9 @@ class Engine extends EventEmitter {
 
   clearSignals() { this.signals = this.signals.filter(s => s.mine); writeJson(this.signalsFile, this.signals); this.emit('state'); } // own trades stay
 
+  // "My trades" reset: the marks are removed (the signals stay in the history and in the bot's statistics); counting starts anew.
+  clearMine() { for (const s of this.signals) delete s.mine; writeJson(this.signalsFile, this.signals); this.emit('state'); }
+
   // The user marks a signal as traded by themself ("taken"): their own statistics are counted from these.
   markMine(id, on) {
     const s = this.signals.find(x => x.id === id); if (!s) return;

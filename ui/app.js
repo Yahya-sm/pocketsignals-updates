@@ -104,6 +104,7 @@ function render() {
   $('#hist').innerHTML = state.signals.map(row).join('') || `<p class="empty">${t('no_history')}</p>`;
   $('#stratStats').innerHTML = strategyStats(state.signals);
   if (histView === 'mine') $('#myStats').innerHTML = myStats();
+  $('#clearBtn').textContent = t(histView === 'mine' ? 'clear_mine' : 'clear_history'); $('#clearBtn').hidden = histView === 'archive';
   if (histView === 'archive' && $('#archStats').dataset.done !== LANG) { $('#archStats').innerHTML = archiveStats(); $('#archStats').dataset.done = LANG; }
 
   const s = state.settings;
@@ -600,7 +601,10 @@ $('#exportBtn').onclick = async () => {
   try { await navigator.clipboard.writeText(text); toast(t('toast_exported')); }
   catch { $('#importText').value = text; toast(t('toast_export_field')); }
 };
-$('#clearBtn').onclick = () => { if (confirm(t('clear_confirm'))) call({ action: 'clear' }); };
+$('#clearBtn').onclick = () => {
+  if (histView === 'mine') { if (confirm(t('clear_mine_confirm'))) call({ action: 'clear_mine' }); } // own trades: marks removed, counting starts anew
+  else if (confirm(t('clear_confirm'))) call({ action: 'clear' });
+};
 
 // Plays one of the signal sounds (ui/sounds.js).
 function beep(key) {
