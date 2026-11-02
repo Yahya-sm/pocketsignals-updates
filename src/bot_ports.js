@@ -186,7 +186,8 @@ function levelTouch(c, i, p = {}) {
 // ---------- 4. Пересечение MA 2/5 внутри свечи (ma25_cross.py) ----------
 function ma25(c, i, p = {}, tfMin = 2) {
   const period = tfMin * 60;
-  if (!isLive(c, i, period)) return { dir: 0, reason: 'сигнал только внутри живой свечи' };
+  const live = !!p.m25_live;   // false: c[i] is the just-closed candle, the lines must have crossed on its close
+  if (live && !isLive(c, i, period)) return { dir: 0, reason: 'сигнал только внутри живой свечи' };
   const fast = Number(p.m25_fast || 2), slow = Number(p.m25_slow || 5), ft = p.m25_fast_type || 'SMA', st = p.m25_slow_type || 'SMA';
   const z = c.slice(0, i);                                   // закрытые свечи таймфрейма
   // The bot wanted 56 closed candles; PocketOption gives only ~150 M1 (≈74 M2, 49 M3), so take what is there (min. 5 × slow for the EMA).
@@ -241,6 +242,8 @@ function ma25(c, i, p = {}, tfMin = 2) {
     const au = ewm(up, 1 / 14).pop(), ad = ewm(dn, 1 / 14).pop(), rsi = ad ? 100 - 100 / (1 + au / ad) : 100, mx = Number(p.m25_rsi_max) || 70;
     if (!(s1 > 0 ? rsi > 50 && rsi < mx : rsi < 50 && rsi > 100 - mx)) return { dir: 0, reason: `RSI ${rsi.toFixed(0)} не подтверждает` };
   }
+  if (!live) return { dir: s1, expiry: Number(p.m25_expiry || 120), bar: c[i].time,
+    reason: `${ft} ${fast} пересекла ${st} ${slow} на закрытии свечи` };
   return { dir: s1, expiry: Number(p.m25_expiry || 120), entry: Math.floor(nowSec()), bar: c[i].time,
     reason: `⏰ вход сейчас — ${ft} ${fast} пересекла ${st} ${slow} внутри свечи` };
 }

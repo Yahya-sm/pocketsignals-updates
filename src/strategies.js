@@ -73,7 +73,7 @@ const DEFAULTS = {
     dr_use_fall: true, dr_bear: 5, dr_imp_atr: 3, dr_use_pattern: true, dr_use_break: true, dr_break_atr: 1.2,
     dr_use_rsi: true, dr_rsi_lo: 30, dr_use_cross: true, dr_use_trend: true, dr_use_flat: true, dr_flat_atr: 3,
     dr_use_spike: true, dr_spike: 3, dr_use_m1: true },
-  n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_vol: 0,
+  n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_live: false, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
   n_rsi8020: { ...REV, rsi_period: 14, rsi_levels: '70/30' },
@@ -269,7 +269,7 @@ const GROUPS = {
   n_ma25: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
       desc: L('Какие средние пересекаются, направления и экспирация.', 'Welche Durchschnitte sich kreuzen, Richtungen und Ablaufzeit.', 'Which averages cross, directions and expiry.'),
-      keys: ['m25_expiry', 'm25_fast', 'm25_fast_type', 'm25_slow', 'm25_slow_type', 'm25_buy', 'm25_sell'] },
+      keys: ['m25_expiry', 'm25_fast', 'm25_fast_type', 'm25_slow', 'm25_slow_type', 'm25_buy', 'm25_sell', 'm25_live'] },
     { title: L('2 · Против пилы', '2 · Gegen Sägezahn', '2 · Against the saw'),
       desc: L('Главное против «бешеного потока». «Спокойно перед»: столько свечей линии не пересекались — убирает пилу во флэте. «Сила пересечения» (ATR): быстрая линия уже ушла от медленной, а не просто коснулась. Больше = меньше сигналов, но чище.',
         'Das Wichtigste gegen die Signalflut. „Ruhe davor“: so viele Kerzen ohne Kreuzung – entfernt das Hin und Her in Seitwärtsphasen. „Stärke der Kreuzung“ (ATR): die schnelle Linie ist schon weg von der langsamen. Größer = weniger, aber sauberer.',
@@ -318,7 +318,8 @@ const botSig = r => {
 // 'live' only with the forming candle; 'both' before the close (live) plus a fallback right after it.
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
-  if (name === 'n_ma25') return 'live';
+  // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
+  if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';

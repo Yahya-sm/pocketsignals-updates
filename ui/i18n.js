@@ -223,6 +223,7 @@ const PARAM_NAMES = {
   m25_expiry: ['Ablauf (Sek.)', 'Экспирация (сек.)', 'Expiry (sec.)'],
   m25_fast: ['Schnelle MA', 'Быстрая MA', 'Fast MA'], m25_slow: ['Langsame MA', 'Медленная MA', 'Slow MA'],
   m25_fast_type: ['Typ schnelle MA (EMA/SMA)', 'Тип быстрой MA (EMA/SMA)', 'Fast MA type (EMA/SMA)'], m25_slow_type: ['Typ langsame MA (EMA/SMA)', 'Тип медленной MA (EMA/SMA)', 'Slow MA type (EMA/SMA)'],
+  m25_live: ['Früh-Signal innerhalb der Kerze (viele falsche)', 'Ранний сигнал внутри свечи (много ложных)', 'Early signal inside the candle (many false)'],
   m25_buy: ['CALL-Signale', 'Сигналы CALL', 'CALL signals'], m25_sell: ['PUT-Signale', 'Сигналы PUT', 'PUT signals'],
   st_buy: ['CALL-Signale', 'Сигналы CALL', 'CALL signals'],
   st_sell: ['PUT-Signale', 'Сигналы PUT', 'PUT signals'],
