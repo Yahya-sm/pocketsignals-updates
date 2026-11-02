@@ -100,10 +100,11 @@ function render() {
   // No (working) PocketOption session yet: ask to log in; the app takes the session over automatically.
   $('#loginBox').hidden = !['no_ssid', 'expired'].includes(state.status) || (!isDesktop && !isAndroid);
 
-  $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats'; $('#myStats').hidden = histView !== 'mine';
+  $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats'; $('#myStats').hidden = histView !== 'mine'; $('#archStats').hidden = histView !== 'archive';
   $('#hist').innerHTML = state.signals.map(row).join('') || `<p class="empty">${t('no_history')}</p>`;
   $('#stratStats').innerHTML = strategyStats(state.signals);
   if (histView === 'mine') $('#myStats').innerHTML = myStats();
+  if (histView === 'archive' && $('#archStats').dataset.done !== LANG) { $('#archStats').innerHTML = archiveStats(); $('#archStats').dataset.done = LANG; }
 
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
@@ -237,6 +238,33 @@ function myStats() {
       <div class="stat"><b style="color:var(--put)">${l}</b><span>${t('lost')}</span></div>
       <div class="stat"><b style="color:${r == null ? 'inherit' : rateColor(r)}">${r == null ? '–' : r + '%'}</b><span>${t('winrate')}</span></div></div>
     ${strategyStats(mine)}${mine.map(row).join('')}`;
+}
+// Statistics archived from the old Telegram bot (ui/bot_stats.js, counts only): by market, strategy and expiry, with the 95 % interval
+// (Wilson) and the break-even rate at 85 % payout – a rate counts as proven only when the whole interval lies above break-even.
+function archiveStats() {
+  const D = window.BOT_STATS;
+  if (!D) return `<p class="empty">${t('arch_none')}</p>`;
+  const BE = 100 / 1.85;
+  const wil = (w, n) => { const z = 1.96, p = w / n, d = 1 + z * z / n, c = p + z * z / (2 * n), m = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)); return [100 * (c - m) / d, 100 * (c + m) / d]; };
+  const names = {}; for (const x of (state.settings.allStrategies || [])) names[x.key] = tr(x.name);
+  const agg = (f, rows) => { const m = {}; for (const r of rows) { const k = f(r); const a = (m[k] ??= { k, w: 0, l: 0 }); a.w += r.w; a.l += r.l; } return Object.values(m).map(a => ({ ...a, n: a.w + a.l })).filter(a => a.n); };
+  const line = (label, a) => {
+    const r = 100 * a.w / a.n, [lo, hi] = wil(a.w, a.n), proven = lo > BE;
+    return `<div class="srow"><div class="top"><b>${esc(label)}</b><b style="color:${proven ? 'var(--call)' : r < BE ? 'var(--put)' : 'var(--muted)'}">${r.toFixed(1)}%</b></div>
+      <small>${t('arch_line', { n: a.n, lo: lo.toFixed(0), hi: hi.toFixed(0) })}${proven ? ' · ' + t('arch_proven') : ''}</small>
+      <div class="meter"><i style="width:${r}%;background:${rateColor(Math.round(r))}"></i></div></div>`;
+  };
+  const sec = (title, arr, labelOf, min) => `<h3>${t(title)}</h3>` + arr.filter(a => a.n >= (min || 1)).map(a => line(labelOf(a), a)).join('');
+  const all = agg(() => 'all', D.rows)[0];
+  const day = s => new Date(s * 1000).toLocaleDateString(LANG === 'ru' ? 'ru-RU' : LANG === 'en' ? 'en-GB' : 'de-DE');
+  const mk = k => t(k === 'otc' ? 'arch_otc' : 'arch_real');
+  return `<p class="note">${t('arch_intro', { from: day(D.from), to: day(D.to), be: BE.toFixed(1) })}</p>
+    ${sec('arch_total', [all], () => t('arch_all'))}
+    ${sec('arch_by_market', agg(r => r.m, D.rows).sort((a, b) => b.n - a.n), a => mk(a.k))}
+    ${sec('arch_by_source', agg(r => r.src || '-', D.rows).sort((a, b) => b.n - a.n), a => t('arch_src_' + (a.k === '-' ? 'old' : a.k)), 20)}
+    ${sec('arch_by_expiry', agg(r => r.e, D.rows).sort((a, b) => a.k - b.k), a => fmtExp(a.k), 50)}
+    ${sec('arch_by_strategy', agg(r => (r.s || '-') + '|' + r.m, D.rows).sort((a, b) => b.n - a.n), a => { const [s, m] = a.k.split('|'); return (s === '-' ? t('arch_noname') : names[s] || s) + ' · ' + mk(m); }, 40)}
+    <p class="note">${t('arch_warn')}</p>`;
 }
 function strategyStats(list) {
   const by = {};

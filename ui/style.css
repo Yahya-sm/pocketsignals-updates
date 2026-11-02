@@ -242,3 +242,6 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 
 #toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%) translateY(10px); background: #000d; border: 1px solid var(--line); padding: 9px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: .2s; pointer-events: none; max-width: 90%; text-align: center; }
 #toast.show { opacity: 1; transform: translateX(-50%); }
+
+.note{color:var(--muted);font-size:12px;line-height:1.45;margin:8px 2px}
+#archStats h3{margin:16px 2px 6px}

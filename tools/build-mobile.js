@@ -85,7 +85,7 @@ bundle += `\n})();\n`;
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'engine.bundle.js'), bundle);
-for (const f of ['i18n.js', 'sounds.js', 'app.js', 'style.css', 'icon.png', 'manifest.json']) fs.copyFileSync(path.join(ROOT, 'ui', f), path.join(OUT, f));
+for (const f of ['i18n.js', 'sounds.js', 'bot_stats.js', 'app.js', 'style.css', 'icon.png', 'manifest.json']) fs.copyFileSync(path.join(ROOT, 'ui', f), path.join(OUT, f));
 const html = fs.readFileSync(path.join(ROOT, 'ui', 'index.html'), 'utf8').replace('<script src="app.js"></script>', '<script src="engine.bundle.js"></script>\n<script src="app.js"></script>');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 console.log('mobile bundle written:', OUT, Math.round(bundle.length / 1024) + ' KB');
