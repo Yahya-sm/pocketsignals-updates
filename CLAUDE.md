@@ -19,6 +19,18 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
   `android/app/src/main/assets/www/engine.bundle.js`; `tools/mobile-local.js` is appended and exposes `window.LocalEngine`.
 - `defaults/settings.json` – start settings for new installs (no secrets).
 
+## Strategies added 28.10–02.11.2026 (details in the code comments)
+- `src/pro_strategies.js`: ADX/DMI Micro-Impulse (A/B/C/D), Breakout + Retest, APC Pro – stateless functions of the candles
+  (events derived from history, one signal per event via the `bar` key), shared RSI filter / MAM-lite / AEI note. Result
+  tables come from `tools/gen-pro-tests.js` → `src/pro_tests_data.js`; unit tests: `node tools/test-pro.js`.
+  Every new module in `src/` must be listed in `tools/build-mobile.js` (MODULES) or the phone engine crashes.
+- Backtests (walk-forward, last 2 days unseen, break-even at payout p = 1/(1+p)): all strategies sit at ~50 % on OTC M1–M5;
+  never present a short backtest as proof. LIVE (forming candle) cannot be backtested – the app stores no ticks.
+- Strategy settings: `GROUPS` (blocks with explanations), `PRESETS` (several can be on at once: `settings.strat_presets`),
+  `TESTS`/`HELP` (folded tables/instructions, closed by default), `LABELS` (parameter names, 3 languages).
+- Signal sounds per strategy: `ui/sounds.js` (+ WAVs from `tools/make-sounds.js` into `android/.../res/raw/sig_<key>.wav`,
+  one notification channel per sound); `settings.strat_sounds`. "My trades" (`signal.mine`) = the user's own statistics.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key

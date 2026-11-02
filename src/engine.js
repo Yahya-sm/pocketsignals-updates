@@ -96,7 +96,7 @@ class Engine extends EventEmitter {
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
-    return sig.strategy === 'n_levelrev' || sig.strategy === 'n_deeprev' || sig.strategy === 'n_strongtrend';
+    return strategies.OWN_LOGIC.includes(sig.strategy);
   }
 
   _addTick(asset, time, price) {
@@ -228,8 +228,8 @@ class Engine extends EventEmitter {
       });
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
-    const st = strategies.paramsFor('n_strongtrend', this.settings);
-    if (this.enabledStrategies().includes('n_deeprev') || (this.enabledStrategies().includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
+    const st = strategies.paramsFor('n_strongtrend', this.settings), ap = strategies.paramsFor('n_apc', this.settings), en = this.enabledStrategies();
+    if (en.includes('n_deeprev') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15)) || (en.includes('n_apc') && (ap.apc_ctx_m5 || ap.apc_ctx_m15))) {
       list.forEach((a, i) => {
         const have = this.ctxCandles.get(a.symbol);
         if (have && Date.now() - have.at < 55000) return;
@@ -536,9 +536,10 @@ class Engine extends EventEmitter {
         allStrategies: strategies.list.map(k => ({
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
-          presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null,
-          activePresets: this.settings.strat_presets?.[k] || [],
+          presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null, labels: strategies.LABELS[k] || null,
+          activePresets: this.settings.strat_presets?.[k] || [], help: strategies.HELP[k] || null,
         })),
+        strat_sounds: this.settings.strat_sounds || {},
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,
         assets_off: this.settings.assets_off || [],
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],

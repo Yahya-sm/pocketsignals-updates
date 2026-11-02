@@ -144,6 +144,9 @@ h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: v
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--line); }
 .row:last-child { border-bottom: 0; }
 .row small { display: block; color: var(--muted); font-size: 11px; }
+.prow select { max-width: 55%; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 7px; color: inherit; color-scheme: dark; }
+.prow select option { background: var(--card); color: #e6e9f0; }
+.tests table { font-size: 10.5px; } .tests th, .tests td { padding: 3px 4px; }
 .row input[type=number], .row select { width: 110px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 7px; }
 input[type=search] { width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; }
 .sw { appearance: none; width: 40px; height: 23px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); position: relative; flex: none; transition: background .15s; cursor: pointer; }
@@ -177,6 +180,7 @@ input[type=search] { width: 100%; background: var(--card); border: 1px solid var
 .tests table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .tests th, .tests td { padding: 4px 5px; border-bottom: 1px solid var(--line); text-align: left; }
 .tests td.num, .tests th + th { text-align: right; white-space: nowrap; }
+.tests-b p { margin: 6px 0; font-size: 12px; line-height: 1.45; }
 .tests small { display: block; color: var(--muted); margin-top: 6px; line-height: 1.35; }
 .srow.sub { margin-left: 16px; opacity: .9; }
 .pgroup { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; margin: 8px 0; }

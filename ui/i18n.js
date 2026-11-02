@@ -2,7 +2,7 @@
 const I18N = {
   de: {
     connecting: 'Verbinde …', pairs: '{n} Paare', all: 'Alle', scan: '⟳ Scan', scan_title: 'Jetzt prüfen', waiting: 'Warte auf Signale …',
-    next_scan: 'Nächste Prüfung in {s} s', history: 'Verlauf', stats_by_strategy: 'Statistik je Strategie', bg_on: '🌙 AN', bg_off: '🌙 AUS', bg_hint: 'Signale bei ausgeschaltetem Bildschirm: grün = kommen weiter, rot = stoppen',
+    next_scan: 'Nächste Prüfung in {s} s', history: 'Verlauf', stats_by_strategy: 'Statistik je Strategie', sound_pick: 'Signalton dieser Strategie', snd_default: 'Standard', snd_bell: 'Glocke', snd_double: 'Doppelter Piep', snd_beep: 'Kurzer Piep', snd_rise: 'Aufsteigend', snd_fall: 'Absteigend', snd_gong: 'Tiefer Gong', snd_alarm: 'Alarm', snd_none: 'Stumm', bg_on: '🌙 AN', bg_off: '🌙 AUS', bg_hint: 'Signale bei ausgeschaltetem Bildschirm: grün = kommen weiter, rot = stoppen',
     bg_on_toast: '🟢 Signale kommen auch bei ausgeschaltetem Bildschirm', bg_off_toast: '🔴 Bei ausgeschaltetem Bildschirm keine Signale (spart Akku)', my_trades: 'Meine Trades', my_mark: 'Genommen?', my_taken_one: 'Genommen', my_taken: 'genommen',
     my_none: 'Noch keine eigenen Trades. Tippe bei einem Signal auf „Genommen?“ (oder ＋ im Verlauf), wenn du es gehandelt hast – dann siehst du hier deine eigene Statistik, getrennt vom Bot.', clear_history: 'Verlauf löschen',
     general: 'Allgemein', language: 'Sprache', signals_on: 'Signale an', sound: 'Ton bei neuem Signal', auto_po: 'PocketOption automatisch umschalten',
@@ -57,7 +57,7 @@ const I18N = {
   },
   ru: {
     connecting: 'Подключение …', pairs: '{n} пар', all: 'Все', scan: '⟳ Скан', scan_title: 'Проверить сейчас', waiting: 'Ожидание сигналов …',
-    next_scan: 'Следующая проверка через {s} с', history: 'История', stats_by_strategy: 'Статистика по стратегиям', bg_on: '🌙 ВКЛ', bg_off: '🌙 ВЫКЛ', bg_hint: 'Сигналы при выключенном экране: зелёный = идут дальше, красный = останавливаются',
+    next_scan: 'Следующая проверка через {s} с', history: 'История', stats_by_strategy: 'Статистика по стратегиям', sound_pick: 'Звук сигнала этой стратегии', snd_default: 'Обычный', snd_bell: 'Колокольчик', snd_double: 'Двойной бип', snd_beep: 'Короткий бип', snd_rise: 'Восходящий', snd_fall: 'Нисходящий', snd_gong: 'Низкий гонг', snd_alarm: 'Тревога', snd_none: 'Без звука', bg_on: '🌙 ВКЛ', bg_off: '🌙 ВЫКЛ', bg_hint: 'Сигналы при выключенном экране: зелёный = идут дальше, красный = останавливаются',
     bg_on_toast: '🟢 Сигналы идут и при выключенном экране', bg_off_toast: '🔴 При выключенном экране сигналов нет (экономит батарею)', my_trades: 'Моя торговля', my_mark: 'Взял?', my_taken_one: 'Взял', my_taken: 'взято',
     my_none: 'Пока нет ваших сделок. Нажмите на сигнале «Взял?» (или ＋ в истории), когда торговали по нему, — здесь будет ваша статистика отдельно от бота.', clear_history: 'Очистить историю',
     general: 'Общие', language: 'Язык', signals_on: 'Сигналы включены', sound: 'Звук при новом сигнале', auto_po: 'Автоматически переключать PocketOption',
@@ -112,7 +112,7 @@ const I18N = {
   },
   en: {
     connecting: 'Connecting …', pairs: '{n} pairs', all: 'All', scan: '⟳ Scan', scan_title: 'Check now', waiting: 'Waiting for signals …',
-    next_scan: 'Next check in {s} s', history: 'History', stats_by_strategy: 'Stats by strategy', bg_on: '🌙 ON', bg_off: '🌙 OFF', bg_hint: 'Signals with the screen off: green = keep coming, red = stop',
+    next_scan: 'Next check in {s} s', history: 'History', stats_by_strategy: 'Stats by strategy', sound_pick: 'Signal sound of this strategy', snd_default: 'Default', snd_bell: 'Bell', snd_double: 'Double beep', snd_beep: 'Short beep', snd_rise: 'Rising', snd_fall: 'Falling', snd_gong: 'Low gong', snd_alarm: 'Alarm', snd_none: 'Silent', bg_on: '🌙 ON', bg_off: '🌙 OFF', bg_hint: 'Signals with the screen off: green = keep coming, red = stop',
     bg_on_toast: '🟢 Signals keep coming with the screen off', bg_off_toast: '🔴 No signals with the screen off (saves battery)', my_trades: 'My trades', my_mark: 'Taken?', my_taken_one: 'Taken', my_taken: 'taken',
     my_none: 'No own trades yet. Tap "Taken?" on a signal (or ＋ in the history) when you traded it – your own statistics then show here, apart from the bot.', clear_history: 'Clear history',
     general: 'General', language: 'Language', signals_on: 'Signals on', sound: 'Sound on new signal', auto_po: 'Switch PocketOption automatically',

@@ -301,20 +301,22 @@ const TFS = ['S10', 'S15', 'S30', 'M1', 'M2', 'M3', 'M5'];
 const paramLabel = k => (PARAM_NAMES[k] ? PARAM_NAMES[k][{ de: 0, ru: 1, en: 2 }[LANG] ?? 0] : k);
 const openStrats = new Set(), openHist = new Set(), openTests = new Set();
 // Backtest table of a strategy: folded, a tap on the title opens or closes it.
+// Folded sections of a strategy: result tables (x.tests) and the instruction (x.help), all closed by default.
 function testTable(x) {
-  if (!x.tests) return '';
-  return (Array.isArray(x.tests) ? x.tests : [x.tests]).map((T, n) => oneTest(T, `${x.key}:${n}`)).join('');
+  const list = [...(x.tests ? (Array.isArray(x.tests) ? x.tests : [x.tests]) : []), ...(x.help || [])];
+  return list.map((T, n) => oneTest(T, `${x.key}:${n}`)).join('');
 }
 function oneTest(T, key) {
   const open = openTests.has(key), cell = v => esc(typeof v === 'string' ? v : tr(v));
-  return `<div class="tests"><button class="tests-h" data-tests="${key}">${open ? '▾' : '▸'} ${cell(T.title)}</button>
-    ${open ? `<div class="tests-b"><table><tr>${T.cols.map(h => `<th>${cell(h)}</th>`).join('')}</tr>
-      ${T.rows.map(r => `<tr>${r.map((v, n) => `<td${n ? ' class="num"' : ''}>${cell(v)}</td>`).join('')}</tr>`).join('')}</table>
-      ${T.note ? `<small>${cell(T.note)}</small>` : ''}</div>` : ''}</div>`;
+  const body = T.rows
+    ? `<table><tr>${T.cols.map(h => `<th>${cell(h)}</th>`).join('')}</tr>${T.rows.map(r => `<tr>${r.map((v, n) => `<td${n ? ' class="num"' : ''}>${cell(v)}</td>`).join('')}</tr>`).join('')}</table>`
+    : (T.body || []).map(b => `<p>${cell(b)}</p>`).join('');
+  return `<div class="tests"><button class="tests-h" data-tests="${key}" aria-expanded="${open}">${open ? '▾' : '▸'} ${cell(T.title)}</button>
+    ${open ? `<div class="tests-b">${body}${T.note ? `<small>${cell(T.note)}</small>` : ''}</div>` : ''}</div>`;
 }
 // Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
 function paramRows(x) {
-  const row = k => k in x.params ? `<label class="prow"><span>${esc(paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
+  const row = k => k in x.params ? `<label class="prow"><span>${esc(x.labels && x.labels[k] ? tr(x.labels[k]) : paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
   if (!x.groups) return Object.keys(x.params).map(row).join('');
   const used = new Set(x.groups.flatMap(g => g.keys)), rest = Object.keys(x.params).filter(k => !used.has(k));
   return x.groups.map(g => `<div class="pgroup"><b>${esc(tr(g.title))}</b><small>${esc(tr(g.desc))}</small>${g.keys.map(row).join('')}</div>`).join('')
@@ -339,6 +341,7 @@ function renderStrategies(s) {
       <button class="strat-arrow" data-open="${x.key}">${openStrats.has(x.key) ? '▴' : '▾'}</button></div>
     <div class="strat-body">
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
+      <label class="prow"><span>🔔 ${t('sound_pick')}</span><select data-sound="${x.key}">${(window.SOUND_KEYS || []).map(k => `<option value="${k}"${soundOf(x.key) === k ? ' selected' : ''}>${t('snd_' + k)}</option>`).join('')}</select></label>
       ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
         `<button class="chip${(x.activePresets || []).includes(n) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${(x.activePresets || []).includes(n) ? '✓ ' : ''}${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
       ${testTable(x)}
@@ -489,6 +492,11 @@ document.addEventListener('change', e => {
     el.checked ? on.add(el.dataset.strat) : on.delete(el.dataset.strat);
     patch.strategies = [...on];
   }
+  if (el.dataset.sound) { // sound of a strategy: save it and play it once as a sample
+    const map = { ...(state.settings.strat_sounds || {}), [el.dataset.sound]: el.value };
+    state.settings.strat_sounds = map; beep(el.value);
+    call({ action: 'settings', patch: { strat_sounds: map } });
+  }
   if (el.dataset.sp) {
     const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
     call({ action: 'strategy', name: el.dataset.sp, patch: { [el.dataset.param]: v } });
@@ -566,22 +574,30 @@ $('#exportBtn').onclick = async () => {
 };
 $('#clearBtn').onclick = () => { if (confirm(t('clear_confirm'))) call({ action: 'clear' }); };
 
-function beep() {
+// Plays one of the signal sounds (ui/sounds.js).
+function beep(key) {
+  const tones = (window.SOUNDS || {})[key] || (window.SOUNDS || {}).default || [];
+  if (!tones.length) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [880, 1175].forEach((f, i) => {
-      const o = ctx.createOscillator(), g = ctx.createGain(), t0 = ctx.currentTime + i * 0.15;
-      o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
-      g.gain.setValueAtTime(.18, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .25); o.start(t0); o.stop(t0 + .25);
-    });
+    for (const [f, t, d, v, type] of tones) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), t0 = ctx.currentTime + t;
+      o.type = type || 'sine'; o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + d); o.start(t0); o.stop(t0 + d);
+    }
   } catch {}
 }
+const soundOf = name => (state && state.settings.strat_sounds && state.settings.strat_sounds[name]) || 'default';
 let lastAuto = 0;
 function onSignal(s) {
-  if (state && state.settings.sound) beep();
+  const snd = soundOf(s.strategy);
+  // The phone plays the strategy's sound with the notification (its own channel); the app only on the PC/browser.
+  if (state && state.settings.sound && !isAndroid) beep(snd);
   if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
   const body = `${tr(s.strategyName)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}`;
-  if (isAndroid) window.AndroidApp.notify(`${s.dir === 'CALL' ? '▲' : '▼'} ${s.dir} ${s.name}`, body, s.name, s.symbol, s.tv);
+  const title = `${s.dir === 'CALL' ? '▲' : '▼'} ${s.dir} ${s.name}`;
+  if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, s.name, s.symbol, s.tv, state.settings.sound ? snd : 'none');
+  else if (isAndroid) window.AndroidApp.notify(title, body, s.name, s.symbol, s.tv);
   else if (window.Notification && Notification.permission === 'granted' && document.hidden)
     new Notification(`${s.dir} ${s.name}`, { body, icon: 'icon.png' });
   // Auto switch PocketOption to the newest signal (at most once every 10 s).

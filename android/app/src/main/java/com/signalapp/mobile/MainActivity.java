@@ -62,6 +62,17 @@ public class MainActivity extends Activity {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "Signale", NotificationManager.IMPORTANCE_HIGH);
             ch.enableVibration(true);
             getSystemService(NotificationManager.class).createNotificationChannel(ch);
+            // One channel per signal sound (res/raw/sig_<key>.wav, made by tools/make-sounds.js); "none" has no sound.
+            String[] keys = {"default", "bell", "double", "beep", "rise", "fall", "gong", "alarm", "none"};
+            android.media.AudioAttributes aa = new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+            for (String k : keys) {
+                NotificationChannel c = new NotificationChannel("sig_" + k, "Signale – " + k, NotificationManager.IMPORTANCE_HIGH);
+                c.enableVibration(true);
+                int raw = getResources().getIdentifier("sig_" + k, "raw", getPackageName());
+                if (raw != 0) c.setSound(android.net.Uri.parse("android.resource://" + getPackageName() + "/" + raw), aa); else c.setSound(null, null);
+                getSystemService(NotificationManager.class).createNotificationChannel(c);
+            }
         }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
@@ -386,8 +397,21 @@ public class MainActivity extends Activity {
         // Signal notification with two buttons: "PO" opens the asset in PocketOption, "TV" in TradingView.
         @JavascriptInterface
         public void notify(String title, String body, String name, String symbol, String tvUrl) {
+            notifySound(title, body, name, symbol, tvUrl, "default");
+        }
+
+        // Same, with the strategy's own sound: every sound has its own notification channel "sig_<key>" (sounds are
+        // channel settings on Android 8+). "none" = silent channel, unknown key = default sound.
+        @JavascriptInterface
+        public void notifySound(String title, String body, String name, String symbol, String tvUrl, String key) {
+            if (key == null || !key.matches("[a-z]+")) key = "default";
             int id = notifyId++;
-            Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(MainActivity.this, CHANNEL) : new Notification.Builder(MainActivity.this);
+            String ch = Build.VERSION.SDK_INT >= 26 ? "sig_" + key : CHANNEL;
+            Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(MainActivity.this, ch) : new Notification.Builder(MainActivity.this);
+            if (Build.VERSION.SDK_INT < 26) {
+                int raw = getResources().getIdentifier("sig_" + key, "raw", getPackageName());
+                if (raw != 0) b.setSound(android.net.Uri.parse("android.resource://" + getPackageName() + "/" + raw));
+            }
             b.setSmallIcon(R.drawable.ic_stat_notify).setColor(0xFF4C8DFF).setContentTitle(title).setContentText(body)
                 .setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH)
                 .setContentIntent(actionIntent(id * 3, null, id, name, symbol, tvUrl))
