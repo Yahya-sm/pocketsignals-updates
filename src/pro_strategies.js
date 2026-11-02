@@ -70,7 +70,9 @@ module.exports = function (h) {
   // =====================================================================================================
   const BR = {
     expiry: 120, br_buy: true, br_sell: true, br_lookback: 100, br_touches: 2, br_zone_atr: 0.5, br_atr_period: 14, br_margin_atr: 0,
-    br_retest_bars: 8, br_confirm: 2, br_max_age: 12, br_filter: 1, br_min_rating: 0, ...RSI_F, ...MAM, ...AEI,
+    br_retest_bars: 8, br_confirm: 2, br_max_age: 12, br_filter: 1, br_min_rating: 0,
+    br_use_adx: false, br_adx_period: 14, br_adx_min: 25, br_adx_di: true, br_use_adx_rise: false, br_adx_rise: 0.5, br_use_adx_max: false, br_adx_max: 50,
+    ...RSI_F, ...MAM, ...AEI,
   };
   // Filter levels 0 OFF · 1 STANDARD · 2 STRICT: min touches · min breakout body (ATR) · max candle range (ATR) · min room to the next level (ATR-ish R)
   const BR_LEVELS = [{ touches: 0, body: 0, anom: 99, room: 0 }, { touches: 2, body: 0.5, anom: 3, room: 0.5 }, { touches: 3, body: 0.9, anom: 2.5, room: 1 }];
@@ -97,6 +99,17 @@ module.exports = function (h) {
     if (i < 30 + K + RB) return null;
     const atrA = I.atr(c, num(p.br_atr_period, 14));
     const mam = mamCheck(c, i, p, tfSec); if (mam.block) return null;
+    // ADX filter (optional), measured on the latest closed candle = the last confirmation: strength of the trend after the breakout.
+    const adxPer = num(p.br_adx_period, 14), adxA = p.br_use_adx ? (adxPer === 14 ? x.adx : I.adx(c, adxPer)) : null, ax = adxA && adxA[i], ax1 = adxA && adxA[i - 1];
+    if (p.br_use_adx && (!ax || !ax1)) return null;
+    const adxOk = dir => {
+      if (!p.br_use_adx) return true;
+      if (ax.adx < num(p.br_adx_min, 25)) return false;
+      if (p.br_adx_di !== false && !(dir > 0 ? ax.pdi > ax.mdi : ax.mdi > ax.pdi)) return false;
+      if (p.br_use_adx_rise && !(ax.adx - ax1.adx >= num(p.br_adx_rise, 0.5))) return false;
+      if (p.br_use_adx_max && ax.adx > num(p.br_adx_max, 50)) return false;
+      return true;
+    };
     const r = i - K; // the retest candle; confirmations are r+1 … i (the latest closed candle is the last confirmation)
     for (const dir of [1, -1]) {
       if ((dir > 0 && p.br_buy === false) || (dir < 0 && p.br_sell === false)) continue;
@@ -125,6 +138,7 @@ module.exports = function (h) {
         if (maxR > lvl.anom * A) continue;
         const room = roomAhead(c.slice(0, i + 1), i, dir).dist; // R units; Infinity = nothing ahead
         if (lvl.room && room < lvl.room) continue;
+        if (!adxOk(dir)) continue;
         const rs = rsiCheck(c, i, p, dir); if (!rs.ok) continue;
         // rating 0–100 (documented in the help, NOT a win probability)
         const depth = clampN((up ? near - c[r].low : c[r].high - near) / Math.max(1e-12, z.hi - z.lo), 0, 1);
@@ -136,7 +150,7 @@ module.exports = function (h) {
         const reason = J(
           L(`${up ? 'пробой вверх' : 'пробой вниз'} уровня ${z.lo.toFixed(dec)}–${z.hi.toFixed(dec)} (${z.n} касаний) → ретест → ${K} подтв.`, `${up ? 'Ausbruch nach oben' : 'Ausbruch nach unten'} Level ${z.lo.toFixed(dec)}–${z.hi.toFixed(dec)} (${z.n} Berührungen) → Retest → ${K} Best.`, `${up ? 'breakout up' : 'breakout down'} of ${z.lo.toFixed(dec)}–${z.hi.toFixed(dec)} (${z.n} touches) → retest → ${K} conf.`),
           L(`рейтинг ${rating}/100 (не вероятность)`, `Rating ${rating}/100 (keine Wahrscheinlichkeit)`, `rating ${rating}/100 (not a probability)`),
-          L(`пробою ${i - b} св.`, `Ausbruch vor ${i - b} Kerzen`, `breakout ${i - b} candles ago`), rs.v != null ? `RSI ${rs.v.toFixed(0)}` : null, mam.note, aeiNote(p));
+          L(`пробою ${i - b} св.`, `Ausbruch vor ${i - b} Kerzen`, `breakout ${i - b} candles ago`), ax ? `ADX ${ax.adx.toFixed(0)} · +DI ${ax.pdi.toFixed(0)} / −DI ${ax.mdi.toFixed(0)}` : null, rs.v != null ? `RSI ${rs.v.toFixed(0)}` : null, mam.note, aeiNote(p));
         const s = sig(dir, clampN(rating, 1, 99), reason, num(p.expiry, 120));
         s.bar = c[b].time; // one signal per breakout
         return s;
@@ -158,7 +172,8 @@ module.exports = function (h) {
   // Starting hypotheses for testing – not optimal values and no promise of results.
   const PRESETS = {
     n_bor: [
-      { name: L('Строго · 3 касания', 'Streng · 3 Berührungen', 'Strict · 3 touches'), values: { br_filter: 2, br_confirm: 2, br_touches: 3 } },
+      { name: L('Строго · 3 касания', 'Streng · 3 Berührungen', 'Strict · 3 touches'), values: { br_filter: 2, br_confirm: 2, br_touches: 3, br_use_adx: false } },
+      { name: L('Строго + ADX ≥ 25', 'Streng + ADX ≥ 25', 'Strict + ADX ≥ 25'), values: { br_filter: 2, br_confirm: 2, br_touches: 3, br_use_adx: true, br_adx_min: 25, br_adx_di: true } },
     ],
   };
   // ---------- labels of the parameters (DE / RU / EN) ----------
@@ -177,6 +192,12 @@ module.exports = function (h) {
     rsi_max: L('RSI: верхняя граница / перегрев (для PUT зеркально)', 'RSI: obere Grenze / Überhitzung (PUT gespiegelt)', 'RSI: upper bound / overheat (PUT mirrored)'),
     br_buy: L('Пробой вверх → CALL', 'Ausbruch oben → CALL', 'Breakout up → CALL'), br_sell: L('Пробой вниз → PUT', 'Ausbruch unten → PUT', 'Breakout down → PUT'),
     br_filter: L('Фильтр качества: 0 OFF · 1 STANDARD · 2 STRICT', 'Qualitätsfilter: 0 OFF · 1 STANDARD · 2 STRICT', 'Quality filter: 0 OFF · 1 STANDARD · 2 STRICT'),
+    br_use_adx: L('ADX-фильтр вкл.', 'ADX-Filter an', 'ADX filter on'),
+    br_adx_period: L('ADX: период', 'ADX: Periode', 'ADX: period'),
+    br_adx_min: L('ADX не ниже (сила тренда после пробоя)', 'ADX mindestens (Trendstärke nach dem Ausbruch)', 'ADX at least (trend strength after the breakout)'),
+    br_adx_di: L('Направление по DI: CALL при +DI > −DI, PUT при −DI > +DI', 'Richtung nach DI: CALL bei +DI > −DI, PUT bei −DI > +DI', 'DI direction: CALL if +DI > −DI, PUT if −DI > +DI'),
+    br_use_adx_rise: L('ADX должен расти', 'ADX muss steigen', 'ADX must be rising'), br_adx_rise: L('Рост ADX за свечу не меньше', 'ADX-Anstieg pro Kerze mindestens', 'ADX rise per candle at least'),
+    br_use_adx_max: L('ADX не выше (не входить в конце тренда)', 'ADX höchstens (nicht am Trendende einsteigen)', 'ADX at most (no entry at the end of a trend)'), br_adx_max: L('ADX не выше (значение)', 'ADX höchstens (Wert)', 'ADX at most (value)'),
     br_min_rating: L('Минимальный рейтинг 0–100 (не вероятность)', 'Mindest-Rating 0–100 (keine Wahrscheinlichkeit)', 'Minimum rating 0–100 (not a probability)'),
     br_lookback: L('Уровни: сколько закрытых свечей смотреть', 'Level: wie viele geschlossene Kerzen betrachten', 'Levels: how many closed candles to look at'),
     br_touches: L('Уровни: минимум касаний', 'Level: mindestens Berührungen', 'Levels: minimum touches'),
@@ -212,6 +233,9 @@ module.exports = function (h) {
       G(g('3 · Ретест и подтверждение', '3 · Retest und Bestätigung', '3 · Retest and confirmation'),
         g('После закрытия свечи за зоной цена должна вернуться к зоне (коснуться, не закрыться за дальней границей), затем 1–3 свечи подряд закрываются по направлению за зоной. Нарушение зоны, просроченный ретест или старый пробой — сценарий отменён. Один пробой — один сигнал.', 'Nach dem Schluss hinter der Zone muss der Preis zur Zone zurück (berühren, nicht hinter der fernen Grenze schließen), dann schließen 1–3 Kerzen in Folge in Richtung hinter der Zone. Zonenverletzung, abgelaufener Retest oder alter Ausbruch – Szenario abgebrochen. Ein Ausbruch – ein Signal.', 'After a close beyond the zone the price must return to it (touch, no close beyond the far edge), then 1–3 candles in a row close with the direction beyond the zone. Zone violated, retest expired or breakout too old – scenario cancelled. One breakout – one signal.'),
         ['br_retest_bars', 'br_confirm', 'br_max_age']),
+      G(g('4 · ADX-фильтр', '4 · ADX-Filter', '4 · ADX filter'),
+        g('Необязательно. ADX измеряет силу движения, а не направление. На последней закрытой свече (последнее подтверждение) ADX должен быть не ниже порога; по желанию +DI/−DI должны смотреть в сторону сигнала, ADX должен расти или не быть выше верхней границы (конец тренда). Порог 25 — стартовая гипотеза. Без фильтра выкл.', 'Optional. ADX misst die Stärke der Bewegung, nicht die Richtung. Auf der letzten geschlossenen Kerze (letzte Bestätigung) muss ADX mindestens die Schwelle haben; wahlweise müssen +DI/−DI in Signalrichtung zeigen, ADX muss steigen oder darf eine Obergrenze nicht überschreiten (Trendende). Schwelle 25 ist eine Starthypothese. Standardmäßig aus.', 'Optional. ADX measures the strength of the move, not its direction. On the last closed candle (the last confirmation) ADX must be at least the threshold; optionally +DI/−DI must point the signal way, ADX must be rising or not above an upper bound (trend end). The threshold 25 is a starting hypothesis. Off by default.'),
+        ['br_use_adx', 'br_adx_period', 'br_adx_min', 'br_adx_di', 'br_use_adx_rise', 'br_adx_rise', 'br_use_adx_max', 'br_adx_max']),
       RSI_G, MAM_G, AEI_G,
     ],
   };
@@ -244,6 +268,9 @@ module.exports = function (h) {
       sec(g('Рейтинг 0–100 и фильтры качества', 'Rating 0–100 und Qualitätsfilter', 'Rating 0–100 and quality filters'),
         g('Рейтинг складывается из: касаний уровня (до 20), силы пробоя — тела свечи в ATR (до 20), глубины ретеста (до 15), плотности подтверждающих свечей (до 15), отсутствия аномальных свечей (до 10), места до следующего уровня (до 20). Это эвристика, НЕ вероятность: рейтинг 80 не значит 80 % выигрышей.', 'Das Rating setzt sich zusammen aus: Berührungen des Levels (bis 20), Ausbruchsstärke – Kerzenkörper in ATR (bis 20), Retesttiefe (bis 15), Dichte der Bestätigungskerzen (bis 15), keine Ausreißerkerzen (bis 10), Platz bis zum nächsten Level (bis 20). Das ist eine Heuristik, KEINE Wahrscheinlichkeit: Rating 80 heißt nicht 80 % Gewinne.', 'The rating adds up from: level touches (up to 20), breakout strength – candle body in ATR (up to 20), retest depth (up to 15), density of the confirming candles (up to 15), no abnormal candles (up to 10), room to the next level (up to 20). It is a heuristic, NOT a probability: rating 80 does not mean 80 % wins.'),
         g('Фильтр 0 OFF — только обязательные условия. 1 STANDARD — минимум 2 касания, тело пробоя ≥ 0,5 ATR, нет свечи шире 3 ATR, место до следующего уровня ≥ 0,5. 2 STRICT — 3 касания, тело ≥ 0,9 ATR, нет свечи шире 2,5 ATR, место ≥ 1. Строже не значит прибыльнее — проверяйте в таблице результатов.', 'Filter 0 OFF – nur Pflichtbedingungen. 1 STANDARD – mindestens 2 Berührungen, Ausbruchskörper ≥ 0,5 ATR, keine Kerze breiter als 3 ATR, Platz bis zum nächsten Level ≥ 0,5. 2 STRICT – 3 Berührungen, Körper ≥ 0,9 ATR, keine Kerze breiter als 2,5 ATR, Platz ≥ 1. Strenger heißt nicht profitabler – in der Ergebnistabelle prüfen.', 'Filter 0 OFF – only the mandatory conditions. 1 STANDARD – at least 2 touches, breakout body ≥ 0.5 ATR, no candle wider than 3 ATR, room to the next level ≥ 0.5. 2 STRICT – 3 touches, body ≥ 0.9 ATR, no candle wider than 2.5 ATR, room ≥ 1. Stricter does not mean more profitable – check the results table.')),
+      sec(g('ADX-фильтр', 'ADX-Filter', 'ADX filter'),
+        g('Выключен по умолчанию. ADX показывает силу движения, но не направление; +DI/−DI — чьё давление сильнее. Фильтр смотрит на последнюю закрытую свечу (последнее подтверждение): ADX ≥ порога (25), по желанию +DI/−DI в сторону сигнала, ADX растёт, ADX не выше верхней границы. Пресет «Строго + ADX ≥ 25» включает его вместе со STRICT.', 'Standardmäßig aus. ADX zeigt die Stärke der Bewegung, nicht die Richtung; +DI/−DI – wessen Druck stärker ist. Der Filter prüft die letzte geschlossene Kerze (letzte Bestätigung): ADX ≥ Schwelle (25), wahlweise +DI/−DI in Signalrichtung, ADX steigt, ADX nicht über der Obergrenze. Das Preset „Streng + ADX ≥ 25“ schaltet ihn zusammen mit STRICT ein.', 'Off by default. ADX shows the strength of the move, not its direction; +DI/−DI – whose pressure is stronger. The filter looks at the last closed candle (the last confirmation): ADX ≥ threshold (25), optionally +DI/−DI the signal way, ADX rising, ADX not above the upper bound. The preset "Strict + ADX ≥ 25" turns it on together with STRICT.'),
+        g('Он только убирает сигналы и не создаёт новых. Улучшит ли он результат — не проверено: сначала сравните два пресета на демо (включите оба — статистика по ним ведётся отдельно).', 'Er entfernt nur Signale und erzeugt keine neuen. Ob er das Ergebnis verbessert, ist nicht geprüft: zuerst beide Presets auf Demo vergleichen (beide einschalten – die Statistik läuft getrennt).', 'It only removes signals and creates none. Whether it improves the result is not tested: first compare the two presets on demo (turn both on – statistics are kept apart).')),
       sec(g('Таймфрейм', 'Zeitrahmen', 'Timeframe'),
         g('Таймфрейм сигнала выбирается вверху стратегии (M1, M2, M3, M5): это размер свечи, на которой ищутся пробой и ретест. Он не равен экспирации. На M1 пробоев много и они шумные, на M3/M5 их меньше. Какой таймфрейм лучше — решает только проверка (см. таблицу результатов).', 'Der Signal-Zeitrahmen wird oben in der Strategie gewählt (M1, M2, M3, M5): die Kerzengröße, auf der Ausbruch und Retest gesucht werden. Er ist nicht gleich dem Ablauf. Auf M1 gibt es viele, rauschige Ausbrüche, auf M3/M5 weniger. Welcher Zeitrahmen besser ist, entscheidet nur die Prüfung (siehe Ergebnistabelle).', 'The signal timeframe is chosen at the top of the strategy (M1, M2, M3, M5): the candle size on which the breakout and retest are looked for. It is not the expiry. On M1 breakouts are many and noisy, on M3/M5 fewer. Which timeframe is better is decided only by testing (see the results table).')),
       sec(g('Почему сигнала нет?', 'Warum kein Signal?', 'Why no signal?'),

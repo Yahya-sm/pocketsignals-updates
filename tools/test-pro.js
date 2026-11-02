@@ -43,6 +43,15 @@ function borSeries() {
   const c4 = borSeries(); c4[61] = mk(61, 101.0, 101.2, 101.4, 100.8); // price never came back to the zone: no retest
   t('BOR no retest → no signal', run('n_bor', c4, {}).length === 0);
   t('BOR respects the CALL switch', run('n_bor', c, { br_buy: false }).length === 0);
+  // ADX filter: measured value of the series decides; thresholds above/below it must switch the signal off/on
+  const ad = I.adx(c, 14)[c.length - 1];
+  if (ad) {
+    t('BOR ADX filter OFF changes nothing', run('n_bor', c, { br_use_adx: false, br_adx_min: 99 }).length === 1);
+    t('BOR ADX below the minimum → no signal', run('n_bor', c, { br_use_adx: true, br_adx_min: ad.adx + 1, br_adx_di: false }).length === 0);
+    t('BOR ADX at/above the minimum → signal keeps, ADX in the reason', (() => { const r2 = run('n_bor', c, { br_use_adx: true, br_adx_min: ad.adx - 1, br_adx_di: false }); return r2.length === 1 && /ADX/.test(r2[0].reason.ru); })());
+    t('BOR ADX max below the value blocks', run('n_bor', c, { br_use_adx: true, br_adx_min: 0, br_adx_di: false, br_use_adx_max: true, br_adx_max: ad.adx - 1 }).length === 0);
+    t('BOR DI direction: CALL needs +DI > −DI', run('n_bor', c, { br_use_adx: true, br_adx_min: 0, br_adx_di: true }).length === (ad.pdi > ad.mdi ? 1 : 0));
+  }
   // no look-ahead: the same candles + a future candle change nothing for the earlier evaluation
   t('BOR evaluation on the history prefix is unchanged by later candles', JSON.stringify(run('n_bor', c.slice(0, 64), {})) === JSON.stringify(run('n_bor', c.concat([mk(64, 101.7, 90, 102, 80)]).slice(0, 64), {})));
   // levels: breakout through a one-touch level is no signal with 2 required touches
