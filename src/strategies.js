@@ -26,7 +26,6 @@ const META = {
   n_vortex: [L('Vortex + MACD', 'Vortex + MACD'), 'trend'],
   n_mamacd: [L('MA + MACD', 'MA + MACD'), 'trend'],
   n_psar: [L('Supertrend + PSAR', 'Supertrend + PSAR'), 'trend'],
-  n_impulse: [L('Импульсный возврат', 'Impuls-Rückkehr', 'Impulse return'), 'trend'],
   ma4813: [L('MA 4/8/13', 'MA 4/8/13'), 'trend'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
@@ -84,8 +83,8 @@ const DEFAULTS = {
     vx_use_rsi: false, vx_rsi_period: 14, vx_rsi_mid: 50, vx_rsi_max: 70 },
   n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
-  n_impulse: { ...TREND, impulse_body: 1.5, pullback_max: 2 },
-  ma4813: { ...TREND, min_adx: 15, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
+  // 03.11.2026: level filter + ADX 15 left almost nothing (measured ~1 signal per 2.5 h per pair) – both off by default.
+  ma4813: { ...TREND, room_check: false, min_adx: 0, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
 };
 
 // Strong-trend presets start from "all extras off, no higher timeframes" so a preset never keeps a stray switch.
@@ -741,16 +740,6 @@ const S = {
     const recent = ps.slice(i - (p.sar_window || 2), i + 1).some((q, j, a) => j > 0 && q && a[j - 1] && q.up !== a[j - 1].up);
     if (!recent) return null;
     return sig(d, 77, L('разворот Supertrend и PSAR', 'Supertrend und PSAR drehen', 'Supertrend and PSAR flip'));
-  },
-  n_impulse(x, p) {
-    const i = x.last, a = x.atr[i - 1]; if (!a) return null;
-    for (let back = 2; back <= (p.pullback_max || 2) + 1; back++) {
-      const imp = x.c[i - back]; if (I.body(imp) < (p.impulse_body || 2) * a) continue;
-      const d = I.dirOf(imp);
-      const pull = x.c.slice(i - back + 1, i).every(k => I.dirOf(k) === -d && (d > 0 ? k.low > imp.open : k.high < imp.open));
-      if (pull && I.dirOf(x.c[i]) === d) return sig(d, 75, L('импульсная свеча, короткий откат и возврат', 'Impulskerze, kurzer Rücklauf und Rückkehr', 'impulse candle, short pullback and return'));
-    }
-    return null;
   },
   ma4813(x, p) {
     const t = p.ma3_type || 'EMA', f = Number(p.ma3_fast) || 4, m = Number(p.ma3_mid) || 8, s = Number(p.ma3_slow) || 13;

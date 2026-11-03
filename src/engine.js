@@ -54,6 +54,13 @@ class Engine extends EventEmitter {
       this.settings.vrev_spike_1028 = true;
       writeJson(this.settingsFile, this.settings);
     }
+    // 03.11.2026: MA 4/8/13 gave no signals – the saved level filter / ADX values go back to the new defaults (off).
+    if (!this.settings.ma4813_open_1103) {
+      const m = this.settings.strategy_settings?.ma4813;
+      if (m) { delete m.room_check; delete m.room_min; delete m.min_adx; }
+      this.settings.ma4813_open_1103 = true;
+      writeJson(this.settingsFile, this.settings);
+    }
     // Strategies removed from the program (29.10.2026) drop out of the enabled list.
     if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n]);
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
