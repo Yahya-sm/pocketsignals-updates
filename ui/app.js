@@ -141,11 +141,13 @@ function togglePin(id) {
   pins = pins.includes(id) ? pins.filter(p => p !== id) : [...pins, id];
   savePins(); renderLive();
 }
+let heldOrder = null;
+function showFresh() { heldOrder = null; $('main').scrollTop = 0; renderLive(); }
 function visibleSignals() {
   const list = state.signals.filter(isVisible);
   const pinned = pins.map(id => list.find(s => s.id === id)).filter(Boolean);
-  // Starred first, then strongest to weakest (equal strength: newest first).
-  const rest = list.filter(s => !pins.includes(s.id)).sort((a, b) => b.strength - a.strength || b.created - a.created);
+  // Starred first, then newest on top (user, 04.11.2026: every fresh signal must be seen at once).
+  const rest = list.filter(s => !pins.includes(s.id)).sort((a, b) => (b.created || 0) - (a.created || 0) || b.strength - a.strength);
   return [...pinned, ...rest];
 }
 // Trend badge; clicking it opens the pair in PocketOption on the trend timeframe.
@@ -162,9 +164,16 @@ function renderLive() {
   if (!state) return;
   const all = visibleSignals();
   const sig = s => [s.id, isDone(s) ? 1 : 0, s.result || '', s.m5 || '', pins.includes(s.id) ? 1 : 0].join(':');
-  const live = all.filter(s => dirFilter === 'all' || s.dir === dirFilter);
+  let live = all.filter(s => dirFilter === 'all' || s.dir === dirFilter);
+  // Scrolled down to a signal: the order is held, new signals wait behind the "↑ N new" pill (no jumping cards).
+  // At the top, after the pill or the Signals tab: newest first again.
+  const main = $('main'), scrolled = main.scrollTop > 40 && $('#signals').classList.contains('active');
+  let fresh = 0;
+  if (scrolled && heldOrder) { fresh = live.filter(s => !heldOrder.includes(s.id)).length; live = heldOrder.map(id => live.find(s => s.id === id)).filter(Boolean); }
+  else heldOrder = live.map(s => s.id);
+  $('#newPill').hidden = !fresh; if (fresh) $('#newPill').textContent = t('new_signals', { n: fresh });
   const liveKey = [LANG, state.settings.show_m5, state.settings.trend_tf, ...live.map(sig)].join('|');
-  if ($('#live').dataset.key !== liveKey) { $('#live').innerHTML = live.map(card).join(''); $('#live').dataset.key = liveKey; }
+  if ($('#live').dataset.key !== liveKey) { const top = main.scrollTop; $('#live').innerHTML = live.map(card).join(''); $('#live').dataset.key = liveKey; main.scrollTop = top; }
   $('#liveEmpty').hidden = live.length > 0;
   updateAdxBoxes();
 
@@ -489,7 +498,9 @@ document.addEventListener('click', e => {
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b === el));
     document.querySelectorAll('.tab').forEach(s => s.classList.toggle('active', s.id === el.dataset.tab));
     $('main').scrollTop = 0;
+    if (el.dataset.tab === 'signals') showFresh();
   }
+  if (el.id === 'newPill') showFresh();
   if (el.dataset.lang) changeLang(el.dataset.lang);
   if (el.dataset.dir) { dirFilter = el.dataset.dir; document.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b === el)); render(); }
   if (el.dataset.hist) { histView = el.dataset.hist; document.querySelectorAll('[data-hist]').forEach(b => b.classList.toggle('active', b === el)); render(); }

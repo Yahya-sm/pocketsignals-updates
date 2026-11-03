@@ -80,6 +80,10 @@ main { flex: 1; overflow-y: auto; padding: 12px; }
 .pairmeta b { color: var(--call); }
 .dir { font-weight: 800; font-size: 14px; padding: 7px 12px; border-radius: 10px; letter-spacing: .02em; }
 .dir.CALL { background: rgba(22,199,132,.14); color: var(--call); } .dir.PUT { background: rgba(234,57,67,.14); color: var(--put); }
+/* "↑ N new signals" while the list is held (user scrolled down to a signal). */
+#newPill { position: sticky; top: 8px; z-index: 5; display: block; margin: 0 auto 8px; padding: 8px 16px; border: 0; border-radius: 20px;
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.45); cursor: pointer; }
+#newPill[hidden] { display: none; }
 /* Live ADX box on the signal card (updated every 5 s). */
 .adxbox { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
 .adx-wait { font-size: 12px; opacity: .6; }

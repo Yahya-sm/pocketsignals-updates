@@ -74,7 +74,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
   `--accent` blue). Cards 16 px radius, chips, slim dark scrollbar, bottom tab bar, no white or default controls.
 - Every signal card shows: pair icon (AUD over USD), payout, CALL/PUT, **which strategy found it** + reason, timeframe button
   (opens PocketOption on that timeframe), trend badge (clickable), entry/expiry/strength, countdown + progress, PO and TV buttons, star.
-- Signals sorted strongest first (starred on top); they disappear at expiry.
+- Signals sorted newest first (starred on top); while the user is scrolled down the order is held and a "↑ N new" pill
+  appears (pill or the Signals tab = back to the top, fresh list). They disappear at expiry. Each running card has a live ADX box (5 s).
 - Every new text goes into `ui/i18n.js` in **all three** languages (de, ru, en).
 - Give clear feedback on actions (button turns green "✓ Gespeichert", red on error) – the user must see that something happened.
 - Keep the mini view (desktop, another app focused) to just the signal rows, no frame.
