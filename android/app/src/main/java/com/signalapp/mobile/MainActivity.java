@@ -412,12 +412,40 @@ public class MainActivity extends Activity {
                 int raw = getResources().getIdentifier("sig_" + key, "raw", getPackageName());
                 if (raw != 0) b.setSound(android.net.Uri.parse("android.resource://" + getPackageName() + "/" + raw));
             }
-            b.setSmallIcon(R.drawable.ic_stat_notify).setColor(0xFF4C8DFF).setContentTitle(title).setContentText(body)
+            // Direction at a glance (user, 03.11.2026): big green ▲ / red ▼ as the large icon, colored title and accent.
+            boolean call = title != null && title.contains("CALL"), put = title != null && title.contains("PUT");
+            int color = call ? 0xFF16C784 : put ? 0xFFEA3943 : 0xFF4C8DFF;
+            CharSequence shown = title;
+            if (call || put) {
+                android.text.SpannableString sp = new android.text.SpannableString(title);
+                sp.setSpan(new android.text.style.ForegroundColorSpan(color), 0, title.length(), 0);
+                sp.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, title.length(), 0);
+                shown = sp;
+                b.setLargeIcon(arrowIcon(call, color));
+            }
+            b.setSmallIcon(R.drawable.ic_stat_notify).setColor(color).setContentTitle(shown).setContentText(body)
                 .setAutoCancel(true).setPriority(Notification.PRIORITY_HIGH)
                 .setContentIntent(actionIntent(id * 3, null, id, name, symbol, tvUrl))
-                .addAction(new Notification.Action.Builder(null, "PO", actionIntent(id * 3 + 1, "po", id, name, symbol, tvUrl)).build())
+                .addAction(new Notification.Action.Builder(null, (call ? "▲ " : put ? "▼ " : "") + "PO", actionIntent(id * 3 + 1, "po", id, name, symbol, tvUrl)).build())
                 .addAction(new Notification.Action.Builder(null, "TV", actionIntent(id * 3 + 2, "tv", id, name, symbol, tvUrl)).build());
             getSystemService(NotificationManager.class).notify(id, b.build());
+        }
+
+        // Rounded square in the signal color with a big white arrow (large notification icon).
+        private android.graphics.Bitmap arrowIcon(boolean up, int color) {
+            int s = 192;
+            android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas cv = new android.graphics.Canvas(bm);
+            android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            p.setColor(color);
+            cv.drawRoundRect(new android.graphics.RectF(0, 0, s, s), 40, 40, p);
+            p.setColor(Color.WHITE);
+            android.graphics.Path a = new android.graphics.Path();
+            if (up) { a.moveTo(s / 2f, 30); a.lineTo(s - 28, s - 50); a.lineTo(28, s - 50); }
+            else { a.moveTo(s / 2f, s - 30); a.lineTo(s - 28, 50); a.lineTo(28, 50); }
+            a.close();
+            cv.drawPath(a, p);
+            return bm;
         }
 
         // Older UI builds call notify with title and body only.

@@ -627,7 +627,7 @@ function onSignal(s) {
   if (state && state.settings.sound && !isAndroid) beep(snd);
   if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
   const body = `${tr(s.strategyName)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}`;
-  const title = `${s.dir === 'CALL' ? '▲' : '▼'} ${s.dir} ${s.name}`;
+  const title = `${s.dir === 'CALL' ? '🟢⬆️' : '🔴⬇️'} ${s.dir} · ${s.name}`;
   if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, s.name, s.symbol, s.tv, state.settings.sound ? snd : 'none');
   else if (isAndroid) window.AndroidApp.notify(title, body, s.name, s.symbol, s.tv);
   else if (window.Notification && Notification.permission === 'granted' && document.hidden)
