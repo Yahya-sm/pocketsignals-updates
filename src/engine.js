@@ -166,6 +166,36 @@ class Engine extends EventEmitter {
     this.po.connect();
     this._watchAutoSession();
     this.restartTimer();
+    // Live ADX on the running signal cards (user, 03.11.2026): every 5 s, so a fading trend is seen before entering.
+    setInterval(() => { if (this._sampleAdx()) this.emit('state'); }, 5000);
+  }
+
+  // ADX 14 / +DI / −DI of the signal's pair on its timeframe, including the forming candle (live prices).
+  liveAdx(sig) {
+    const closed = this.candles.get(sig.symbol); if (!closed || closed.length < 30) return null;
+    const now = Math.floor(Date.now() / 60000) * 60;
+    const m1 = this._withLive(sig.symbol, closed, 60).filter(k => k.time <= now);
+    const m = parseInt(String(sig.tf).slice(1), 10) || 1;
+    const c = sig.tf[0] === 'S' ? m1 : I.resample(m1, m, true);
+    const a = I.adx(c, 14)[c.length - 1];
+    return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1) } : null;
+  }
+
+  // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
+  _sampleAdx() {
+    const nowS = Date.now() / 1000; let any = false;
+    this.adxHist ||= new Map();
+    const run = this.signals.slice(0, 30).filter(s => !s.result && nowS < s.entryTime + s.expiry + 120);
+    for (const s of run) {
+      const v = this.liveAdx(s); if (!v) continue;
+      const h = this.adxHist.get(s.id) || [];
+      h.push(v.adx); if (h.length > 36) h.shift();
+      this.adxHist.set(s.id, h);
+      if (s.adx0 === undefined) s.adx0 = v.adx; // ADX when the signal came (first sample)
+      s.adxLive = { ...v, hist: h.slice() }; any = true;
+    }
+    for (const id of this.adxHist.keys()) if (!run.some(s => s.id === id)) this.adxHist.delete(id);
+    return any;
   }
 
   get scanInterval() {
@@ -385,6 +415,7 @@ class Engine extends EventEmitter {
       strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
+    const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
     // The newest 300, plus the user's own trades (marked "taken") that are older – their statistics stay.
     this.signals = this.signals.slice(0, 300).concat(this.signals.slice(300).filter(x => x.mine).slice(0, 1000));

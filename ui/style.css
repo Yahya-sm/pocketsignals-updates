@@ -80,6 +80,21 @@ main { flex: 1; overflow-y: auto; padding: 12px; }
 .pairmeta b { color: var(--call); }
 .dir { font-weight: 800; font-size: 14px; padding: 7px 12px; border-radius: 10px; letter-spacing: .02em; }
 .dir.CALL { background: rgba(22,199,132,.14); color: var(--call); } .dir.PUT { background: rgba(234,57,67,.14); color: var(--put); }
+/* Live ADX box on the signal card (updated every 5 s). */
+.adxbox { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+.adx-wait { font-size: 12px; opacity: .6; }
+.adx-main { display: flex; flex-direction: column; align-items: center; min-width: 58px; }
+.adx-main small { font-size: 10px; opacity: .6; letter-spacing: .08em; }
+.adx-val { font-size: 24px; font-weight: 800; line-height: 1.1; }
+.adx-val.weak { color: #8a94a6; } .adx-val.mid { color: #e6c84c; } .adx-val.strong { color: #ff9a3c; } .adx-val.vstrong { color: var(--put); }
+.adx-trend { font-size: 12px; font-weight: 700; }
+.adx-trend.up, .adx-txt.up { color: #ff9a3c; } .adx-trend.down, .adx-txt.down { color: var(--call); } .adx-trend.flat, .adx-txt.flat { color: #8a94a6; }
+.adx-mid { flex: 1; min-width: 0; }
+.adx-scale { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #4a5262 0 33%, #e6c84c 33% 42%, #ff9a3c 42% 67%, var(--put) 67%); }
+.adx-scale i { position: absolute; top: -3px; width: 4px; height: 12px; margin-left: -2px; border-radius: 2px; background: #fff; box-shadow: 0 0 4px #000; }
+.adx-txt { font-size: 12px; font-weight: 700; margin-top: 5px; }
+.adx-di { font-size: 11px; opacity: .65; margin-top: 2px; }
+.adx-spark polyline { stroke: #8a94a6; } .adx-spark.up polyline { stroke: #ff9a3c; } .adx-spark.down polyline { stroke: var(--call); }
 /* Big solid arrow: the direction must be visible at a glance (user, 03.11.2026). */
 .dir { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; }
 .dir .arrow { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: #fff; font-size: 24px; line-height: 1; }

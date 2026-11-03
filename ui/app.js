@@ -166,6 +166,7 @@ function renderLive() {
   const liveKey = [LANG, state.settings.show_m5, state.settings.trend_tf, ...live.map(sig)].join('|');
   if ($('#live').dataset.key !== liveKey) { $('#live').innerHTML = live.map(card).join(''); $('#live').dataset.key = liveKey; }
   $('#liveEmpty').hidden = live.length > 0;
+  updateAdxBoxes();
 
   const top = all.slice(0, state.settings.mini_count || 2);
   const miniKey = [LANG, state.settings.show_m5, state.settings.trend_tf, ...top.map(sig)].join('|');
@@ -208,6 +209,7 @@ function card(s) {
       <div><small>${t('expiry')}</small><b>${fmtExp(s.expiry)}</b></div>
       <div><small>${t('strength')}</small><b>${s.strength}</b></div>
     </div>
+    ${done ? '' : `<div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
     <div class="btns">
@@ -216,6 +218,30 @@ function card(s) {
       <button class="tv" data-tv="${esc(s.id)}">TradingView ↗</button>
     </div>
   </div>`;
+}
+// Live ADX of the signal (engine samples every 5 s): number, rising/falling over the last ~30 s, strength scale,
+// +DI/−DI and a small line of the last 3 minutes. Rising = the trend gets stronger (no early reversal entry).
+function adxBox(s) {
+  const a = s.adxLive;
+  if (!a) return `<div class="adx-wait">ADX · ${t('adx_wait')}</div>`;
+  const h = a.hist || [a.adx], ref = h[Math.max(0, h.length - 7)], d = a.adx - ref;
+  const trend = d > 0.3 ? 'up' : d < -0.3 ? 'down' : 'flat';
+  const lvl = a.adx >= 40 ? 'vstrong' : a.adx >= 25 ? 'strong' : a.adx >= 20 ? 'mid' : 'weak';
+  const lo = Math.min(...h), hi = Math.max(...h), span = hi - lo || 1, W = 90, H = 26;
+  const pts = h.map((v, i) => `${h.length > 1 ? (i * W / (h.length - 1)).toFixed(1) : W},${(H - 2 - (v - lo) / span * (H - 4)).toFixed(1)}`).join(' ');
+  return `<div class="adx-main"><small>ADX</small><b class="adx-val ${lvl}">${a.adx.toFixed(1)}</b>
+      <span class="adx-trend ${trend}">${trend === 'up' ? '▲' : trend === 'down' ? '▼' : '◆'} ${d >= 0 ? '+' : ''}${d.toFixed(1)}</span></div>
+    <div class="adx-mid"><div class="adx-scale"><i style="left:${Math.min(100, a.adx / 60 * 100)}%"></i></div>
+      <div class="adx-txt ${trend}">${t('adx_' + trend)} · ${t('adx_' + lvl)}</div>
+      <div class="adx-di">+DI ${a.pdi.toFixed(0)} · −DI ${a.mdi.toFixed(0)}${s.adx0 !== undefined ? ` · ${t('adx_at_signal')} ${Number(s.adx0).toFixed(1)}` : ''}</div></div>
+    <svg class="adx-spark ${trend}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke-width="2"/></svg>`;
+}
+function updateAdxBoxes() {
+  if (!state) return;
+  document.querySelectorAll('[data-adx-id]').forEach(el => {
+    const s = state.signals.find(x => x.id === el.dataset.adxId);
+    if (s) { const html = adxBox(s); if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; } }
+  });
 }
 function row(s) {
   const res = s.result ? `<span class="res ${s.result}">${I18N.de['res_' + s.result] ? t('res_' + s.result) : s.result}</span>` : `<span class="res">${t('res_running')}</span>`;
