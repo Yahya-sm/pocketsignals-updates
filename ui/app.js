@@ -196,7 +196,7 @@ function card(s) {
       <div class="ico">${assetIcon(s.name)}</div>
       <div class="pairbox"><div class="pair">${esc(s.name)}</div>
         <div class="pairmeta">${t('payout')} <b>${s.payout}%</b> · ${s.otc ? t('otc') : t('real_market')} ${m5Badge(s)}</div></div>
-      ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}">${s.dir === 'CALL' ? '▲ CALL' : '▼ PUT'}</div>`}
+      ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}"><span class="arrow">${s.dir === 'CALL' ? '▲' : '▼'}</span>${s.dir}</div>`}
     </div>
     <div class="strategy">
       <div style="flex:1;min-width:0"><div class="lbl">${t('found_by')}</div>
