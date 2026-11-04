@@ -4,7 +4,7 @@
 const isDesktop = !!window.desktop;
 const isAndroid = !!window.AndroidApp;
 const $ = s => document.querySelector(s);
-let state = null, ws, reqId = 0, dirFilter = 'all', histView = 'list', stratFilter = 'all', stratQuery = '';
+let state = null, ws, reqId = 0, dirFilter = 'all', histView = 'mine', stratFilter = 'all', stratQuery = '';
 const replies = {};
 // Script errors are shown in the status line, so problems on a phone are visible without a debugger.
 let jsError = (window.__bootErrors || [])[0] || null; // e.g. the signal engine failed to start
