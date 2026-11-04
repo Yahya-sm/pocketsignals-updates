@@ -46,7 +46,10 @@ const FIVE_BOT = { five_bot: false, candle_ma: 5, five_er_min: 0.3, five_trend: 
 // Market rules for the reversal setups (see marketOk): volatile market only, no entry straight into a level.
 const MARKET = { mk_vol: 1, mk_big: 1.8, mk_room: 1 };
 const DEFAULTS = {
-  n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true, ...SHARP_BOT },
+  // 04.11.2026 (user): the series of candles is only the setup; the signal is the Stochastic turning out of its zone
+  // (%K crosses 20 upwards after a fall / 80 downwards after a rise) within sharp_wait candles after the series.
+  n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true,
+    sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, ...SHARP_BOT },
   n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT },
   // Reversal at a level (user's prompt of 28.10.2026): structure first (support/resistance from the history), the side
   // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
@@ -447,7 +450,26 @@ function deepRev(m1, m5, m15, p, dir, on) {
 const S = {
   n_sharp(x, p) {
     if (p.bot) return botSig(BP.sharpSeries(x.c, x.last, p)); // Telegram-bot logic
-    const { d, n } = runLength(x.c, x.last), min = p.sharp_min || 4;
+    const min = p.sharp_min || 4;
+    if (p.sharp_stoch !== false) {
+      // Trigger: %K crosses the zone line on the last closed candle (from below 20 to ≥ 20 → CALL, from above 80 to ≤ 80 → PUT),
+      // and a series of ≥ sharp_min candles against that direction ended within the last sharp_wait candles.
+      const i = x.last, st = I.stoch(x.c, Number(p.sharp_k) || 14, Number(p.sharp_ks) || 3, 3).k;
+      const lo = Number(p.sharp_low) || 20, hi = Number(p.sharp_high) || 80, k0 = st[i - 1], k1 = st[i];
+      if (k0 === null || k1 === null) return null;
+      const dir = k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0;
+      if (!dir || (!p.sharp_mirror && dir < 0)) return null;
+      let best = 0;
+      for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) {
+        const r = runLength(x.c, j); if (r.d === -dir && r.n > best) best = r.n;
+      }
+      if (best < min) return null;
+      if (p.sharp_rsi) { const r = x.rsi(14)[i]; if (dir > 0 ? r > 45 : r < 55) return null; }
+      return sig(dir, 70 + (best - min) * 8, dir > 0
+        ? L(`${best} красных свечей, стохастик вышел вверх из зоны ${lo}`, `${best} rote Kerzen, Stochastik verlässt die ${lo}-Zone nach oben`, `${best} red candles, Stochastic turned up out of the ${lo} zone`)
+        : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_expiry);
+    }
+    const { d, n } = runLength(x.c, x.last);
     if (n < min || (!p.sharp_mirror && d > 0)) return null;
     if (p.sharp_rsi) { const r = x.rsi(14)[x.last]; if (d < 0 ? r > 35 : r < 65) return null; }
     return sig(-d, 70 + (n - min) * 8, d < 0
