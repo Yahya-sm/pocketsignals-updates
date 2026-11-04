@@ -101,7 +101,18 @@ class POClient extends EventEmitter {
       return;
     }
     if (s.startsWith('0{')) { this._log('Server-Handshake ok'); return this.ws.send('40'); }
-    if (s.startsWith('40')) { this._log('Sende Login (Sitzung)'); return this.ws.send(this.ssid); }
+    if (s.startsWith('40')) {
+      this._log('Sende Login (Sitzung)');
+      // PocketOption may neither accept nor reject a session that was replaced by a newer login (seen 04.11.2026:
+      // pairs list came, then silence). Say so instead of "connecting…" forever.
+      const ws = this.ws; clearTimeout(this.authTimer);
+      this.authTimer = setTimeout(() => {
+        if (this.ws !== ws || this.authed || this.denied) return;
+        this._log('Keine Login-Antwort – Sitzung vermutlich durch neuen Login ersetzt. PocketOption in der App öffnen und neu anmelden.');
+        this.emit('status', 'expired');
+      }, 12000);
+      return this.ws.send(this.ssid);
+    }
     if (s === '2') return this.ws.send('3');
     const m = s.match(/^451-\["(\w+)"/);
     if (m) { this.pending = m[1]; return; }
