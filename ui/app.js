@@ -210,7 +210,6 @@ function card(s) {
   return `<div class="sig ${s.dir}${fresh && !done ? ' new' : ''}${done ? ' done' : ''}">
     <div class="sig-top">
       <button class="star${pinned ? ' on' : ''}" data-pin="${esc(s.id)}" title="${t('pin')}">${pinned ? '★' : '☆'}</button>
-      <div class="ico">${assetIcon(s.name)}</div>
       <div class="pairbox"><div class="pair">${esc(s.name)}</div>
         <div class="pairmeta">${t('payout')} <b>${s.payout}%</b> · ${s.otc ? t('otc') : t('real_market')} ${m5Badge(s)}</div></div>
       ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}"><span class="arrow">${s.dir === 'CALL' ? '▲' : '▼'}</span>${s.dir}</div>`}
@@ -229,7 +228,6 @@ function card(s) {
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
     <div class="btns">
-      <button class="mine${s.mine ? ' on' : ''}" data-mine="${esc(s.id)}">${s.mine ? '✓ ' + t('my_taken_one') : t('my_mark')}</button>
       <button class="po" data-po="${esc(s.id)}">PocketOption ↗</button>
       <button class="tv" data-tv="${esc(s.id)}">TradingView ↗</button>
     </div>
