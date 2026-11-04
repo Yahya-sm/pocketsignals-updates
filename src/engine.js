@@ -188,7 +188,7 @@ class Engine extends EventEmitter {
   _sampleAdx() {
     const nowS = Date.now() / 1000; let any = false;
     this.adxHist ||= new Map();
-    const run = this.signals.slice(0, 30).filter(s => !s.result && nowS < s.entryTime + s.expiry + 120);
+    const run = this.signals.slice(0, 30).filter(s => !s.result && !s.manual && nowS < s.entryTime + s.expiry + 120);
     for (const s of run) {
       const v = this.liveAdx(s); if (!v) continue;
       const h = this.adxHist.get(s.id) || [];
@@ -554,17 +554,61 @@ class Engine extends EventEmitter {
   clearSignals() { this.signals = this.signals.filter(s => s.mine); writeJson(this.signalsFile, this.signals); this.emit('state'); } // own trades stay
 
   // "My trades" reset: the marks are removed (the signals stay in the history and in the bot's statistics); counting starts anew.
-  clearMine() { for (const s of this.signals) delete s.mine; writeJson(this.signalsFile, this.signals); this.emit('state'); }
-
-  // The user marks a signal as traded by themself ("taken"): their own statistics are counted from these.
-  // Opening a running signal in PocketOption counts as "I took it" (user, 04.11.2026; always on, the switch was removed).
-  // By id (card buttons) or by pair (notification button: the newest running signal of that pair). Auto-switching is not.
-  autoMine(id, symbol) {
-    const now = Date.now() / 1000, run = s => !s.result && now < s.entryTime + s.expiry;
-    const s = id ? this.signals.find(x => x.id === id && run(x)) : this.signals.find(x => x.symbol === symbol && run(x));
-    if (s && !s.mine) this.markMine(s.id, true);
+  clearMine() {
+    this.signals = this.signals.filter(s => !s.manual);
+    for (const s of this.signals) { delete s.mine; delete s.trade; }
+    writeJson(this.signalsFile, this.signals); this.emit('state');
   }
 
+  // Real trades from the PocketOption page (user, 04.11.2026: "trades I entered with Buy/Sell go to My trades
+  // automatically"). The page hook (Android AUTH_HOOK / Electron DevTools) passes the page's own socket messages:
+  //   out 42["openOrder",{asset, amount, action:"call"|"put", isDemo, requestId, time}]   – the user pressed Buy/Sell
+  //   in  successopenOrder {id, requestId, openPrice, openTimestamp, closeTimestamp, command, asset}
+  //   in  successcloseOrder {deals:[{id, openPrice, closePrice, command, profit, …}]} (also updateClosedDeals: [deals])
+  // A running signal of the same pair and direction becomes "mine" with the trade attached; a trade without a signal
+  // is kept as its own entry (strategy "manual"). The result is the trade's own (close vs open price), not the signal's.
+  poTrade(kind, d) {
+    if (!d || typeof d !== 'object') return;
+    const now = Date.now() / 1000;
+    if (kind === 'openOrder') {
+      const sym = String(d.asset || ''), dir = /put/i.test(d.action) ? 'PUT' : 'CALL', exp = Number(d.time) || 60;
+      if (!sym) return;
+      const key = String(d.requestId ?? `${sym}-${Math.floor(now)}`);
+      if (this.signals.some(s => s.trade && s.trade.req === key)) return;
+      const trade = { req: key, at: Math.floor(now), expiry: exp, amount: Number(d.amount) || 0, demo: !!d.isDemo, dir };
+      const sig = this.signals.find(s => !s.manual && s.symbol === sym && s.dir === dir && !s.trade
+        && now >= (s.created || 0) / 1000 - 5 && now < s.entryTime + s.expiry);
+      if (sig) { sig.mine = true; sig.trade = trade; }
+      else {
+        const a = this.assets.get(sym) || { name: sym.replace(/_otc$/, ' OTC'), otc: /_otc$/.test(sym) };
+        const t = this.ticks.get(sym), price = t && t.length ? t[t.length - 1][1] : null;
+        this.signals.unshift({ id: `trade-${key}`, symbol: sym, name: a.name, otc: !!a.otc, payout: a.payout, dir, manual: true, mine: true,
+          strategy: 'manual', strategyName: { ru: 'Своя сделка', de: 'Eigener Trade', en: 'Own trade' }, reason: '', tf: '',
+          strength: 0, expiry: exp, entryTime: Math.floor(now), entryPrice: price, result: null, created: Date.now(), trade });
+      }
+      this.po._log(`Trade erkannt: ${dir} ${sym} ${exp}s${sig ? ' (Signal ' + sig.strategy + ')' : ''}`);
+    } else if (kind === 'successopenOrder') {
+      const s = this.signals.find(x => x.trade && (x.trade.req === String(d.requestId) || x.trade.id === d.id));
+      if (!s) return;
+      Object.assign(s.trade, { id: d.id, open: Number(d.openPrice) || s.trade.open });
+      if (d.closeTimestamp && d.openTimestamp) s.trade.expiry = d.closeTimestamp - d.openTimestamp;
+      if (s.manual && s.trade.open) s.entryPrice = s.trade.open;
+    } else {
+      const deals = Array.isArray(d) ? d : Array.isArray(d.deals) ? d.deals : d.id ? [d] : [];
+      for (const x of deals) {
+        const s = this.signals.find(y => y.trade && y.trade.id && y.trade.id === x.id); if (!s || s.trade.result) continue;
+        const o = Number(x.openPrice) || s.trade.open, c = Number(x.closePrice);
+        if (!o || !c) continue;
+        const up = x.command === 1 ? false : x.command === 0 ? true : s.trade.dir === 'CALL';
+        s.trade.result = c === o ? 'DRAW' : (c > o) === up ? 'WIN' : 'LOSS';
+        Object.assign(s.trade, { open: o, close: c, profit: Number(x.profit) || 0 });
+        if (s.manual) { s.result = s.trade.result; s.entryPrice = o; s.exitPrice = c; }
+      }
+    }
+    writeJson(this.signalsFile, this.signals); this.emit('state');
+  }
+
+  // The user marks a signal as traded by themself ("taken"): their own statistics are counted from these.
   markMine(id, on) {
     const s = this.signals.find(x => x.id === id); if (!s) return;
     s.mine = !!on;

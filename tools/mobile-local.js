@@ -16,9 +16,7 @@ window.LocalEngine = {
         const symbol = sig ? sig.symbol : msg.symbol;
         if (!symbol) return { ok: false };
         const asset = engine.assets.get(symbol);
-        const ok = engine.openOnPocketOption(symbol, msg.tf);
-        if (!msg.auto) engine.autoMine(sig && sig.id, symbol);
-        return { ok, symbol, name: asset ? asset.name : symbol };
+        return { ok: engine.openOnPocketOption(symbol, msg.tf), symbol, name: asset ? asset.name : symbol };
       }
       case 'settings': engine.updateSettings(msg.patch || {}); return { ok: true };
       case 'strategy': engine.updateStrategy(msg.name, msg.patch, msg.tfs, msg.presets); return { ok: true };
@@ -30,6 +28,7 @@ window.LocalEngine = {
       case 'mine': engine.markMine(msg.id, msg.on); return { ok: true };
       case 'clear_mine': engine.clearMine(); return { ok: true };
       case 'scan': engine.scan(); return { ok: true };
+      case 'trade': engine.poTrade(String(msg.kind || ''), msg.data); return { ok: true }; // Buy/Sell on the PocketOption tab
       case 'polog': engine.po._log(String(msg.text || '').slice(0, 200)); return { ok: true }; // from the PocketOption tab
       default: return { ok: false };
     }

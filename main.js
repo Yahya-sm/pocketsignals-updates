@@ -70,11 +70,27 @@ function watchPoLogin(w) {
   try { dbg.attach('1.3'); } catch { return; }
   dbg.sendCommand('Network.enable').catch(() => {});
   const urls = {}; // requestId -> socket URL, so the app uses the same server as the page
+  const pending = {}; // requestId -> event name of a 451- frame whose JSON follows as a binary frame
   dbg.on('message', (_e, method, params) => {
     if (method === 'Network.webSocketCreated') { urls[params.requestId] = params.url; return; }
-    if (method !== 'Network.webSocketFrameSent') return;
-    const msg = params.response && params.response.payloadData;
-    if (typeof msg === 'string' && msg.startsWith('42["auth"') && msg.includes('"session"')) engine.setSsid(msg, urls[params.requestId], true);
+    const r = params.response || {}, msg = r.payloadData;
+    if (method === 'Network.webSocketFrameSent') {
+      if (typeof msg === 'string' && msg.startsWith('42["auth"') && msg.includes('"session"')) engine.setSsid(msg, urls[params.requestId], true);
+      // Buy/Sell pressed in the PocketOption window → "My trades" (engine.poTrade).
+      if (typeof msg === 'string' && msg.startsWith('42["openOrder"')) { try { engine.poTrade('openOrder', JSON.parse(msg.slice(2))[1]); } catch {} }
+      return;
+    }
+    if (method !== 'Network.webSocketFrameReceived' || typeof msg !== 'string') return;
+    const TRADE = /^(successopenOrder|successcloseOrder|updateClosedDeals)$/;
+    if (r.opcode === 1) {
+      const ev = msg.startsWith('451-') ? (/^451-\["(\w+)"/.exec(msg) || [])[1] : (/^42\["(\w+)"/.exec(msg) || [])[1];
+      if (!ev || !TRADE.test(ev)) return;
+      if (msg.startsWith('451-')) pending[params.requestId] = ev;
+      else { try { engine.poTrade(ev, JSON.parse(msg.slice(2))[1]); } catch {} }
+    } else if (pending[params.requestId]) {
+      const ev = pending[params.requestId]; delete pending[params.requestId];
+      try { engine.poTrade(ev, JSON.parse(Buffer.from(msg, 'base64').toString('utf8'))); } catch {}
+    }
   });
 }
 

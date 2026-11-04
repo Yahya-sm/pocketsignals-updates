@@ -90,7 +90,7 @@ function render() {
 
   // Main screen: only the user's own trades (user, 04.11.2026); the overall statistics are in History → "All signals".
   const open = state.signals.filter(s => !s.result).length;
-  $('#stats').innerHTML = statTiles(state.signals.filter(s => s.mine), true);
+  $('#stats').innerHTML = statTiles(mineList(), true);
 
   renderLive();
   $('#liveCount').textContent = open || '';
@@ -98,10 +98,11 @@ function render() {
   $('#loginBox').hidden = !['no_ssid', 'expired'].includes(state.status) || (!isDesktop && !isAndroid);
 
   $('#allStats').hidden = histView !== 'all';
-  if (histView === 'all') $('#allStats').innerHTML = `<div class="stats">${statTiles(state.signals)}</div>${strategyStats(state.signals)}`;
+  const sigs = state.signals.filter(s => !s.manual); // own trades without a signal are not signal statistics
+  if (histView === 'all') $('#allStats').innerHTML = `<div class="stats">${statTiles(sigs)}</div>${strategyStats(sigs)}`;
   $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats'; $('#myStats').hidden = histView !== 'mine'; $('#archStats').hidden = histView !== 'archive';
   $('#hist').innerHTML = state.signals.map(row).join('') || `<p class="empty">${t('no_history')}</p>`;
-  $('#stratStats').innerHTML = strategyStats(state.signals);
+  $('#stratStats').innerHTML = strategyStats(sigs);
   if (histView === 'mine') $('#myStats').innerHTML = myStats();
   $('#clearBtn').textContent = t(histView === 'mine' ? 'clear_mine' : 'clear_history'); $('#clearBtn').hidden = histView === 'archive';
   if (histView === 'archive' && $('#archStats').dataset.done !== LANG) { $('#archStats').innerHTML = archiveStats(); $('#archStats').dataset.done = LANG; }
@@ -130,7 +131,9 @@ function render() {
 // A signal disappears as soon as its expiry is over.
 const LINGER = 0;
 const isDone = s => Date.now() / 1000 >= s.entryTime + s.expiry;
-const isVisible = s => Date.now() / 1000 < s.entryTime + s.expiry + LINGER;
+const isVisible = s => !s.manual && Date.now() / 1000 < s.entryTime + s.expiry + LINGER;
+// "My trades": the user's real trades (Buy/Sell in PocketOption, engine.poTrade) count with the trade's own result.
+const mineList = () => state.signals.filter(s => s.mine).map(s => (s.trade && s.trade.result ? { ...s, result: s.trade.result } : s));
 
 // Starred signals stay on top (in the order they were starred). Kept per device.
 let pins = [];
@@ -271,7 +274,7 @@ function row(s) {
 }
 // The user's own trades (signals marked "taken"): summary, per strategy, and the list – apart from the bot's statistics.
 function myStats() {
-  const mine = state.signals.filter(s => s.mine);
+  const mine = mineList();
   if (!mine.length) return `<p class="empty">${t('my_none')}</p>`;
   const w = mine.filter(s => s.result === 'WIN').length, l = mine.filter(s => s.result === 'LOSS').length, r = w + l ? Math.round(100 * w / (w + l)) : null;
   return `<div class="stats">

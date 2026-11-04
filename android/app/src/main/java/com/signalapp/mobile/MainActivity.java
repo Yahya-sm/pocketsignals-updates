@@ -457,6 +457,7 @@ public class MainActivity extends Activity {
     // If the page connected before the hook was in place, the socket is closed once so it reconnects and authenticates again.
     static final String AUTH_HOOK = "(function(){if(window.__saHook)return;window.__saHook=1;var seen=false,kicked=false;"
         + "var o=WebSocket.prototype.send;WebSocket.prototype.send=function(d){"
+        + "try{if(typeof d==='string'&&d.indexOf('42[\"openOrder\"')===0&&window.SignalAppAuth&&SignalAppAuth.onTrade){SignalAppAuth.onTrade('openOrder',JSON.stringify(JSON.parse(d.slice(2))[1]));}}catch(e){}"
         + "try{if(typeof d==='string'&&d.indexOf('42[\"auth\"')===0){seen=true;if(window.SignalAppAuth)SignalAppAuth.onAuth(d,String(this.url||''));}"
         + "else if(!seen&&!kicked&&location.pathname.indexOf('/cabinet')>=0){kicked=true;var s=this;setTimeout(function(){s.close();},500);}}catch(e){}"
         + "return o.apply(this,arguments);};"
@@ -465,7 +466,12 @@ public class MainActivity extends Activity {
         + "var W=window.WebSocket;window.WebSocket=function(u,p){var s=p===undefined?new W(u):new W(u,p);var h=String(u).split('/')[2]||u;"
         + "if(/po\\.market/.test(h)){var t=Date.now();s.addEventListener('open',function(){L('PO-Seite: verbunden mit '+h+' ('+(Date.now()-t)+' ms)');});"
         + "s.addEventListener('close',function(e){L('PO-Seite: getrennt von '+h+' (Code '+e.code+')');});"
-        + "s.addEventListener('error',function(){L('PO-Seite: FEHLER Verbindung zu '+h);});}return s;};"
+        + "s.addEventListener('error',function(){L('PO-Seite: FEHLER Verbindung zu '+h);});"
+        // Trade answers (opened / closed) → "My trades": a 451- frame names the event, its JSON follows as a binary frame.
+        + "var pend=null,TR=/^(successopenOrder|successcloseOrder|updateClosedDeals)$/,T=function(ev,txt){try{if(window.SignalAppAuth&&SignalAppAuth.onTrade)SignalAppAuth.onTrade(ev,txt);}catch(e){}};"
+        + "s.addEventListener('message',function(e){try{var d=e.data;if(typeof d==='string'){var m=/^451-\\[\"(\\w+)\"/.exec(d)||/^42\\[\"(\\w+)\"/.exec(d);"
+        + "if(!m||!TR.test(m[1]))return;if(d.indexOf('451-')===0)pend=m[1];else T(m[1],JSON.stringify(JSON.parse(d.slice(2))[1]));return;}"
+        + "if(!pend)return;var ev=pend;pend=null;if(d instanceof ArrayBuffer)T(ev,new TextDecoder().decode(d));else if(d&&d.text)d.text().then(function(t){T(ev,t);});}catch(x){}});}return s;};"
         + "window.WebSocket.prototype=W.prototype;['CONNECTING','OPEN','CLOSING','CLOSED'].forEach(function(k){window.WebSocket[k]=W[k];});"
         + "window.addEventListener('error',function(e){L('PO-Seite Fehler: '+(e.message||'?'));});"
         + "})();";
@@ -479,6 +485,14 @@ public class MainActivity extends Activity {
             if (line == null) return;
             runOnUiThread(() -> signals.evaluateJavascript(
                 "window.LocalEngine && window.LocalEngine.act({action:'polog',text:" + JSONObject.quote(line) + "})", null));
+        }
+
+        // Buy/Sell in the PocketOption tab and the trade's answers → engine.poTrade ("My trades").
+        @JavascriptInterface
+        public void onTrade(String kind, String json) {
+            if (kind == null || json == null || json.length() > 200000) return;
+            runOnUiThread(() -> signals.evaluateJavascript(
+                "window.LocalEngine && window.LocalEngine.act({action:'trade',kind:" + JSONObject.quote(kind) + ",data:(function(){try{return JSON.parse(" + JSONObject.quote(json) + ")}catch(e){return null}})()})", null));
         }
 
         @JavascriptInterface
