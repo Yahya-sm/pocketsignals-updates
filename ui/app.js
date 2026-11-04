@@ -112,7 +112,7 @@ function render() {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
     $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sTrendTf').value = s.trend_tf || 'M5'; $('#sTrendFilter').checked = s.trend_filter;
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
-    $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sMarket').value = s.market; $('#sInterval').value = String(s.scan_interval || 60);
+    $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sInterval').value = String(s.scan_interval || 60);
     $('#sMin').value = s.min_strength; $('#sMax').value = s.max_per_scan; $('#sPayout').value = s.min_payout;
     renderMarkets(s);
     renderStrategies(s);
@@ -554,7 +554,6 @@ document.addEventListener('change', e => {
   if (el.id === 'sTrendFilter') patch.trend_filter = el.checked;
   if (el.id === 'sMiniCount') patch.mini_count = +el.value;
   if (el.id === 'sMiniPos') patch.mini_pos = el.value;
-  if (el.id === 'sMarket') patch.market = el.value;
   if (el.id === 'sInterval') patch.scan_interval = +el.value;
   if (el.id === 'sMin') patch.min_strength = +el.value;
   if (el.id === 'sMax') patch.max_per_scan = +el.value;

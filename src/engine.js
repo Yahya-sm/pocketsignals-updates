@@ -234,7 +234,7 @@ class Engine extends EventEmitter {
     const minPayout = s.min_payout || 0;
     return [...this.assets.values()].filter(a =>
       a.active && pairs.has(a.key) && !off.has(a.category) && a.payout >= minPayout &&
-      (a.otc ? s.otc_po_on !== false && s.market !== 'real' : s.market !== 'otc'));
+      (a.otc ? s.otc_po_on !== false : true)); // the OTC/real "market" select was removed (04.11.2026): the pair lists decide
   }
 
   scan() {
