@@ -827,11 +827,17 @@ function evaluate(candlesByTf, enabled, settings) {
       if (!s) continue;
       // Market regime (I.regime): shown on the card; with regime_filter trend strategies only in TREND,
       // reversal strategies only in RANGE, nothing in CHAOS.
-      if (x.rg === undefined) x.rg = I.regime(c);
+      if (x.rg === undefined) x.rg = I.regime(c, c.length - 1, settings);
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
       if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) continue;
-      if (settings.regime_filter && x.rg && x.rg.regime !== (META[name][1] === 'trend' ? 'TREND' : 'RANGE')) continue;
+      // regime_mode: off | auto (by strategy type) | trend (only in TREND) | range (only in RANGE, ADX below rg_range_adx).
+      const rm = settings.regime_mode || (settings.regime_filter ? 'auto' : 'off');
+      if (x.rg && rm !== 'off') {
+        const want = rm === 'auto' ? (META[name][1] === 'trend' ? 'TREND' : 'RANGE') : rm.toUpperCase();
+        if (x.rg.regime !== want) continue;
+        if (want === 'RANGE' && x.rg.adx >= (Number(settings.rg_range_adx) || 25)) continue;
+      }
       if (x.rg) s.regime = x.rg.regime;
       if (pr && chosen.length > 1) { s.reason = addText(s.reason, L(` · ${pr.name.ru}`, ` · ${pr.name.de}`, ` · ${pr.name.en}`)); if (!s.model) s.model = pr.name.ru; }
       // Reversal strategies bet against the last move; with follow_move they trade with it instead.

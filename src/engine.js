@@ -6,6 +6,8 @@ const EventEmitter = require('events');
 const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
+// Market-regime thresholds (settings, see I.regime).
+const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
 
 const ROOT = path.join(__dirname, '..');
@@ -178,7 +180,7 @@ class Engine extends EventEmitter {
     const m = parseInt(String(sig.tf).slice(1), 10) || 1;
     const c = sig.tf[0] === 'S' ? m1 : I.resample(m1, m, true);
     const a = I.adx(c, 14)[c.length - 1];
-    const rg = I.regime(c);
+    const rg = I.regime(c, c.length - 1, this.settings);
     return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null } : null;
   }
 
@@ -594,7 +596,8 @@ class Engine extends EventEmitter {
         assets_off: this.settings.assets_off || [],
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
-        market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_filter: !!this.settings.regime_filter, chaos_skip: this.settings.chaos_skip !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
+        market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },
