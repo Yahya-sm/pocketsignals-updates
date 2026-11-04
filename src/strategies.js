@@ -465,9 +465,9 @@ const S = {
       }
       if (best < min) return null;
       if (p.sharp_rsi) { const r = x.rsi(14)[i]; if (dir > 0 ? r > 45 : r < 55) return null; }
-      return sig(dir, 70 + (best - min) * 8, dir > 0
+      return Object.assign(sig(dir, 70 + (best - min) * 8, dir > 0
         ? L(`${best} красных свечей, стохастик вышел вверх из зоны ${lo}`, `${best} rote Kerzen, Stochastik verlässt die ${lo}-Zone nach oben`, `${best} red candles, Stochastic turned up out of the ${lo} zone`)
-        : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_expiry);
+        : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_expiry), { noFlip: true });
     }
     const { d, n } = runLength(x.c, x.last);
     if (n < min || (!p.sharp_mirror && d > 0)) return null;
@@ -844,7 +844,7 @@ function evaluate(candlesByTf, enabled, settings) {
       let s = null, p = base, pr = null;
       for (const set of sets) {
         let r; try { r = fn(x, set.p); } catch { r = null; }
-        if (r && r.dir && passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
+        if (r && r.dir && passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
       }
       if (!s) continue;
       // Market regime (I.regime): shown on the card; with regime_filter trend strategies only in TREND,
@@ -864,7 +864,10 @@ function evaluate(candlesByTf, enabled, settings) {
       if (pr && chosen.length > 1) { s.reason = addText(s.reason, L(` · ${pr.name.ru}`, ` · ${pr.name.de}`, ` · ${pr.name.en}`)); if (!s.model) s.model = pr.name.ru; }
       // Reversal strategies bet against the last move; with follow_move they trade with it instead.
       let mode = 'trend';
-      if (META[name][1] === 'rev') {
+      // The Stochastic trigger of n_sharp already gives the direction of the turn: "follow the move" must not flip it
+      // (user, 04.11.2026: Stochastic turned up from 20, the card said PUT).
+      if (META[name][1] === 'rev' && s.noFlip) { mode = 'reversal'; s.reason = addText(s.reason, EXPECT.reversal); }
+      else if (META[name][1] === 'rev') {
         mode = p.follow_move ? 'follow' : 'reversal';
         if (p.follow_move) s.dir = -s.dir;
         s.reason = addText(s.reason, EXPECT[mode]);
