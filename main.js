@@ -36,12 +36,18 @@ function rememberPoMode(url) {
 }
 
 // withTimeframe: the chart timeframe was saved into the account too; the page picks it up by reloading.
-function openPocketOption(symbol, name, withTimeframe = false) {
+// exp: expiry in seconds to set in the trading panel after the switch (0 = leave it); used once.
+let poExp = 0, poLang = 'ru';
+function openPocketOption(symbol, name, withTimeframe = false, exp = 0, lang = 'ru') {
   // If the list has no exact match, reload: the asset was already saved into the account chart.
   // Only a direct switch may reload, so a fresh page load never ends up in a reload loop.
   poTarget = name; // null: just open PocketOption (e.g. to log in)
-  const run = (allowReload = false) => !poTarget ? Promise.resolve() : poWin.webContents.executeJavaScript(switchScript(poTarget))
-    .then(r => { if (r === 'not-found' && allowReload) poWin.webContents.reload(); }).catch(() => {});
+  if (name) { poExp = exp; poLang = lang; }
+  const run = (allowReload = false) => !poTarget ? Promise.resolve() : poWin.webContents.executeJavaScript(switchScript(poTarget, poExp, poLang))
+    .then(r => {
+      if (String(r).startsWith('not-found') && allowReload) { poWin.webContents.reload(); return; }
+      if (poExp) { engine.po._log && engine.po._log(`PO Ablaufzeit ${poExp}s: ${r}`); poExp = 0; }
+    }).catch(() => {});
   if (poWin && !poWin.isDestroyed()) {
     poWin.show(); poWin.focus();
     if (withTimeframe) { setTimeout(() => poWin.webContents.reload(), 700); return; } // give the server time to store it

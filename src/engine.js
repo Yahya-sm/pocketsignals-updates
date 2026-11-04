@@ -192,6 +192,48 @@ class Engine extends EventEmitter {
     return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null, trend } : null;
   }
 
+  // Recommended expiry for a signal from technical analysis (user, 04.11.2026): how far the price can go
+  // (nearest swing high/low in the signal direction, for reversals also the way back to EMA 21), how fast it moves
+  // (average candle body, acceleration of the last 3 candles), ADX/DI with or against the signal and how far the
+  // price already ran from EMA 21. Candles needed = distance / speed, then snapped to 1/2/3/5/10/15/30 min.
+  // A rule of thumb, not a prediction – default stays 1 minute.
+  recExpiry(sig) {
+    const closed = this.candles.get(sig.symbol); if (!closed || closed.length < 40) return null;
+    const now = Math.floor(Date.now() / 60000) * 60;
+    const m1 = this._withLive(sig.symbol, closed, 60).filter(k => k.time <= now);
+    const m = parseInt(String(sig.tf).slice(1), 10) || 1;
+    const c = sig.tf[0] === 'S' ? m1 : I.resample(m1, m, true);
+    const L = c.length - 1; if (L < 30) return null;
+    const d = sig.dir === 'CALL' ? 1 : -1, close = c[L].close;
+    const atr = I.atr(c, 14)[L]; if (!atr) return null;
+    const cl = c.map(k => k.close), e21 = I.ema(cl, 21)[L];
+    const body = k => Math.abs(k.close - k.open), avg = (a, b) => { let s = 0; for (let i = a; i <= b; i++) s += body(c[i]); return s / (b - a + 1); };
+    const slow = avg(L - 15, L - 1), fast = avg(L - 3, L - 1);
+    const speed = Math.max(slow, atr * 0.3);
+    // Room to the nearest swing level in the signal direction (last 30 candles, the newest 2 left out).
+    let lvl = null;
+    for (let i = L - 30; i < L - 1; i++) { const p = d > 0 ? c[i].high : c[i].low; if ((p - close) * d > atr * 0.2 && (lvl === null || (p - lvl) * d < 0)) lvl = p; }
+    const rev = (strategies.META[sig.strategy] || [])[1] === 'rev';
+    let target = lvl !== null ? Math.abs(lvl - close) : atr * 1.5;
+    if (rev && e21 && (e21 - close) * d > 0) target = Math.min(target, Math.abs(e21 - close)) || target; // bounce back to the mean
+    target = Math.min(Math.max(target, atr * 0.5), atr * 4);
+    let candles = target / speed;
+    const a = I.adx(c, 14)[L], ext = e21 ? (close - e21) * d / atr : 0;
+    const withAdx = a && a.adx > 28 && (d > 0 ? a.pdi > a.mdi : a.mdi > a.pdi);
+    if (withAdx) candles *= 1.3;                    // strong move in the signal direction lasts longer
+    if (a && a.adx > 28 && !withAdx && !rev) candles *= 0.7; // trend signal against a strong opposite trend: short
+    if (fast > slow * 1.5) candles *= 0.7;          // price is fast right now: the move comes sooner
+    if (!rev && ext > 2) candles *= 0.6;            // already ran far in the signal direction: little left
+    const min = Math.min(Math.max(Math.round(candles), 1) * m, 30);
+    const snap = [1, 2, 3, 5, 10, 15, 30].find(x => x >= min) || 30;
+    const r = x => x.toFixed(1);
+    const adxTxt = a ? ` · ADX ${a.adx.toFixed(0)}${withAdx ? '↑' : ''}` : '';
+    return { sec: snap * 60, why: {
+      ru: `цель ${r(target / atr)} ATR · скорость ${r(speed / atr)} ATR/св${adxTxt}`,
+      de: `Ziel ${r(target / atr)} ATR · Tempo ${r(speed / atr)} ATR/Kerze${adxTxt}`,
+      en: `target ${r(target / atr)} ATR · speed ${r(speed / atr)} ATR/candle${adxTxt}` } };
+  }
+
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
   _sampleAdx() {
     const nowS = Date.now() / 1000; let any = false;
@@ -427,6 +469,7 @@ class Engine extends EventEmitter {
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
+    try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; } } catch {}
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
     // The newest 300, plus the user's own trades (marked "taken") that are older – their statistics stay.
     this.signals = this.signals.slice(0, 300).concat(this.signals.slice(300).filter(x => x.mine).slice(0, 1000));

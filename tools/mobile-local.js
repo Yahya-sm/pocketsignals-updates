@@ -16,6 +16,7 @@ window.LocalEngine = {
         const symbol = sig ? sig.symbol : msg.symbol;
         if (!symbol) return { ok: false };
         const asset = engine.assets.get(symbol);
+        pendingExp = +msg.exp || 0; pendingLang = String(msg.lang || 'ru'); // read once by poSwitchScript below
         return { ok: engine.openOnPocketOption(symbol, msg.tf), symbol, name: asset ? asset.name : symbol };
       }
       case 'settings': engine.updateSettings(msg.patch || {}); return { ok: true };
@@ -35,7 +36,9 @@ window.LocalEngine = {
   },
 };
 // The Android side asks for the PocketOption switch script with the asset name.
-window.poSwitchScript = name => require('./po-switch').switchScript(name);
+// The expiry chosen on the card (PO button 1 min, recommendation button its value) is used once.
+var pendingExp = 0, pendingLang = 'ru';
+window.poSwitchScript = name => { const e = pendingExp; pendingExp = 0; return require('./po-switch').switchScript(name, e, pendingLang); };
 // Tell Android which PocketOption page to open (demo or real), now and whenever the setting changes.
 let lastPoStart = null;
 const sendPoStart = () => {

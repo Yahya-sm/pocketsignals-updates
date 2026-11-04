@@ -230,11 +230,19 @@ function card(s) {
     ${done ? '' : `<div class="trendbox" data-trend-id="${esc(s.id)}">${trendBox(s)}</div><div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
+    ${done ? '' : recBtn(s)}
     <div class="btns">
-      <button class="po" data-po="${esc(s.id)}">PocketOption ↗</button>
+      <button class="po" data-po="${esc(s.id)}" data-poexp="60">PocketOption ↗</button>
       <button class="tv" data-tv="${esc(s.id)}">TradingView ↗</button>
     </div>
   </div>`;
+}
+// Recommended expiry (engine.recExpiry): a tap opens PocketOption on the pair and sets this expiry there.
+function recBtn(s) {
+  if (!s.recExp) return '';
+  const long = s.recExp > 60;
+  return `<button class="recexp${long ? ' long' : ''}" data-po="${esc(s.id)}" data-poexp="${s.recExp}" title="${esc(tr(s.recWhy) || '')}">
+    <span class="re-l">⏱ ${t('rec_exp')}</span><b>${fmtExp(s.recExp)}</b><small>${esc(tr(s.recWhy) || '')}</small><span class="re-go">${t('rec_set')} ↗</span></button>`;
 }
 // Live ADX of the signal (engine samples every 5 s): number, rising/falling over the last ~30 s, strength scale,
 // +DI/−DI and a small line of the last 3 minutes. Rising = the trend gets stronger (no early reversal entry).
@@ -471,9 +479,10 @@ function openUrl(url) {
 }
 
 // tf: also open the chart with this timeframe (click on the timeframe tag of a signal).
-async function openPO(id, tf, auto) {
+// exp: expiry in seconds to set in the trading panel (PO button = 1 min default, recommendation button = its value).
+async function openPO(id, tf, auto, exp) {
   const sig = state.signals.find(s => s.id === id);
-  const r = await call({ action: 'openPO', id, tf, auto: !!auto });
+  const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG });
   const name = r.name || (sig && sig.name) || '';
   if (isDesktop) { toast(t('toast_po', { name }) + (tf ? ' · ' + tf : '')); return; }
   if (isAndroid) {
@@ -518,7 +527,7 @@ document.addEventListener('click', e => {
     return;
   }
   if (el.dataset.pin) togglePin(el.dataset.pin);
-  if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf);
+  if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf, false, +el.dataset.poexp || 0);
   if (el.dataset.tv) { const s = state.signals.find(x => x.id === el.dataset.tv); if (s) openUrl(s.tv); }
   if (el.dataset.tab) {
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b === el));
