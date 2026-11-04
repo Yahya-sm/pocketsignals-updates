@@ -1,4 +1,4 @@
-﻿// Signal engine: pulls 1-minute candles for all selected PocketOption assets once per minute,
+// Signal engine: pulls 1-minute candles for all selected PocketOption assets once per minute,
 // runs the enabled strategies on closed candles and tracks each signal's result.
 const fs = require('fs');
 const path = require('path');
@@ -207,31 +207,36 @@ class Engine extends EventEmitter {
     const d = sig.dir === 'CALL' ? 1 : -1, close = c[L].close;
     const atr = I.atr(c, 14)[L]; if (!atr) return null;
     const cl = c.map(k => k.close), e21 = I.ema(cl, 21)[L];
-    const body = k => Math.abs(k.close - k.open), avg = (a, b) => { let s = 0; for (let i = a; i <= b; i++) s += body(c[i]); return s / (b - a + 1); };
-    const slow = avg(L - 15, L - 1), fast = avg(L - 3, L - 1);
-    const speed = Math.max(slow, atr * 0.3);
-    // Room to the nearest swing level in the signal direction (last 30 candles, the newest 2 left out).
-    let lvl = null;
-    for (let i = L - 30; i < L - 1; i++) { const p = d > 0 ? c[i].high : c[i].low; if ((p - close) * d > atr * 0.2 && (lvl === null || (p - lvl) * d < 0)) lvl = p; }
+    // v2 (user, 04.11.2026: "always 1 minute, for extreme-zone reversals I used 3–5"): v1 took the nearest tiny pullback
+    // inside a fall as target and big candle bodies as speed → nearly always 1 candle.
+    // Now: target = half the way back to the mean (reversal) or half the room to the 30-candle high/low (trend);
+    // time = (target / σ)^1.5 candles (max 10), σ = typical close-to-close move – prices wander, they don't go straight.
     const rev = (strategies.META[sig.strategy] || [])[1] === 'rev';
-    let target = lvl !== null ? Math.abs(lvl - close) : atr * 1.5;
-    if (rev && e21 && (e21 - close) * d > 0) target = Math.min(target, Math.abs(e21 - close)) || target; // bounce back to the mean
-    target = Math.min(Math.max(target, atr * 0.5), atr * 4);
-    let candles = target / speed;
+    const ch = []; for (let i = L - 20; i <= L; i++) ch.push(c[i].close - c[i - 1].close);
+    const mu = ch.reduce((x, y) => x + y, 0) / ch.length;
+    const sigma = Math.max(Math.sqrt(ch.reduce((x, y) => x + (y - mu) ** 2, 0) / ch.length), atr * 0.15);
+    let hi = -Infinity, lo = Infinity; for (let i = L - 30; i < L; i++) { hi = Math.max(hi, c[i].high); lo = Math.min(lo, c[i].low); }
+    const room = d > 0 ? hi - close : close - lo; // to the 30-candle extreme in the signal direction
+    let target;
+    if (rev) target = e21 && (e21 - close) * d > 0 ? Math.abs(e21 - close) * 0.4 : atr * 0.7;
+    else target = room > atr * 0.3 ? room * 0.5 : atr * 0.7;
+    target = Math.min(Math.max(target, atr * 0.5), atr * 2);
+    let candles = Math.min((target / sigma) ** 1.5, 10); // between straight (^1) and pure random walk (^2)
     const a = I.adx(c, 14)[L], ext = e21 ? (close - e21) * d / atr : 0;
     const withAdx = a && a.adx > 28 && (d > 0 ? a.pdi > a.mdi : a.mdi > a.pdi);
-    if (withAdx) candles *= 1.3;                    // strong move in the signal direction lasts longer
-    if (a && a.adx > 28 && !withAdx && !rev) candles *= 0.7; // trend signal against a strong opposite trend: short
-    if (fast > slow * 1.5) candles *= 0.7;          // price is fast right now: the move comes sooner
-    if (!rev && ext > 2) candles *= 0.6;            // already ran far in the signal direction: little left
-    const min = Math.min(Math.max(Math.round(candles), 1) * m, 30);
+    if (withAdx && !rev) candles *= 0.8;             // strong trend in the signal direction: it gets there sooner
+    if (rev && a && a.adx > 35) candles *= 1.3;      // reversal against a strong trend: the turn takes longer
+    if (!rev && ext > 2) candles *= 0.7;             // already ran far in the signal direction: little left
+    if (rev) candles = Math.max(candles, 2);         // a turn needs at least 2 candles to form
+    const speed = sigma;
+    const min = Math.min(Math.max(Math.round(Math.min(candles, 10)), 1) * m, 30);
     const snap = [1, 2, 3, 5, 10, 15, 30].find(x => x >= min) || 30;
     const r = x => x.toFixed(1);
     const adxTxt = a ? ` · ADX ${a.adx.toFixed(0)}${withAdx ? '↑' : ''}` : '';
     return { sec: snap * 60, why: {
-      ru: `цель ${r(target / atr)} ATR · скорость ${r(speed / atr)} ATR/св${adxTxt}`,
-      de: `Ziel ${r(target / atr)} ATR · Tempo ${r(speed / atr)} ATR/Kerze${adxTxt}`,
-      en: `target ${r(target / atr)} ATR · speed ${r(speed / atr)} ATR/candle${adxTxt}` } };
+      ru: `${rev ? 'отскок к средней' : 'ход к high/low'} ${r(target / atr)} ATR · шаг ${r(speed / atr)} ATR/св${adxTxt}`,
+      de: `${rev ? 'Rücklauf zum Mittel' : 'Weg zum Hoch/Tief'} ${r(target / atr)} ATR · Schritt ${r(speed / atr)} ATR/Kerze${adxTxt}`,
+      en: `${rev ? 'bounce to the mean' : 'move to high/low'} ${r(target / atr)} ATR · step ${r(speed / atr)} ATR/candle${adxTxt}` } };
   }
 
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
