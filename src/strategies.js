@@ -707,9 +707,8 @@ const S = {
       if (k0 === null || k1 === null) return null;
       const d = k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0;
       if (!d) return null;
-      const out = Object.assign(sig(d, 72, d > 0
-        ? L(`стохастик пересёк ${lo} снизу вверх (${k1.toFixed(0)})`, `Stochastik kreuzt ${lo} nach oben (${k1.toFixed(0)})`, `Stochastic crossed ${lo} upwards (${k1.toFixed(0)})`)
-        : L(`стохастик пересёк ${hi} сверху вниз (${k1.toFixed(0)})`, `Stochastik kreuzt ${hi} nach unten (${k1.toFixed(0)})`, `Stochastic crossed ${hi} downwards (${k1.toFixed(0)})`)), { noFlip: true });
+      // No reason text on the card (user, 04.11.2026: "удали это").
+      const out = Object.assign(sig(d, 72, ''), { noFlip: true, noReason: true });
       if (p.rx_live !== false) { out.entry = Math.floor(Date.now() / 1000); out.bar = x.c[i].time; }
       return out;
     }
@@ -882,7 +881,7 @@ function evaluate(candlesByTf, enabled, settings) {
       let mode = 'trend';
       // The Stochastic trigger of n_sharp already gives the direction of the turn: "follow the move" must not flip it
       // (user, 04.11.2026: Stochastic turned up from 20, the card said PUT).
-      if (META[name][1] === 'rev' && s.noFlip) { mode = 'reversal'; s.reason = addText(s.reason, EXPECT.reversal); }
+      if (META[name][1] === 'rev' && s.noFlip) { mode = 'reversal'; if (!s.noReason) s.reason = addText(s.reason, EXPECT.reversal); }
       else if (META[name][1] === 'rev') {
         mode = p.follow_move ? 'follow' : 'reversal';
         if (p.follow_move) s.dir = -s.dir;
