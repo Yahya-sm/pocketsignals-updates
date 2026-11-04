@@ -45,23 +45,41 @@ const EXP_FN = `async (target, T) => {
   };
   const label = target >= 60 ? (target / 60) + ' ' + T[0] : target + ' ' + T[1];
   const fmt = s => [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(x => String(x).padStart(2, '0')).join(':');
-  const blocks = [...document.querySelectorAll('[class*="expiration"], [class*="Expiration"]')].filter(b => b.offsetParent);
+  // Real layout (seen 04.11.2026): .block--expiration-inputs .value__val shows "00:03:00"; a click on .control__value
+  // opens .expiration-inputs-list-modal with presets (.dops__timeframes-item S3…M1 M3 M5 M30 H1 H4) and three rows
+  // (.rw: hours, minutes, seconds) each with .btn-plus / input / .btn-minus.
   const parse = t => { const m = /(\\d{1,2}):(\\d{2}):(\\d{2})/.exec(t || ''); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : null; };
-  const block = blocks.find(b => parse(b.textContent) !== null && b.querySelector('[class*="plus"], [class*="minus"]'))
-    || blocks.find(b => parse(b.textContent) !== null);
-  if (!block) { hint('⏱ ' + label + ' — ' + T[2], false); return 'no-ui'; }
-  const read = () => { const v = [...block.querySelectorAll('*')].map(x => x.childElementCount ? null : parse(x.textContent)).find(x => x !== null); return v ?? parse(block.textContent); };
-  const btn = k => block.querySelector('[class*="' + k + '"]');
-  const plus = btn('plus'), minus = btn('minus');
-  if (!plus || !minus) { hint('⏱ ' + label + ' — ' + T[2], false); return 'no-buttons'; }
-  for (let i = 0; i < 40; i++) {
-    const v = read(); if (v === null) break;
-    if (v === target) { hint('⏱ ' + fmt(target) + ' ✓', true); return 'ok'; }
-    (v < target ? plus : minus).click(); await wait(150);
-    const v2 = read(); if (v2 === v) { await wait(250); if (read() === v) break; }
-    if (v < target && v2 > target || v > target && v2 < target) break; // no exact step for this time
+  const val = () => document.querySelector('.block--expiration-inputs .value__val');
+  const read = () => { const v = val(); return v ? parse(v.textContent) : null; };
+  const fail = why => { hint('⏱ ' + label + ' — ' + T[2], false); return why; };
+  if (!val()) return fail('no-ui');
+  if (read() === null) return fail('clock-mode'); // expiry set as clock time, not as duration
+  if (read() === target) { hint('⏱ ' + fmt(target) + ' ✓', true); return 'ok'; }
+  const modal = () => document.querySelector('.expiration-inputs-list-modal');
+  const close = async () => { if (modal()) { document.querySelector('.block--expiration-inputs .control__value').click(); await wait(250); }
+    if (modal()) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true })); await wait(200); } };
+  if (!modal()) { document.querySelector('.block--expiration-inputs .control__value').click(); await wait(500); }
+  const m = modal(); if (!m) return fail('no-modal');
+  const tag = target % 3600 === 0 ? 'H' + target / 3600 : target % 60 === 0 ? 'M' + target / 60 : 'S' + target;
+  const preset = [...m.querySelectorAll('.dops__timeframes-item')].find(x => x.textContent.trim() === tag);
+  if (preset) { preset.click(); await wait(300); }
+  else {
+    const want = [Math.floor(target / 3600), Math.floor(target / 60) % 60, target % 60];
+    const rows = [...m.querySelectorAll('.rw')];
+    if (rows.length !== 3) { await close(); return fail('no-rows'); }
+    for (let r = 0; r < 3; r++) {
+      const inp = rows[r].querySelector('input'), plus = rows[r].querySelector('.btn-plus'), minus = rows[r].querySelector('.btn-minus');
+      if (!inp || !plus || !minus) { await close(); return fail('no-buttons'); }
+      for (let i = 0; i < 70 && +inp.value !== want[r]; i++) {
+        const before = +inp.value; (before < want[r] ? plus : minus).click(); await wait(60);
+        if (+inp.value === before) { await wait(200); if (+inp.value === before) break; }
+      }
+    }
+    await wait(250);
   }
-  hint('⏱ ' + label + ' — ' + T[2], false); return 'fail';
+  await close();
+  if (read() === target) { hint('⏱ ' + fmt(target) + ' ✓', true); return 'ok'; }
+  return fail('fail:' + (val() ? val().textContent.trim() : '?'));
 }`;
 
 // PocketOption trading page for demo or real account. Setting po_start_mode: 'last' (default), 'demo' or 'real';
