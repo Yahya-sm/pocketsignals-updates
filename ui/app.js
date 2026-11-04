@@ -241,7 +241,7 @@ function card(s) {
 function recBtn(s) {
   if (!s.recExp) return '';
   const long = s.recExp > 60;
-  return `<button class="recexp${long ? ' long' : ''}" data-po="${esc(s.id)}" data-poexp="${s.recExp}" title="${esc(tr(s.recWhy) || '')}">
+  return `<button class="recexp${long ? ' long' : ''}${s.recWeak ? ' weak' : ''}" data-po="${esc(s.id)}" data-poexp="${s.recExp}" title="${esc(tr(s.recWhy) || '')}">
     <span class="re-l">⏱ ${t('rec_exp')}</span><b>${fmtExp(s.recExp)}</b><small>${esc(tr(s.recWhy) || '')}</small><span class="re-go">${t('rec_set')} ↗</span></button>`;
 }
 // Live ADX of the signal (engine samples every 5 s): number, rising/falling over the last ~30 s, strength scale,

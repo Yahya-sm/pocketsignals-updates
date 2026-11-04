@@ -94,6 +94,9 @@ main { flex: 1; overflow-y: auto; padding: 12px; }
 .recexp .re-go { grid-area: g; font-size: 11px; color: var(--accent); }
 .recexp.long { background: rgba(245,158,11,.10); border-color: rgba(245,158,11,.45); }
 .recexp.long b, .recexp.long .re-go { color: #f59e0b; }
+.recexp small { white-space: normal; }
+.recexp.weak { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.12); }
+.recexp.weak b, .recexp.weak .re-go { color: #9aa4b2; }
 .recexp:active { transform: scale(.98); }
 .trendbox { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 0; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
 .tr-ico polyline { stroke: #8a94a6; } .tr-ico.UP polyline { stroke: var(--call); } .tr-ico.DOWN polyline { stroke: var(--put); }

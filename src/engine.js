@@ -192,53 +192,50 @@ class Engine extends EventEmitter {
     return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null, trend } : null;
   }
 
-  // Recommended expiry for a signal from technical analysis (user, 04.11.2026): how far the price can go
-  // (nearest swing high/low in the signal direction, for reversals also the way back to EMA 21), how fast it moves
-  // (average candle body, acceleration of the last 3 candles), ADX/DI with or against the signal and how far the
-  // price already ran from EMA 21. Candles needed = distance / speed, then snapped to 1/2/3/5/10/15/30 min.
-  // A rule of thumb, not a prediction – default stays 1 minute.
+  // Recommended expiry from this pair's own history (v3, user 05.11.2026: "always 5 min / always 1 min – do real
+  // technical analysis"). v1/v2 were fixed rules and gave the same number everywhere.
+  // Now: describe the current situation on M1 by stochastic %K, distance to EMA 21 (in ATR), 3-candle momentum and
+  // ADX; find the 30 most similar moments in the pair's last ~150 candles; for each expiry (1/2/3/5/10 min, 15 for
+  // M5+) count how often the price was in the signal direction after that time. Best rate wins (a longer expiry only
+  // if it is ≥ 3 points better). The card shows the rates, so the number can be checked.
   recExpiry(sig) {
-    const closed = this.candles.get(sig.symbol); if (!closed || closed.length < 40) return null;
+    const closed = this.candles.get(sig.symbol); if (!closed || closed.length < 60) return null;
     const now = Math.floor(Date.now() / 60000) * 60;
-    const m1 = this._withLive(sig.symbol, closed, 60).filter(k => k.time <= now);
+    const c = this._withLive(sig.symbol, closed, 60).filter(k => k.time <= now);
+    const L = c.length - 1, d = sig.dir === 'CALL' ? 1 : -1;
     const m = parseInt(String(sig.tf).slice(1), 10) || 1;
-    const c = sig.tf[0] === 'S' ? m1 : I.resample(m1, m, true);
-    const L = c.length - 1; if (L < 30) return null;
-    const d = sig.dir === 'CALL' ? 1 : -1, close = c[L].close;
-    const atr = I.atr(c, 14)[L]; if (!atr) return null;
-    const cl = c.map(k => k.close), e21 = I.ema(cl, 21)[L];
-    // v2 (user, 04.11.2026: "always 1 minute, for extreme-zone reversals I used 3–5"): v1 took the nearest tiny pullback
-    // inside a fall as target and big candle bodies as speed → nearly always 1 candle.
-    // Now: target = half the way back to the mean (reversal) or half the room to the 30-candle high/low (trend);
-    // time = (target / σ)^1.5 candles (max 10), σ = typical close-to-close move – prices wander, they don't go straight.
-    const rev = (strategies.META[sig.strategy] || [])[1] === 'rev';
-    const ch = []; for (let i = L - 20; i <= L; i++) ch.push(c[i].close - c[i - 1].close);
-    const mu = ch.reduce((x, y) => x + y, 0) / ch.length;
-    const sigma = Math.max(Math.sqrt(ch.reduce((x, y) => x + (y - mu) ** 2, 0) / ch.length), atr * 0.15);
-    let hi = -Infinity, lo = Infinity; for (let i = L - 30; i < L; i++) { hi = Math.max(hi, c[i].high); lo = Math.min(lo, c[i].low); }
-    const room = d > 0 ? hi - close : close - lo; // to the 30-candle extreme in the signal direction
-    let target;
-    if (rev) target = e21 && (e21 - close) * d > 0 ? Math.abs(e21 - close) * 0.4 : atr * 0.7;
-    else target = room > atr * 0.3 ? room * 0.5 : atr * 0.7;
-    target = Math.min(Math.max(target, atr * 0.5), atr * 2);
-    let candles = Math.min((target / sigma) ** 1.5, 10); // between straight (^1) and pure random walk (^2)
-    const a = I.adx(c, 14)[L], ext = e21 ? (close - e21) * d / atr : 0;
-    const withAdx = a && a.adx > 28 && (d > 0 ? a.pdi > a.mdi : a.mdi > a.pdi);
-    if (withAdx && !rev) candles *= 0.8;             // strong trend in the signal direction: it gets there sooner
-    if (rev && a && a.adx > 35) candles *= 1.3;      // reversal against a strong trend: the turn takes longer
-    if (!rev && ext > 2) candles *= 0.7;             // already ran far in the signal direction: little left
-    if (rev) candles = Math.max(candles, 2);         // a turn needs at least 2 candles to form
-    const speed = sigma;
-    const min = Math.min(Math.max(Math.round(Math.min(candles, 10)), 1) * m, 30);
-    const snap = [1, 2, 3, 5, 10, 15, 30].find(x => x >= min) || 30;
-    const r = x => x.toFixed(1);
-    const adxTxt = a ? ` · ADX ${a.adx.toFixed(0)}${withAdx ? '↑' : ''}` : '';
-    return { sec: snap * 60, why: {
-      ru: `${rev ? 'отскок к средней' : 'ход к high/low'} ${r(target / atr)} ATR · шаг ${r(speed / atr)} ATR/св${adxTxt}`,
-      de: `${rev ? 'Rücklauf zum Mittel' : 'Weg zum Hoch/Tief'} ${r(target / atr)} ATR · Schritt ${r(speed / atr)} ATR/Kerze${adxTxt}`,
-      en: `${rev ? 'bounce to the mean' : 'move to high/low'} ${r(target / atr)} ATR · step ${r(speed / atr)} ATR/candle${adxTxt}` } };
+    const H = m >= 5 ? [1, 2, 3, 5, 10, 15] : [1, 2, 3, 5, 10];
+    const maxH = H[H.length - 1];
+    const cl = c.map(k => k.close), e21 = I.ema(cl, 21), atr = I.atr(c, 14), st = I.stoch(c, 14, 3), ad = I.adx(c, 14);
+    const kOf = i => st.k[i];
+    const feat = i => {
+      if (!atr[i] || e21[i] == null || i < 3) return null;
+      const k = kOf(i); if (k == null) return null;
+      const a = ad[i];
+      return [k / 100 * 2, (cl[i] - e21[i]) / atr[i] / 2, (cl[i] - cl[i - 3]) / atr[i] / 2, a ? a.adx / 50 : 0.5];
+    };
+    const f0 = feat(L); if (!f0) return null;
+    const cand = [];
+    for (let i = 25; i <= L - maxH; i++) {
+      const f = feat(i); if (!f) continue;
+      let dist = 0; for (let j = 0; j < f.length; j++) dist += (f[j] - f0[j]) ** 2;
+      cand.push({ i, dist });
+    }
+    if (cand.length < 20) return null;
+    cand.sort((x, y) => x.dist - y.dist);
+    const nn = cand.slice(0, 30);
+    const rates = H.map(h => { let w = 0, n = 0; for (const { i } of nn) { const mv = (cl[i + h] - cl[i]) * d; if (mv !== 0) { n++; if (mv > 0) w++; } } return { h, n, p: n ? w / n : 0 }; });
+    let best = rates[0];
+    for (const r of rates.slice(1)) if (r.p >= best.p + 0.03) best = r;
+    const snap = [1, 2, 3, 5, 10, 15, 30].find(x => x >= best.h) || best.h;
+    const pct = r => `${r.h}м ${Math.round(r.p * 100)}%`;
+    const list = rates.map(pct).join(' · ');
+    const weak = best.p <= 0.5; // no expiry won more often than it lost in similar situations
+    return { sec: snap * 60, weak, rates: rates.map(r => ({ h: r.h, p: Math.round(r.p * 100), n: r.n })), why: {
+      ru: `${weak ? '⚠ перевеса нет · ' : ''}похожих ситуаций ${nn.length}: ${list}`,
+      de: `${weak ? '⚠ kein Vorteil · ' : ''}ähnliche Lagen ${nn.length}: ${list.replace(/м/g, 'm')}`,
+      en: `${weak ? '⚠ no edge · ' : ''}similar cases ${nn.length}: ${list.replace(/м/g, 'm')}` } };
   }
-
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
   _sampleAdx() {
     const nowS = Date.now() / 1000; let any = false;
@@ -474,7 +471,7 @@ class Engine extends EventEmitter {
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
-    try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; } } catch {}
+    try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; } } catch {}
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
     // The newest 300, plus the user's own trades (marked "taken") that are older – their statistics stay.
     this.signals = this.signals.slice(0, 300).concat(this.signals.slice(300).filter(x => x.mine).slice(0, 1000));
