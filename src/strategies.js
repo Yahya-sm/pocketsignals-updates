@@ -19,7 +19,7 @@ const META = {
   n_strongtrend: [L('Сильный тренд: вход в начале', 'Starker Trend: Einstieg am Anfang', 'Strong trend: entry at the start'), 'trend'],
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
   early: [L('Ранний разворот', 'Frühe Umkehr', 'Early reversal'), 'rev'],
-  n_rsi8020: [L('RSI 14 · возврат из крайних зон', 'RSI 14 · Rückkehr aus Extremzonen', 'RSI 14 · return from extreme zones'), 'rev'],
+  n_rsi8020: [L('Возврат из крайних зон (стохастик / RSI)', 'Rückkehr aus Extremzonen (Stochastik / RSI)', 'Return from extreme zones (Stochastic / RSI)'), 'rev'],
   n_rsi2: [L('RSI 2 · перегрев', 'RSI 2 · Überhitzung', 'RSI 2 · overheated'), 'rev'],
   n_sbs: [L('SBS', 'SBS'), 'trend'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
@@ -78,7 +78,7 @@ const DEFAULTS = {
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_live: false, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
-  n_rsi8020: { ...REV, rsi_period: 14, rsi_levels: '70/30' },
+  n_rsi8020: { ...REV, rx_osc: 'STOCH', rsi_levels: '80/20', rx_live: true, rx_k: 14, rx_ks: 3, rsi_period: 14 },
   n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
   n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
@@ -324,6 +324,8 @@ function liveMode(name, settings) {
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
+  // Stochastic zone return: at the touch inside the forming candle (rx_live) or after the candle closed.
+  if (name === 'n_rsi8020') return (p.rx_osc || 'STOCH') === 'STOCH' && p.rx_live !== false ? 'live' : 'closed';
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
   if (name === 'n_deeprev' || name === 'n_strongtrend') return 'closed';
   return 'legacy';
@@ -697,7 +699,21 @@ const S = {
     return null;
   },
   n_rsi8020(x, p) {
-    const [hi, lo] = String(p.rsi_levels || '70/30').split('/').map(Number), r = x.rsi(p.rsi_period || 14), i = x.last;
+    const [hi, lo] = String(p.rsi_levels || '70/30').split('/').map(Number), i = x.last;
+    // 04.11.2026 (user): Stochastic %K, signal the moment it crosses the lower line upwards (CALL) / the upper line
+    // downwards (PUT). With rx_live the forming candle counts (entry now, one signal per candle).
+    if ((p.rx_osc || 'STOCH') === 'STOCH') {
+      const k = I.stoch(x.c, Number(p.rx_k) || 14, Number(p.rx_ks) || 3, 3).k, k0 = k[i - 1], k1 = k[i];
+      if (k0 === null || k1 === null) return null;
+      const d = k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0;
+      if (!d) return null;
+      const out = Object.assign(sig(d, 72, d > 0
+        ? L(`стохастик пересёк ${lo} снизу вверх (${k1.toFixed(0)})`, `Stochastik kreuzt ${lo} nach oben (${k1.toFixed(0)})`, `Stochastic crossed ${lo} upwards (${k1.toFixed(0)})`)
+        : L(`стохастик пересёк ${hi} сверху вниз (${k1.toFixed(0)})`, `Stochastik kreuzt ${hi} nach unten (${k1.toFixed(0)})`, `Stochastic crossed ${hi} downwards (${k1.toFixed(0)})`)), { noFlip: true });
+      if (p.rx_live !== false) { out.entry = Math.floor(Date.now() / 1000); out.bar = x.c[i].time; }
+      return out;
+    }
+    const r = x.rsi(p.rsi_period || 14);
     if (r[i - 1] < lo && r[i] >= lo) return sig(1, 72, L(`RSI вернулся выше ${lo}`, `RSI zurück über ${lo}`, `RSI back above ${lo}`));
     if (r[i - 1] > hi && r[i] <= hi) return sig(-1, 72, L(`RSI вернулся ниже ${hi}`, `RSI zurück unter ${hi}`, `RSI back below ${hi}`));
     return null;

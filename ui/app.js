@@ -395,8 +395,11 @@ function paramRows(x) {
   return x.groups.map(g => `<div class="pgroup"><b>${esc(tr(g.title))}</b><small>${esc(tr(g.desc))}</small>${g.keys.map(row).join('')}</div>`).join('')
     + rest.map(row).join('');
 }
+// Parameters with a fixed choice are shown as a select.
+const PARAM_CHOICES = { rsi_levels: ['70/30', '75/25', '80/20'], rx_osc: ['STOCH', 'RSI'] };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
+  if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : o}</option>`).join('')}</select>`;
   if (typeof v === 'boolean') return `<input type="checkbox" class="sw" ${id} ${v ? 'checked' : ''}>`;
   if (typeof v === 'number') return `<input type="number" step="any" ${id} value="${v}">`;
   return `<input type="text" ${id} value="${esc(v)}">`;
