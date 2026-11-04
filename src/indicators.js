@@ -162,4 +162,28 @@ function resample(c, minutes, keepPartial = false) {
   return out;
 }
 
-module.exports = { sma, ema, ma, rsi, atr, adx, psar, stoch, macd, bollinger, cci, supertrend, vortex, fractals, body, dirOf, resample };
+// Market regime of candle i (user, 04.11.2026), plain rules, < 1 ms:
+//   CHAOS: ATR 14 ≥ 2 × its 50-candle average, or one of the last 3 candles ≥ 3.5 × the average range (news, spikes);
+//   TREND: ADX ≥ 25 and EMA 50 clearly sloped (≥ 0.08 ATR per candle over 5) or price ≥ 2 ATR from the long EMA;
+//   RANGE: everything else with ADX < 25 (or a sloping-less strong ADX).
+// The long EMA is EMA 200 when there are enough candles (PocketOption gives ~150 M1), else the longest that fits.
+function regime(c, i = c.length - 1) {
+  if (i < 60) return null;
+  const close = c.map(k => k.close), a = atr(c, 14), ad = adx(c, 14)[i];
+  let aAvg = 0; for (let j = i - 49; j <= i; j++) aAvg += a[j] || 0; aAvg /= 50;
+  let rAvg = 0; for (let j = i - 49; j <= i; j++) rAvg += c[j].high - c[j].low; rAvg /= 50;
+  const atrRatio = aAvg ? a[i] / aAvg : 1;
+  const spike = rAvg > 0 && [0, 1, 2].some(d => c[i - d].high - c[i - d].low >= 3.5 * rAvg);
+  const e50 = ema(close, 50), longN = Math.min(200, i - 10), eL = ema(close, longN);
+  const slope = a[i] ? (e50[i] - e50[i - 5]) / 5 / a[i] : 0;
+  const dist = a[i] && eL[i] !== null ? (close[i] - eL[i]) / a[i] : 0;
+  const bb = bollinger(close, 20)[i];
+  const x = ad ? ad.adx : 0;
+  let r = 'RANGE';
+  if (atrRatio >= 2 || spike) r = 'CHAOS';
+  else if (x >= 25 && (Math.abs(slope) >= 0.08 || Math.abs(dist) >= 2)) r = 'TREND';
+  return { regime: r, adx: +x.toFixed(1), atrRatio: +atrRatio.toFixed(2), slope: +slope.toFixed(3), dist: +dist.toFixed(1),
+    bbw: bb ? +(bb.width * 100).toFixed(3) : null, dir: slope > 0 ? 1 : -1, longN };
+}
+
+module.exports = { regime, sma, ema, ma, rsi, atr, adx, psar, stoch, macd, bollinger, cci, supertrend, vortex, fractals, body, dirOf, resample };

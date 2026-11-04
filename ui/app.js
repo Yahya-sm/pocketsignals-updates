@@ -88,18 +88,17 @@ function render() {
   document.querySelectorAll('[data-lang]').forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
   $('#sLang').value = LANG;
 
-  const st = state.stats, open = state.signals.filter(s => !s.result).length;
-  $('#stats').innerHTML = `
-    <div class="stat"><b>${st.total}</b><span>${t('evaluated')}</span></div>
-    <div class="stat"><b style="color:var(--call)">${st.wins}</b><span>${t('won')}</span></div>
-    <div class="stat"><b style="color:var(--put)">${st.total - st.wins}</b><span>${t('lost')}</span></div>
-    <div class="stat"><b style="color:${st.rate == null ? 'inherit' : rateColor(st.rate)}">${st.rate == null ? '–' : st.rate + '%'}</b><span>${t('winrate')}</span></div>`;
+  // Main screen: only the user's own trades (user, 04.11.2026); the overall statistics are in History → "All signals".
+  const open = state.signals.filter(s => !s.result).length;
+  $('#stats').innerHTML = statTiles(state.signals.filter(s => s.mine), true);
 
   renderLive();
   $('#liveCount').textContent = open || '';
   // No (working) PocketOption session yet: ask to log in; the app takes the session over automatically.
   $('#loginBox').hidden = !['no_ssid', 'expired'].includes(state.status) || (!isDesktop && !isAndroid);
 
+  $('#allStats').hidden = histView !== 'all';
+  if (histView === 'all') $('#allStats').innerHTML = `<div class="stats">${statTiles(state.signals)}</div>${strategyStats(state.signals)}`;
   $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats'; $('#myStats').hidden = histView !== 'mine'; $('#archStats').hidden = histView !== 'archive';
   $('#hist').innerHTML = state.signals.map(row).join('') || `<p class="empty">${t('no_history')}</p>`;
   $('#stratStats').innerHTML = strategyStats(state.signals);
@@ -109,7 +108,7 @@ function render() {
 
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
-    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
+    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sAutoMine').checked = s.auto_mine; $('#sRegime').checked = s.regime_filter; $('#sChaos').checked = s.chaos_skip; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
     $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sTrendTf').value = s.trend_tf || 'M5'; $('#sTrendFilter').checked = s.trend_filter;
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
     $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sMarket').value = s.market; $('#sInterval').value = String(s.scan_interval || 60);
@@ -143,6 +142,14 @@ function togglePin(id) {
 }
 let heldOrder = null;
 function showFresh() { heldOrder = null; $('main').scrollTop = 0; renderLive(); }
+// Four tiles: decided / won / lost / win rate of a list of signals (mine: the first tile says "my trades").
+function statTiles(list, mine) {
+  const w = list.filter(s => s.result === 'WIN').length, l = list.filter(s => s.result === 'LOSS').length, r = w + l ? Math.round(100 * w / (w + l)) : null;
+  return `<div class="stat"><b>${w + l}</b><span>${t(mine ? 'my_trades' : 'evaluated')}</span></div>
+    <div class="stat"><b style="color:var(--call)">${w}</b><span>${t('won')}</span></div>
+    <div class="stat"><b style="color:var(--put)">${l}</b><span>${t('lost')}</span></div>
+    <div class="stat"><b style="color:${r == null ? 'inherit' : rateColor(r)}">${r == null ? '–' : r + '%'}</b><span>${t('winrate')}</span></div>`;
+}
 function visibleSignals() {
   const list = state.signals.filter(isVisible);
   const pinned = pins.map(id => list.find(s => s.id === id)).filter(Boolean);
@@ -231,8 +238,9 @@ function card(s) {
 // Live ADX of the signal (engine samples every 5 s): number, rising/falling over the last ~30 s, strength scale,
 // +DI/−DI and a small line of the last 3 minutes. Rising = the trend gets stronger (no early reversal entry).
 function adxBox(s) {
-  const a = s.adxLive;
-  if (!a) return `<div class="adx-wait">ADX · ${t('adx_wait')}</div>`;
+  const a = s.adxLive, rgName = (a && a.regime) || s.regime;
+  const rg = rgName ? `<span class="rg ${rgName}" title="${t('regime_filter_hint')}">${t('rg_' + rgName)}</span>` : '';
+  if (!a) return `${rg}<div class="adx-wait">ADX · ${t('adx_wait')}</div>`;
   const h = a.hist || [a.adx], ref = h[Math.max(0, h.length - 7)], d = a.adx - ref;
   const trend = d > 0.3 ? 'up' : d < -0.3 ? 'down' : 'flat';
   const lvl = a.adx >= 40 ? 'vstrong' : a.adx >= 25 ? 'strong' : a.adx >= 20 ? 'mid' : 'weak';
@@ -241,7 +249,7 @@ function adxBox(s) {
   return `<div class="adx-main"><small>ADX</small><b class="adx-val ${lvl}">${a.adx.toFixed(1)}</b>
       <span class="adx-trend ${trend}">${trend === 'up' ? '▲' : trend === 'down' ? '▼' : '◆'} ${d >= 0 ? '+' : ''}${d.toFixed(1)}</span></div>
     <div class="adx-mid"><div class="adx-scale"><i style="left:${Math.min(100, a.adx / 60 * 100)}%"></i></div>
-      <div class="adx-txt ${trend}">${t('adx_' + trend)} · ${t('adx_' + lvl)}</div>
+      <div class="adx-txt ${trend}">${rg}${t('adx_' + trend)} · ${t('adx_' + lvl)}</div>
       <div class="adx-di">+DI ${a.pdi.toFixed(0)} · −DI ${a.mdi.toFixed(0)}${s.adx0 !== undefined ? ` · ${t('adx_at_signal')} ${Number(s.adx0).toFixed(1)}` : ''}</div></div>
     <svg class="adx-spark ${trend}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke-width="2"/></svg>`;
 }
@@ -445,9 +453,9 @@ function openUrl(url) {
 }
 
 // tf: also open the chart with this timeframe (click on the timeframe tag of a signal).
-async function openPO(id, tf) {
+async function openPO(id, tf, auto) {
   const sig = state.signals.find(s => s.id === id);
-  const r = await call({ action: 'openPO', id, tf });
+  const r = await call({ action: 'openPO', id, tf, auto: !!auto });
   const name = r.name || (sig && sig.name) || '';
   if (isDesktop) { toast(t('toast_po', { name }) + (tf ? ' · ' + tf : '')); return; }
   if (isAndroid) {
@@ -533,6 +541,9 @@ document.addEventListener('change', e => {
   if (el.id === 'sOn') patch.signals_on = el.checked;
   if (el.id === 'sSound') patch.sound = el.checked;
   if (el.id === 'sAuto') patch.auto_po = el.checked;
+  if (el.id === 'sAutoMine') patch.auto_mine = el.checked;
+  if (el.id === 'sRegime') patch.regime_filter = el.checked;
+  if (el.id === 'sChaos') patch.chaos_skip = el.checked;
   if (el.id === 'sMini') patch.mini_on_blur = el.checked;
   if (el.id === 'sM5') patch.show_m5 = el.checked;
   if (el.id === 'sPoStart') patch.po_start_mode = el.value;
@@ -670,7 +681,7 @@ function onSignal(s) {
   else if (window.Notification && Notification.permission === 'granted' && document.hidden)
     new Notification(`${s.dir} ${s.name}`, { body, icon: 'icon.png' });
   // Auto switch PocketOption to the newest signal (at most once every 10 s).
-  if (state && state.settings.auto_po && (isDesktop || isAndroid) && Date.now() - lastAuto > 10000) { lastAuto = Date.now(); setTimeout(() => openPO(s.id), 300); }
+  if (state && state.settings.auto_po && (isDesktop || isAndroid) && Date.now() - lastAuto > 10000) { lastAuto = Date.now(); setTimeout(() => openPO(s.id, undefined, true), 300); }
 }
 document.addEventListener('click', () => { if (!isAndroid && window.Notification && Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
 

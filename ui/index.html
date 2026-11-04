@@ -60,7 +60,8 @@
   </section>
 
   <section id="history" class="tab">
-    <div class="chips"><button class="chip active" data-hist="list" data-i18n="history"></button><button class="chip" data-hist="stats" data-i18n="stats_by_strategy"></button><button class="chip" data-hist="mine" data-i18n="my_trades"></button><button class="chip" data-hist="archive" data-i18n="bot_archive"></button></div>
+    <div class="chips"><button class="chip active" data-hist="list" data-i18n="history"></button><button class="chip" data-hist="stats" data-i18n="stats_by_strategy"></button><button class="chip" data-hist="mine" data-i18n="my_trades"></button><button class="chip" data-hist="all" data-i18n="all_stats"></button><button class="chip" data-hist="archive" data-i18n="bot_archive"></button></div>
+    <div id="allStats" hidden></div>
     <div id="hist"></div>
     <div id="stratStats" hidden></div>
     <div id="myStats" hidden></div>
@@ -93,6 +94,9 @@
       <label class="row" id="tvRow" hidden><span><span data-i18n="tv_open"></span><small data-i18n="tv_open_hint"></small></span>
         <select id="sTvOpen"><option value="external" data-i18n="tv_external"></option><option value="app" data-i18n="tv_inapp"></option></select></label>
       <label class="row" id="autoRow"><span><span data-i18n="auto_po"></span><small data-i18n="auto_po_hint"></small></span><input type="checkbox" class="sw" id="sAuto"></label>
+      <label class="row"><span><span data-i18n="auto_mine"></span><small data-i18n="auto_mine_hint"></small></span><input type="checkbox" class="sw" id="sAutoMine"></label>
+      <label class="row"><span><span data-i18n="chaos_skip"></span><small data-i18n="chaos_skip_hint"></small></span><input type="checkbox" class="sw" id="sChaos"></label>
+      <label class="row"><span><span data-i18n="regime_filter"></span><small data-i18n="regime_filter_hint"></small></span><input type="checkbox" class="sw" id="sRegime"></label>
       <label class="row"><span><span data-i18n="scan_every"></span><small data-i18n="scan_every_hint"></small></span>
         <select id="sInterval"><option value="5">5 s</option><option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
       <label class="row"><span data-i18n="market"></span>

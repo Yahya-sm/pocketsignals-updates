@@ -825,6 +825,14 @@ function evaluate(candlesByTf, enabled, settings) {
         if (r && r.dir && passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
       }
       if (!s) continue;
+      // Market regime (I.regime): shown on the card; with regime_filter trend strategies only in TREND,
+      // reversal strategies only in RANGE, nothing in CHAOS.
+      if (x.rg === undefined) x.rg = I.regime(c);
+      // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
+      // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
+      if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) continue;
+      if (settings.regime_filter && x.rg && x.rg.regime !== (META[name][1] === 'trend' ? 'TREND' : 'RANGE')) continue;
+      if (x.rg) s.regime = x.rg.regime;
       if (pr && chosen.length > 1) { s.reason = addText(s.reason, L(` · ${pr.name.ru}`, ` · ${pr.name.de}`, ` · ${pr.name.en}`)); if (!s.model) s.model = pr.name.ru; }
       // Reversal strategies bet against the last move; with follow_move they trade with it instead.
       let mode = 'trend';

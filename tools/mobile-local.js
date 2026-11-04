@@ -16,7 +16,9 @@ window.LocalEngine = {
         const symbol = sig ? sig.symbol : msg.symbol;
         if (!symbol) return { ok: false };
         const asset = engine.assets.get(symbol);
-        return { ok: engine.openOnPocketOption(symbol, msg.tf), symbol, name: asset ? asset.name : symbol };
+        const ok = engine.openOnPocketOption(symbol, msg.tf);
+        if (!msg.auto) engine.autoMine(sig && sig.id, symbol);
+        return { ok, symbol, name: asset ? asset.name : symbol };
       }
       case 'settings': engine.updateSettings(msg.patch || {}); return { ok: true };
       case 'strategy': engine.updateStrategy(msg.name, msg.patch, msg.tfs, msg.presets); return { ok: true };

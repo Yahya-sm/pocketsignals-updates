@@ -178,7 +178,8 @@ class Engine extends EventEmitter {
     const m = parseInt(String(sig.tf).slice(1), 10) || 1;
     const c = sig.tf[0] === 'S' ? m1 : I.resample(m1, m, true);
     const a = I.adx(c, 14)[c.length - 1];
-    return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1) } : null;
+    const rg = I.regime(c);
+    return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null } : null;
   }
 
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
@@ -411,7 +412,7 @@ class Engine extends EventEmitter {
     if (this.signals.some(x => x.id === id)) return;
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',
-      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}),
+      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}),
       strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
@@ -554,6 +555,15 @@ class Engine extends EventEmitter {
   clearMine() { for (const s of this.signals) delete s.mine; writeJson(this.signalsFile, this.signals); this.emit('state'); }
 
   // The user marks a signal as traded by themself ("taken"): their own statistics are counted from these.
+  // Opening a running signal in PocketOption counts as "I took it" (user, 04.11.2026; setting auto_mine, default on).
+  // By id (card buttons) or by pair (notification button: the newest running signal of that pair). Auto-switching is not.
+  autoMine(id, symbol) {
+    if (this.settings.auto_mine === false) return;
+    const now = Date.now() / 1000, run = s => !s.result && now < s.entryTime + s.expiry;
+    const s = id ? this.signals.find(x => x.id === id && run(x)) : this.signals.find(x => x.symbol === symbol && run(x));
+    if (s && !s.mine) this.markMine(s.id, true);
+  }
+
   markMine(id, on) {
     const s = this.signals.find(x => x.id === id); if (!s) return;
     s.mine = !!on;
@@ -585,7 +595,7 @@ class Engine extends EventEmitter {
         assets_off: this.settings.assets_off || [],
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
-        market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
+        market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, auto_mine: this.settings.auto_mine !== false, regime_filter: !!this.settings.regime_filter, chaos_skip: this.settings.chaos_skip !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

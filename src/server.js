@@ -44,6 +44,7 @@ function startServer(engine, { port = 7777, onOpenPO } = {}) {
         const symbol = sig ? sig.symbol : msg.symbol;
         if (!symbol) return { ok: false };
         const saved = engine.openOnPocketOption(symbol, msg.tf);
+        if (!msg.auto) engine.autoMine(sig && sig.id, symbol);
         const asset = engine.assets.get(symbol);
         if (onOpenPO && fromDesktop) onOpenPO(symbol, asset ? asset.name : symbol, !!msg.tf);
         return { ok: saved, symbol, name: asset ? asset.name : symbol };
