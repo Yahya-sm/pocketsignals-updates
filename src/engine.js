@@ -192,49 +192,84 @@ class Engine extends EventEmitter {
     return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null, trend } : null;
   }
 
-  // Recommended expiry from this pair's own history (v3, user 05.11.2026: "always 5 min / always 1 min – do real
-  // technical analysis"). v1/v2 were fixed rules and gave the same number everywhere.
-  // Now: describe the current situation on M1 by stochastic %K, distance to EMA 21 (in ATR), 3-candle momentum and
-  // ADX; find the 30 most similar moments in the pair's last ~150 candles; for each expiry (1/2/3/5/10 min, 15 for
-  // M5+) count how often the price was in the signal direction after that time. Best rate wins (a longer expiry only
-  // if it is ≥ 3 points better). The card shows the rates, so the number can be checked.
+  // Recommended expiry by technical analysis (v4, user 05.11.2026: "real TA – support, resistance, ADX, ATR").
+  // All on the pair's M1 candles (~150):
+  //  1. Support/resistance: swing highs/lows (2 candles each side), merged within 0.3 ATR, strength = touches.
+  //     Target = the next level in the signal direction (resistance for CALL, support for PUT).
+  //  2. ATR 14 = how far the price moves per minute. ADX/DI = how much of that is real progress: strong trend in the
+  //     signal direction moves straight (efficiency 0.55), range zigzags (0.25), against the DI it is slower.
+  //  3. Stochastic: already overbought for CALL / oversold for PUT = little fuel → shorter.
+  //  Minutes = 60 % of the way to the level / (ATR × efficiency), 1…10, snapped to 1/2/3/5/10/15.
+  //  Level closer than 0.4 ATR = the price will likely hit it soon → 1 min + warning.
+  //  4. Check: the 30 most similar moments of the pair's history and how often each expiry won there.
   recExpiry(sig) {
     const closed = this.candles.get(sig.symbol); if (!closed || closed.length < 60) return null;
     const now = Math.floor(Date.now() / 60000) * 60;
     const c = this._withLive(sig.symbol, closed, 60).filter(k => k.time <= now);
     const L = c.length - 1, d = sig.dir === 'CALL' ? 1 : -1;
-    const m = parseInt(String(sig.tf).slice(1), 10) || 1;
-    const H = m >= 5 ? [1, 2, 3, 5, 10, 15] : [1, 2, 3, 5, 10];
-    const maxH = H[H.length - 1];
-    const cl = c.map(k => k.close), e21 = I.ema(cl, 21), atr = I.atr(c, 14), st = I.stoch(c, 14, 3), ad = I.adx(c, 14);
-    const kOf = i => st.k[i];
-    const feat = i => {
-      if (!atr[i] || e21[i] == null || i < 3) return null;
-      const k = kOf(i); if (k == null) return null;
-      const a = ad[i];
-      return [k / 100 * 2, (cl[i] - e21[i]) / atr[i] / 2, (cl[i] - cl[i - 3]) / atr[i] / 2, a ? a.adx / 50 : 0.5];
-    };
-    const f0 = feat(L); if (!f0) return null;
-    const cand = [];
-    for (let i = 25; i <= L - maxH; i++) {
-      const f = feat(i); if (!f) continue;
-      let dist = 0; for (let j = 0; j < f.length; j++) dist += (f[j] - f0[j]) ** 2;
-      cand.push({ i, dist });
+    const cl = c.map(k => k.close), e21 = I.ema(cl, 21), atrA = I.atr(c, 14), st = I.stoch(c, 14, 3), ad = I.adx(c, 14);
+    const atr = atrA[L], price = cl[L], a = ad[L], k = st.k[L];
+    if (!atr || !a || k == null) return null;
+    // 1. Levels
+    const piv = [];
+    for (let j = Math.max(2, L - 140); j <= L - 2; j++) {
+      let isH = true, isL = true;
+      for (let q = j - 2; q <= j + 2; q++) { if (q === j) continue; if (c[q].high > c[j].high) isH = false; if (c[q].low < c[j].low) isL = false; }
+      if (isH) piv.push(c[j].high); if (isL) piv.push(c[j].low);
     }
-    if (cand.length < 20) return null;
-    cand.sort((x, y) => x.dist - y.dist);
-    const nn = cand.slice(0, 30);
-    const rates = H.map(h => { let w = 0, n = 0; for (const { i } of nn) { const mv = (cl[i + h] - cl[i]) * d; if (mv !== 0) { n++; if (mv > 0) w++; } } return { h, n, p: n ? w / n : 0 }; });
-    let best = rates[0];
-    for (const r of rates.slice(1)) if (r.p >= best.p + 0.03) best = r;
-    const snap = [1, 2, 3, 5, 10, 15, 30].find(x => x >= best.h) || best.h;
-    const pct = r => `${r.h}м ${Math.round(r.p * 100)}%`;
-    const list = rates.map(pct).join(' · ');
-    const weak = best.p <= 0.5; // no expiry won more often than it lost in similar situations
-    return { sec: snap * 60, weak, rates: rates.map(r => ({ h: r.h, p: Math.round(r.p * 100), n: r.n })), why: {
-      ru: `${weak ? '⚠ перевеса нет · ' : ''}похожих ситуаций ${nn.length}: ${list}`,
-      de: `${weak ? '⚠ kein Vorteil · ' : ''}ähnliche Lagen ${nn.length}: ${list.replace(/м/g, 'm')}`,
-      en: `${weak ? '⚠ no edge · ' : ''}similar cases ${nn.length}: ${list.replace(/м/g, 'm')}` } };
+    piv.sort((x, y) => x - y);
+    const lv = [];
+    for (const p of piv) { const g = lv[lv.length - 1]; if (g && p - g.lo <= atr * 0.3) { g.hi = p; g.n++; g.sum += p; } else lv.push({ lo: p, hi: p, n: 1, sum: p }); }
+    const levels = lv.map(g => ({ p: g.sum / g.n, n: g.n }));
+    const ahead = levels.filter(x => (x.p - price) * d > atr * 0.1).sort((x, y) => Math.abs(x.p - price) - Math.abs(y.p - price));
+    const behind = levels.filter(x => (price - x.p) * d > atr * 0.1).sort((x, y) => Math.abs(x.p - price) - Math.abs(y.p - price));
+    const tgt = ahead.find(x => x.n >= 2) || ahead[0] || null;
+    const dist = tgt ? Math.abs(tgt.p - price) / atr : 3; // in ATR; no level ahead = open space
+    // 2. Efficiency from ADX / DI
+    const diWith = d > 0 ? a.pdi > a.mdi : a.mdi > a.pdi;
+    let eff = a.adx < 20 ? 0.25 : a.adx < 30 ? 0.4 : 0.55;
+    if (!diWith) eff *= 0.6;
+    // 3. Stochastic fuel
+    const exhausted = d > 0 ? k > 80 : k < 20, fuel = d > 0 ? k < 20 : k > 80;
+    let mins = Math.min(dist, 3) * 0.6 / eff;
+    if (exhausted) mins *= 0.5;
+    const close = dist < 0.4;
+    if (close) mins = 1;
+    mins = Math.min(Math.max(Math.round(mins), 1), 10);
+    const snap = [1, 2, 3, 5, 10, 15].find(x => x >= mins) || 15;
+    // 4. Check with the pair's history: similar moments, win rate per expiry
+    const H = [1, 2, 3, 5, 10];
+    const feat = i => (!atrA[i] || e21[i] == null || st.k[i] == null || !ad[i]) ? null
+      : [st.k[i] / 50, (cl[i] - e21[i]) / atrA[i] / 2, (cl[i] - cl[i - 3]) / atrA[i] / 2, ad[i].adx / 50];
+    const f0 = feat(L), nn = [];
+    if (f0) {
+      for (let i = 25; i <= L - 10; i++) { const f = feat(i); if (f) nn.push({ i, dd: f.reduce((s, v, j) => s + (v - f0[j]) ** 2, 0) }); }
+      nn.sort((x, y) => x.dd - y.dd); nn.length = Math.min(nn.length, 30);
+    }
+    const rate = h => { let w = 0, n = 0; for (const { i } of nn) { const mv = (cl[i + h] - cl[i]) * d; if (mv) { n++; if (mv > 0) w++; } } return n ? Math.round(100 * w / n) : null; };
+    const hist = nn.length >= 15 ? H.map(h => ({ h, p: rate(h) })) : [];
+    const histAt = (hist.find(x => x.h === snap) || {}).p;
+    const weak = histAt != null && histAt <= 50;
+    // Text for the card (one line per factor)
+    const dp = Math.max(0, Math.min(6, Math.ceil(-Math.log10(atr)) + 1)), fx = v => v.toFixed(dp);
+    const r1 = v => v.toFixed(1);
+    const lvName = { ru: d > 0 ? 'Сопротивление' : 'Поддержка', de: d > 0 ? 'Widerstand' : 'Unterstützung', en: d > 0 ? 'Resistance' : 'Support' };
+    const bh = behind[0], bhName = { ru: d > 0 ? 'поддержка' : 'сопротивление', de: d > 0 ? 'Unterstützung' : 'Widerstand', en: d > 0 ? 'support' : 'resistance' };
+    const T = (ru, de, en) => ({ ru, de, en });
+    const lines = [
+      tgt ? T(`${lvName.ru} ${fx(tgt.p)} — ${r1(dist)} ATR (касаний ${tgt.n})${close ? ' ⚠ вплотную' : ''}`, `${lvName.de} ${fx(tgt.p)} — ${r1(dist)} ATR (${tgt.n}× berührt)${close ? ' ⚠ ganz nah' : ''}`, `${lvName.en} ${fx(tgt.p)} — ${r1(dist)} ATR (${tgt.n} touches)${close ? ' ⚠ very close' : ''}`)
+          : T(`${lvName.ru} впереди нет — свободный ход`, `Kein ${lvName.de} voraus – freier Raum`, `No ${lvName.en.toLowerCase()} ahead – open space`),
+      bh ? T(`Позади ${bhName.ru} ${fx(bh.p)} (${r1(Math.abs(price - bh.p) / atr)} ATR)`, `Dahinter ${bhName.de} ${fx(bh.p)} (${r1(Math.abs(price - bh.p) / atr)} ATR)`, `Behind: ${bhName.en} ${fx(bh.p)} (${r1(Math.abs(price - bh.p) / atr)} ATR)`) : null,
+      T(`ATR ${fx(atr)}/мин · ADX ${a.adx.toFixed(0)} ${diWith ? '✓ DI по сигналу' : '✗ DI против'} · ход ${Math.round(eff * 100)}%`,
+        `ATR ${fx(atr)}/Min · ADX ${a.adx.toFixed(0)} ${diWith ? '✓ DI mit Signal' : '✗ DI dagegen'} · Fortschritt ${Math.round(eff * 100)}%`,
+        `ATR ${fx(atr)}/min · ADX ${a.adx.toFixed(0)} ${diWith ? '✓ DI with signal' : '✗ DI against'} · progress ${Math.round(eff * 100)}%`),
+      T(`Стохастик ${k.toFixed(0)}${exhausted ? ' — уже ' + (d > 0 ? 'перекуплен' : 'перепродан') + ', короче' : fuel ? ' — ' + (d > 0 ? 'перепродан' : 'перекуплен') + ', есть запас' : ''}`,
+        `Stochastik ${k.toFixed(0)}${exhausted ? ' – schon ' + (d > 0 ? 'überkauft' : 'überverkauft') + ', kürzer' : fuel ? ' – ' + (d > 0 ? 'überverkauft' : 'überkauft') + ', Luft' : ''}`,
+        `Stochastic ${k.toFixed(0)}${exhausted ? ' – already ' + (d > 0 ? 'overbought' : 'oversold') + ', shorter' : fuel ? ' – ' + (d > 0 ? 'oversold' : 'overbought') + ', room' : ''}`),
+      hist.length ? T(`История пары: ${hist.map(x => x.h + 'м ' + x.p + '%').join(' · ')}${weak ? ' ⚠' : ''}`, `Verlauf: ${hist.map(x => x.h + 'm ' + x.p + '%').join(' · ')}${weak ? ' ⚠' : ''}`, `Pair history: ${hist.map(x => x.h + 'm ' + x.p + '%').join(' · ')}${weak ? ' ⚠' : ''}`) : null,
+    ].filter(Boolean);
+    const why = { ru: lines.map(x => x.ru).join('\n'), de: lines.map(x => x.de).join('\n'), en: lines.map(x => x.en).join('\n') };
+    return { sec: snap * 60, weak, why };
   }
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
   _sampleAdx() {

@@ -94,7 +94,8 @@ main { flex: 1; overflow-y: auto; padding: 12px; }
 .recexp .re-go { grid-area: g; font-size: 11px; color: var(--accent); }
 .recexp.long { background: rgba(245,158,11,.10); border-color: rgba(245,158,11,.45); }
 .recexp.long b, .recexp.long .re-go { color: #f59e0b; }
-.recexp small { white-space: normal; }
+.recexp small { white-space: pre-line; line-height: 1.45; opacity: .7; grid-column: 1 / -1; grid-row: 2; }
+.recexp .re-go { grid-row: 3; grid-column: 2; }
 .recexp.weak { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.12); }
 .recexp.weak b, .recexp.weak .re-go { color: #9aa4b2; }
 .recexp:active { transform: scale(.98); }
