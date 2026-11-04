@@ -108,7 +108,7 @@ function render() {
 
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
-    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sAutoMine').checked = s.auto_mine; $('#sRegime').checked = s.regime_filter; $('#sChaos').checked = s.chaos_skip; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
+    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegime').checked = s.regime_filter; $('#sChaos').checked = s.chaos_skip; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
     $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sTrendTf').value = s.trend_tf || 'M5'; $('#sTrendFilter').checked = s.trend_filter;
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
     $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sMarket').value = s.market; $('#sInterval').value = String(s.scan_interval || 60);
@@ -541,7 +541,6 @@ document.addEventListener('change', e => {
   if (el.id === 'sOn') patch.signals_on = el.checked;
   if (el.id === 'sSound') patch.sound = el.checked;
   if (el.id === 'sAuto') patch.auto_po = el.checked;
-  if (el.id === 'sAutoMine') patch.auto_mine = el.checked;
   if (el.id === 'sRegime') patch.regime_filter = el.checked;
   if (el.id === 'sChaos') patch.chaos_skip = el.checked;
   if (el.id === 'sMini') patch.mini_on_blur = el.checked;
