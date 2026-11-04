@@ -269,7 +269,12 @@ class Engine extends EventEmitter {
       hist.length ? T(`История пары: ${hist.map(x => x.h + 'м ' + x.p + '%').join(' · ')}${weak ? ' ⚠' : ''}`, `Verlauf: ${hist.map(x => x.h + 'm ' + x.p + '%').join(' · ')}${weak ? ' ⚠' : ''}`, `Pair history: ${hist.map(x => x.h + 'm ' + x.p + '%').join(' · ')}${weak ? ' ⚠' : ''}`) : null,
     ].filter(Boolean);
     const why = { ru: lines.map(x => x.ru).join('\n'), de: lines.map(x => x.de).join('\n'), en: lines.map(x => x.en).join('\n') };
-    return { sec: snap * 60, weak, why };
+    // Compact one-liner for the card (user 05.11.2026: card too tall); the full lines stay in the tooltip.
+    const lvS = tgt ? `${d > 0 ? 'R' : 'S'} ${r1(dist)}ATR${close ? '⚠' : ''}` : `${d > 0 ? 'R' : 'S'} —`;
+    const stS = `St ${k.toFixed(0)}${exhausted ? '⚠' : ''}`;
+    const hS = histAt != null ? ` · ${snap}м ${histAt}%${weak ? '⚠' : ''}` : '';
+    const short = `${lvS} · ADX ${a.adx.toFixed(0)}${diWith ? '✓' : '✗'} · ${stS}${hS}`;
+    return { sec: snap * 60, weak, why, short: { ru: short, de: short.replace(/м /g, 'm '), en: short.replace(/м /g, 'm ') } };
   }
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
   _sampleAdx() {
@@ -506,7 +511,7 @@ class Engine extends EventEmitter {
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
-    try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; } } catch {}
+    try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; sig.recShort = re.short; } } catch {}
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
     // The newest 300, plus the user's own trades (marked "taken") that are older – their statistics stay.
     this.signals = this.signals.slice(0, 300).concat(this.signals.slice(300).filter(x => x.mine).slice(0, 1000));

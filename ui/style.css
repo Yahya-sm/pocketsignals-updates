@@ -292,3 +292,38 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 
 .note{color:var(--muted);font-size:12px;line-height:1.45;margin:8px 2px}
 #archStats h3{margin:16px 2px 6px}
+
+/* Compact signal card (user 05.11.2026: "card fills the whole phone – squeeze it top and bottom") */
+.sig { padding: 9px 10px; margin-bottom: 8px; }
+.sig-top { gap: 8px; }
+.dir { padding: 3px 10px 3px 3px; font-size: 13px; }
+.dir .arrow { width: 30px; height: 30px; font-size: 19px; }
+.strategy { margin: 6px 0 4px; padding: 5px 8px; }
+.strategy .lbl { display: none; }
+.strategy .why { font-size: 11px; }
+.grid3 { margin: 4px 0; gap: 4px; }
+.grid3 div { padding: 3px 4px; display: flex; justify-content: center; gap: 5px; align-items: baseline; }
+.grid3 small { display: inline; }
+.trendbox { margin: 4px 0 0; padding: 3px 8px; }
+.adxbox { margin: 4px 0 3px; padding: 4px 8px; gap: 8px; }
+.adxbox svg { max-height: 22px; }
+.timer { margin-top: 2px; font-size: 11px; }
+.btns { margin-top: 6px; gap: 6px; }
+.btns button { padding: 7px 6px; font-size: 13px; border-radius: 10px; }
+.recexp { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 5px 9px; border-radius: 10px; }
+.recexp .re-l { font-size: 12px; opacity: 1; white-space: nowrap; }
+.recexp .re-l b { font-size: 15px; }
+.recexp small { flex: 1; min-width: 0; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; opacity: .7; }
+.recexp .re-go { font-size: 11px; white-space: nowrap; }
+.adx-main { display: flex; flex-direction: row; align-items: baseline; gap: 4px; min-width: 0; }
+.adx-main small { font-size: 10px; }
+.adx-val { font-size: 18px !important; line-height: 1; }
+.adx-trend { font-size: 11px; }
+.adx-mid { flex: 1; min-width: 0; }
+.adx-scale { height: 4px; margin: 0 0 3px; }
+.adx-txt { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adx-txt .rg { font-size: 10px; padding: 1px 6px; }
+.adx-di { display: none; }
+.adx-spark { width: 54px; height: 20px; }
+.tr-ico { width: 20px; height: 20px; }
+.trendbox { font-size: 12px; gap: 6px; }
