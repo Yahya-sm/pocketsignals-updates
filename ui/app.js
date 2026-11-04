@@ -227,7 +227,7 @@ function card(s) {
       <div><small>${t('expiry')}</small><b>${fmtExp(s.expiry)}</b></div>
       <div><small>${t('strength')}</small><b>${s.strength}</b></div>
     </div>
-    ${done ? '' : `<div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>`}
+    ${done ? '' : `<div class="trendbox" data-trend-id="${esc(s.id)}">${trendBox(s)}</div><div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
     <div class="btns">
@@ -254,8 +254,22 @@ function adxBox(s) {
       <div class="adx-di">+DI ${a.pdi.toFixed(0)} · −DI ${a.mdi.toFixed(0)}${s.adx0 !== undefined ? ` · ${t('adx_at_signal')} ${Number(s.adx0).toFixed(1)}` : ''}</div></div>
     <svg class="adx-spark ${trend}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke-width="2"/></svg>`;
 }
+// Trend on the signal's own timeframe with a staircase icon; red warning when the signal goes against it.
+function trendBox(s) {
+  const tr = s.adxLive && s.adxLive.trend, tf = s.tf || 'M1';
+  if (!tr) return `<span class="tr-lbl">${t('trend_on', { tf })}</span><span class="tr-val">…</span>`;
+  const stairs = { UP: '4,22 4,16 10,16 10,10 16,10 16,4 22,4', DOWN: '4,4 4,10 10,10 10,16 16,16 16,22 22,22', FLAT: '3,13 9,10 15,16 21,13' }[tr];
+  const against = (tr === 'UP' && s.dir === 'PUT') || (tr === 'DOWN' && s.dir === 'CALL');
+  return `<svg class="tr-ico ${tr}" viewBox="0 0 26 26" width="30" height="30"><polyline points="${stairs}" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></svg>
+    <span class="tr-lbl">${t('trend_on', { tf })}</span><b class="tr-val ${tr}">${t('trend_' + tr)}</b>
+    ${against ? `<span class="tr-warn">⚠ ${t('trend_against')}</span>` : tr !== 'FLAT' ? `<span class="tr-ok">✓ ${t('trend_with')}</span>` : ''}`;
+}
 function updateAdxBoxes() {
   if (!state) return;
+  document.querySelectorAll('[data-trend-id]').forEach(el => {
+    const s = state.signals.find(x => x.id === el.dataset.trendId);
+    if (s) { const html = trendBox(s); if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; } }
+  });
   document.querySelectorAll('[data-adx-id]').forEach(el => {
     const s = state.signals.find(x => x.id === el.dataset.adxId);
     if (s) { const html = adxBox(s); if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; } }

@@ -181,7 +181,15 @@ class Engine extends EventEmitter {
     const c = sig.tf[0] === 'S' ? m1 : I.resample(m1, m, true);
     const a = I.adx(c, 14)[c.length - 1];
     const rg = I.regime(c, c.length - 1, this.settings);
-    return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null } : null;
+    // Trend on the signal's own timeframe (user, 04.11.2026: "show the trend on the card, M1 signal = M1 trend"):
+    // EMA 9 above EMA 21, EMA 21 rising over 5 candles and price above EMA 21 = UP; the mirror = DOWN; else FLAT.
+    const cl = c.map(k => k.close), e9 = I.ema(cl, 9), e21 = I.ema(cl, 21), L = c.length - 1;
+    let trend = 'FLAT';
+    if (e21[L] !== null && e21[L - 5] !== null) {
+      if (e9[L] > e21[L] && e21[L] > e21[L - 5] && cl[L] > e21[L]) trend = 'UP';
+      else if (e9[L] < e21[L] && e21[L] < e21[L - 5] && cl[L] < e21[L]) trend = 'DOWN';
+    }
+    return a ? { adx: +a.adx.toFixed(1), pdi: +a.pdi.toFixed(1), mdi: +a.mdi.toFixed(1), regime: rg ? rg.regime : null, trend } : null;
   }
 
   // One sample per running signal (kept up to 2 min after expiry for the card); history = the last 36 samples (3 min).
