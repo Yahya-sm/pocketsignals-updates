@@ -20,13 +20,10 @@ const META = {
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
   early: [L('Ранний разворот', 'Frühe Umkehr', 'Early reversal'), 'rev'],
   n_rsi8020: [L('Возврат из крайних зон (стохастик / RSI)', 'Rückkehr aus Extremzonen (Stochastik / RSI)', 'Return from extreme zones (Stochastic / RSI)'), 'rev'],
-  n_rsi2: [L('RSI 2 · перегрев', 'RSI 2 · Überhitzung', 'RSI 2 · overheated'), 'rev'],
-  n_sbs: [L('SBS', 'SBS'), 'trend'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
   n_vortex: [L('Vortex + MACD', 'Vortex + MACD'), 'trend'],
-  n_mamacd: [L('MA + MACD', 'MA + MACD'), 'trend'],
   n_psar: [L('Supertrend + PSAR', 'Supertrend + PSAR'), 'trend'],
-  ma4813: [L('MA 4/8/13', 'MA 4/8/13'), 'trend'],
+  n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
 
@@ -79,15 +76,13 @@ const DEFAULTS = {
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
   n_rsi8020: { ...REV, rx_osc: 'STOCH', rsi_levels: '80/20', rx_live: true, rx_k: 14, rx_ks: 3, rsi_period: 14 },
-  n_rsi2: { ...REV, rsi2_threshold: 5, rsi2_buy: true, rsi2_sell: true },
-  n_sbs: { ...TREND, ma_fast: 5, ma_slow: 10, stoch_k: 14 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   n_vortex: { ...TREND, vx_use_vortex: true, vortex_period: 14, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_adx_period: 14, vx_adx_min: 25,
     vx_use_rsi: false, vx_rsi_period: 14, vx_rsi_mid: 50, vx_rsi_max: 70 },
-  n_mamacd: { ...TREND, ema_period: 20, macd_fast: 6, macd_slow: 19, macd_signal: 6 },
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
-  // 03.11.2026: level filter + ADX 15 left almost nothing (measured ~1 signal per 2.5 h per pair) – both off by default.
-  ma4813: { ...TREND, room_check: false, min_adx: 0, ma3_fast: 4, ma3_mid: 8, ma3_slow: 13, ma3_type: 'EMA' },
+  // Entry with the trend once the pullback has ended (see S.n_trendpull).
+  n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
+    tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20 },
 };
 
 // Strong-trend presets start from "all extras off, no higher timeframes" so a preset never keeps a stray switch.
@@ -327,7 +322,7 @@ function liveMode(name, settings) {
   // Stochastic zone return: at the touch inside the forming candle (rx_live) or after the candle closed.
   if (name === 'n_rsi8020') return (p.rx_osc || 'STOCH') === 'STOCH' && p.rx_live !== false ? 'live' : 'closed';
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
-  if (name === 'n_deeprev' || name === 'n_strongtrend') return 'closed';
+  if (name === 'n_deeprev' || name === 'n_strongtrend' || name === 'n_trendpull') return 'closed';
   return 'legacy';
 }
 
@@ -717,19 +712,6 @@ const S = {
     if (r[i - 1] > hi && r[i] <= hi) return sig(-1, 72, L(`RSI вернулся ниже ${hi}`, `RSI zurück unter ${hi}`, `RSI back below ${hi}`));
     return null;
   },
-  n_rsi2(x, p) {
-    const r = x.rsi(2)[x.last], t = p.rsi2_threshold || 5;
-    if (r <= t && p.rsi2_buy !== false) return sig(1, 72, `RSI(2) = ${r.toFixed(1)}`);
-    if (r >= 100 - t && p.rsi2_sell !== false) return sig(-1, 72, `RSI(2) = ${r.toFixed(1)}`);
-    return null;
-  },
-  n_sbs(x, p) {
-    const i = x.last, d = cross(x.sma(p.ma_fast || 5), x.sma(p.ma_slow || 10), i); if (!d) return null;
-    const { k, d: dd } = x.stoch(p.stoch_k || 14, 3, 3);
-    if (d > 0 ? k[i] < dd[i] : k[i] > dd[i]) return null;
-    if (I.dirOf(x.c[i]) !== d) return null;
-    return sig(d, 74, L(`MA ${p.ma_fast} пересекла MA ${p.ma_slow}, Stochastic согласен`, `MA ${p.ma_fast} kreuzt MA ${p.ma_slow}, Stochastic stimmt zu`, `MA ${p.ma_fast} crossed MA ${p.ma_slow}, Stochastic agrees`));
-  },
   n_stochenv(x, p) {
     const i = x.last, m = x.sma(p.env_period || 20), pct = (p.env_pct || 0.1) / 100, z = p.stoch_zone || 20;
     const { k } = x.stoch(p.stoch_k || 5, 3, 3); if (m[i - 1] === null) return null;
@@ -763,12 +745,6 @@ const S = {
     const up = d > 0, parts = [useV && 'Vortex', useM && 'MACD', useA && `ADX ${a[i].adx.toFixed(0)}`, useR && `RSI ${rv.toFixed(0)}`].filter(Boolean).join(' + ');
     return sig(d, 74, L(`${parts}: ${up ? 'вверх' : 'вниз'}`, `${parts}: ${up ? 'aufwärts' : 'abwärts'}`, `${parts}: ${up ? 'up' : 'down'}`));
   },
-  n_mamacd(x, p) {
-    const i = x.last, e = x.ema(p.ema_period || 20), mc = I.macd(x.close, p.macd_fast || 6, p.macd_slow || 19, p.macd_signal || 6);
-    const d = cross(x.close, e, i); if (!d) return null;
-    if (d > 0 ? mc.line[i] < mc.signal[i] : mc.line[i] > mc.signal[i]) return null;
-    return sig(d, 73, L(`цена пересекла EMA ${p.ema_period}, MACD по направлению`, `Kurs kreuzt EMA ${p.ema_period}, MACD in Richtung`, `price crossed EMA ${p.ema_period}, MACD agrees`));
-  },
   n_psar(x, p) {
     const i = x.last, st = I.supertrend(x.c, p.st_period || 10, p.st_mult || 1.5), ps = x.psar(p.sar_step || 0.02, p.sar_max || 0.2);
     if (!st[i] || !st[i - 1] || st[i].up === st[i - 1].up) return null;
@@ -778,12 +754,47 @@ const S = {
     if (!recent) return null;
     return sig(d, 77, L('разворот Supertrend и PSAR', 'Supertrend und PSAR drehen', 'Supertrend and PSAR flip'));
   },
-  ma4813(x, p) {
-    const t = p.ma3_type || 'EMA', f = Number(p.ma3_fast) || 4, m = Number(p.ma3_mid) || 8, s = Number(p.ma3_slow) || 13;
-    const a = I.ma(x.close, f, t), b = I.ma(x.close, m, t), c = I.ma(x.close, s, t);
-    const i = x.last, d = cross(a, b, i); if (!d || c[i] === null) return null;
-    if (d > 0 ? b[i] < c[i] : b[i] > c[i]) return null; // middle MA must be on the right side of the slow one
-    return sig(d, 72, L(`${t} ${f} пересекла ${t} ${m} по ${t} ${s}`, `${t} ${f} kreuzt ${t} ${m} im Sinne der ${t} ${s}`, `${t} ${f} crossed ${t} ${m} with ${t} ${s}`));
+  // Trend pullback: only with the trend, after the pullback ended. Up (down = mirror): the last two confirmed swing highs
+  // and lows rise and the last low is before the last high; the pullback from that high lasts at most tp_bars_max candles,
+  // is tp_depth_min–tp_depth_max % of the impulse and keeps above the last low; entry = a candle with the trend closing
+  // beyond the previous candle's high but not beyond the last high, on the right side of the EMA.
+  n_trendpull(x, p) {
+    const c = x.c, i = x.last, R = Math.max(1, Number(p.tp_right) || 2), atr = x.atr[i], ema = x.ema(Number(p.tp_ema) || 20)[i];
+    if (!atr || ema == null) return null;
+    // Swing points confirmed by R candles on each side, newest first. dir 1 = highs, -1 = lows (value × dir compares both alike).
+    const swings = d => {
+      const v = k => (d > 0 ? c[k].high : -c[k].low), out = [];
+      for (let j = i - R; j >= Math.max(R, i - 80) && out.length < 2; j--) {
+        let ok = true;
+        for (let q = j - R; q <= j + R && ok; q++) if (q !== j && (q < j ? v(q) >= v(j) : v(q) > v(j))) ok = false;
+        if (ok) out.push(j);
+      }
+      return out;
+    };
+    const H = swings(1), Lo = swings(-1); if (H.length < 2 || Lo.length < 2) return null;
+    const dp = v => v.toFixed(v > 20 ? 3 : 5);
+    for (const d of [1, -1]) {
+      if (d > 0 ? p.tp_buy === false : p.tp_sell === false) continue;
+      // Up: peak = last high, base = last low. Down: peak = last low, base = last high.
+      const peaks = d > 0 ? H : Lo, bases = d > 0 ? Lo : H;
+      const val = k => (d > 0 ? c[k].high : c[k].low), baseVal = k => (d > 0 ? c[k].low : c[k].high);
+      if ((val(peaks[0]) - val(peaks[1])) * d <= 0 || (baseVal(bases[0]) - baseVal(bases[1])) * d <= 0) continue;
+      if (bases[0] >= peaks[0]) continue;
+      const bars = i - peaks[0]; if (bars > (Number(p.tp_bars_max) || 5)) continue;
+      const peak = val(peaks[0]), base = baseVal(bases[0]), imp = (peak - base) * d;
+      if (imp < (Number(p.tp_imp_atr) || 0) * atr) continue;
+      let far = baseVal(peaks[0] + 1); // the far end of the pullback ("bottom" when going up)
+      for (let k = peaks[0] + 1; k <= i; k++) far = d > 0 ? Math.min(far, c[k].low) : Math.max(far, c[k].high);
+      const depth = (peak - far) * d / imp * 100;
+      if (depth < Number(p.tp_depth_min) || depth > Number(p.tp_depth_max) || (far - base) * d <= 0) continue;
+      const k = c[i], cl = k.close;
+      if ((cl - k.open) * d <= 0 || (cl - (d > 0 ? c[i - 1].high : c[i - 1].low)) * d <= 0 || (cl - peak) * d > 0 || (cl - ema) * d <= 0) continue;
+      if ((peak - cl) * d < (Number(p.tp_room_atr) || 0) * atr) continue;
+      if ((cl - far) * d > (Number(p.tp_candle_atr) || Infinity) * atr) continue;
+      const pct = depth.toFixed(0), stop = dp(far);
+      return sig(d, 75, L(`откат ${pct} % закончился, вход по тренду; отмена ${stop}`, `Rücklauf ${pct} % beendet, Einstieg im Trend; Abbruch ${stop}`, `${pct} % pullback over, entry with the trend; cancel at ${stop}`));
+    }
+    return null;
   },
 };
 
@@ -868,6 +879,16 @@ function evaluate(candlesByTf, enabled, settings) {
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
       if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) continue;
+      // Small candles (rg_vol, 0 = off): average size of the last 5 candles / average of the pair's other candles on this timeframe.
+      const minVol = Number(settings.rg_vol ?? 0.7);
+      if (minVol > 0) {
+        if (x.volRatio === undefined) {
+          const sz = k => k.high - k.low, n5 = c.length - 5;
+          const a5 = c.slice(n5).reduce((t, k) => t + sz(k), 0) / 5, rest = c.slice(0, n5).reduce((t, k) => t + sz(k), 0) / n5;
+          x.volRatio = rest > 0 ? a5 / rest : null;
+        }
+        if (x.volRatio !== null && x.volRatio < minVol) continue;
+      }
       // regime_mode: off | auto (by strategy type) | trend (only in TREND) | range (only in RANGE, ADX below rg_range_adx).
       const rm = settings.regime_mode || (settings.regime_filter ? 'auto' : 'off');
       if (x.rg && rm !== 'off') {
@@ -895,6 +916,6 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-const HELP = {}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend'];
+const HELP = {}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull'];
 
 module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };

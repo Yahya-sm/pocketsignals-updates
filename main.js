@@ -61,12 +61,28 @@ function openPocketOption(symbol, name, withTimeframe = false, exp = 0, lang = '
     webPreferences: { partition: 'persist:pocketoption', contextIsolation: true },
   });
   watchPoLogin(poWin);
+  watchPoClicks(poWin);
   poWin.loadURL(poStartUrl(engine.settings)); // demo or real, as last time or as set in the settings
   poWin.webContents.on('did-navigate', (_e, url) => rememberPoMode(url));
   poWin.webContents.on('did-navigate-in-page', (_e, url) => rememberPoMode(url));
   // Wait for the trading UI (the user may need to log in once; the session is kept).
   poWin.webContents.on('did-finish-load', () => { if (/cabinet/.test(poWin.webContents.getURL())) run(); });
   poWin.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+}
+
+// po_click_toggle: one click in the PocketOption window hides PocketSignals, only a double click brings it back.
+// The page only reports clicks through the console; the clicks themselves reach PocketOption as usual.
+// A double click starts with a click that hides the window, so a double click right after hiding (700 ms) does not show it again.
+function watchPoClicks(w) {
+  let hiddenAt = 0;
+  const report = "if(!window.__psClicks){window.__psClicks=1;addEventListener('click',()=>console.log('__ps_click__'),true);addEventListener('dblclick',()=>console.log('__ps_dbl__'),true);}";
+  w.webContents.on('did-finish-load', () => { w.webContents.executeJavaScript(report).catch(() => {}); });
+  w.webContents.on('console-message', (e, _level, message) => {
+    const m = message ?? e.message;
+    if ((m !== '__ps_click__' && m !== '__ps_dbl__') || !win || engine.settings.po_click_toggle === false) return;
+    if (m === '__ps_click__') { if (win.isVisible()) { win.hide(); hiddenAt = Date.now(); } return; }
+    if (!win.isVisible() && Date.now() - hiddenAt > 700) { win.showInactive(); w.focus(); }
+  });
 }
 
 // Reads the PocketOption page's own 42["auth",…] socket message (via the DevTools protocol), so the app

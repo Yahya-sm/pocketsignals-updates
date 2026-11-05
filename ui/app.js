@@ -109,7 +109,7 @@ function render() {
 
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
-    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
+    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
     $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sTrendTf').value = s.trend_tf || 'M5'; $('#sTrendFilter').checked = s.trend_filter;
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
     $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sInterval').value = String(s.scan_interval || 60);
@@ -536,7 +536,7 @@ document.addEventListener('click', e => {
     if (el.dataset.tab === 'signals') showFresh();
   }
   if (el.id === 'newPill') showFresh();
-  if (el.id === 'rgReset') call({ action: 'settings', patch: { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5 } });
+  if (el.id === 'rgReset') call({ action: 'settings', patch: { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 } });
   if (el.dataset.lang) changeLang(el.dataset.lang);
   if (el.dataset.dir) { dirFilter = el.dataset.dir; document.querySelectorAll('[data-dir]').forEach(b => b.classList.toggle('active', b === el)); render(); }
   if (el.dataset.hist) { histView = el.dataset.hist; document.querySelectorAll('[data-hist]').forEach(b => b.classList.toggle('active', b === el)); render(); }
@@ -572,6 +572,7 @@ document.addEventListener('change', e => {
   if (el.id === 'sRegimeMode') patch.regime_mode = el.value;
   if (el.dataset.rg && el.value !== '' && Number.isFinite(+el.value)) patch[el.dataset.rg] = +el.value;
   if (el.id === 'sChaos') patch.chaos_skip = el.checked;
+  if (el.id === 'sPoClick') patch.po_click_toggle = el.checked;
   if (el.id === 'sMini') patch.mini_on_blur = el.checked;
   if (el.id === 'sM5') patch.show_m5 = el.checked;
   if (el.id === 'sPoStart') patch.po_start_mode = el.value;
@@ -771,6 +772,7 @@ if (updater) {
 }
 if (isDesktop && window.desktop.onCompact) {
   $('#miniRow').hidden = false;
+  $('#poClickRow').hidden = false; $('#poClickRow').style.display = '';
   document.querySelectorAll('.miniOpt').forEach(el => { el.hidden = false; });
   // Tell the window that the click came from inside the mini view, so focusing it keeps it small.
   if (window.desktop.miniPointer) $('#mini').addEventListener('pointerdown', () => window.desktop.miniPointer(), true);

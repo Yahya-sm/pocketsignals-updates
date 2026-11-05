@@ -7,7 +7,8 @@ const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
-const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5 };
+const HIDDEN = ['n_levelrev']; // code stays, not offered in the app
+const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
 
 const ROOT = path.join(__dirname, '..');
@@ -45,7 +46,6 @@ class Engine extends EventEmitter {
     if (!this.settings.lr_soft_1028) {
       const s = this.settings, ss = (s.strategy_settings ||= {});
       ss.n_levelrev = { ...ss.n_levelrev, ...strategies.PRESETS.n_levelrev[1].values, lr_use_corridor: false, lr_use_beyond: false, lr_imp_move_sd: 2 };
-      s.strategies = ['n_levelrev'];
       if (Array.isArray(s.pairs)) s.pairs = s.pairs.filter(p => !/GBP|NZD/.test(p));
       s.lr_soft_1028 = true;
       writeJson(this.settingsFile, s);
@@ -56,15 +56,8 @@ class Engine extends EventEmitter {
       this.settings.vrev_spike_1028 = true;
       writeJson(this.settingsFile, this.settings);
     }
-    // 03.11.2026: MA 4/8/13 gave no signals – the saved level filter / ADX values go back to the new defaults (off).
-    if (!this.settings.ma4813_open_1103) {
-      const m = this.settings.strategy_settings?.ma4813;
-      if (m) { delete m.room_check; delete m.room_min; delete m.min_adx; }
-      this.settings.ma4813_open_1103 = true;
-      writeJson(this.settingsFile, this.settings);
-    }
     // Strategies removed from the program (29.10.2026) drop out of the enabled list.
-    if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n]);
+    if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n] && !HIDDEN.includes(n));
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
     if (!this.settings.pc_match_1028) {
       Object.assign(this.settings, { min_payout: 75, min_confirm: 1, min_strength: 60, trend_only: false, no_countertrend: false,
@@ -722,7 +715,7 @@ class Engine extends EventEmitter {
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],
-        allStrategies: strategies.list.map(k => ({
+        allStrategies: strategies.list.filter(k => !['n_levelrev'].includes(k)).map(k => ({
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
           presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null, labels: strategies.LABELS[k] || null,
@@ -734,7 +727,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

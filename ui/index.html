@@ -80,6 +80,7 @@
       <label class="row"><span data-i18n="trend_tf"></span>
         <select id="sTrendTf"><option>M1</option><option>M2</option><option>M3</option><option>M5</option><option>M10</option><option>M15</option><option>M30</option></select></label>
       <label class="row"><span><span data-i18n="trend_filter"></span><small data-i18n="trend_filter_hint"></small></span><input type="checkbox" class="sw" id="sTrendFilter"></label>
+      <label class="row" id="poClickRow" hidden style="display:none"><span><span data-i18n="po_click"></span><small data-i18n="po_click_hint"></small></span><input type="checkbox" class="sw" id="sPoClick"></label>
       <label class="row" id="miniRow" hidden style="display:none"><span><span data-i18n="mini"></span><small data-i18n="mini_hint"></small></span><input type="checkbox" class="sw" id="sMini"></label>
       <label class="row miniOpt" hidden><span data-i18n="mini_count"></span>
         <select id="sMiniCount"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
@@ -104,7 +105,8 @@
         <label class="row"><span><span data-i18n="rg_range_adx"></span><small data-i18n="rg_range_adx_hint"></small></span><input type="number" step="1" min="5" max="60" data-rg="rg_range_adx"></label>
         <label class="row"><span><span data-i18n="rg_chaos_atr"></span><small data-i18n="rg_chaos_atr_hint"></small></span><input type="number" step="0.1" min="0" max="10" data-rg="rg_chaos_atr"></label>
         <label class="row"><span><span data-i18n="rg_spike"></span><small data-i18n="rg_spike_hint"></small></span><input type="number" step="0.5" min="0" max="20" data-rg="rg_spike"></label>
-        <button class="chip" id="rgReset" data-i18n="rg_reset"></button>
+        <label class="row"><span><span data-i18n="rg_vol"></span><small data-i18n="rg_vol_hint"></small></span><input type="number" step="0.1" min="0" max="3" data-rg="rg_vol"></label>
+      <button class="chip" id="rgReset" data-i18n="rg_reset"></button>
       </details>
       <label class="row"><span><span data-i18n="scan_every"></span><small data-i18n="scan_every_hint"></small></span>
         <select id="sInterval"><option value="5">5 s</option><option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
