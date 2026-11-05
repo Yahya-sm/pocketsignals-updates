@@ -58,6 +58,14 @@ class Engine extends EventEmitter {
     }
     // Strategies removed from the program (29.10.2026) drop out of the enabled list.
     if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n] && !HIDDEN.includes(n));
+    // 05.11.2026: "Trend pullback" is switched on once, on M1 (the user asked for it); switching it off later stays off.
+    if (!this.settings.trendpull_on_1105) {
+      const s = this.settings;
+      s.strategies = [...new Set([...(s.strategies || []), 'n_trendpull'])];
+      s.strat_tfs = { ...s.strat_tfs, n_trendpull: s.strat_tfs?.n_trendpull || ['M1'] };
+      s.trendpull_on_1105 = true;
+      writeJson(this.settingsFile, s);
+    }
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
     if (!this.settings.pc_match_1028) {
       Object.assign(this.settings, { min_payout: 75, min_confirm: 1, min_strength: 60, trend_only: false, no_countertrend: false,
