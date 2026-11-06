@@ -84,7 +84,7 @@ const DEFAULTS = {
   n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
-    tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20 },
+    tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20, tp_first: true, tp_return_max: 50 },
 };
 
 // Strong-trend presets start from "all extras off, no higher timeframes" so a preset never keeps a stray switch.
@@ -307,11 +307,11 @@ const TESTS = {
     title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
     cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
     rows: [
-      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '11', '49,3', '52,0', '50,6', '51,3'],
-      [L('2 Часто', '2 Oft', '2 Often'), '6,6', '50,3', '53,8', '52,0', '53,3'],
-      [L('3 Средне', '3 Mittel', '3 Medium'), '2,3', '50,0', '53,8', '51,7', '52,7'],
-      [L('4 Строже', '4 Strenger', '4 Stricter'), '0,9', '44,4', '53,8', '51,9', '53,8'],
-      [L('5 Строго', '5 Streng', '5 Strict'), '0,2', '35,3', '47,4', '55,0', '55,0'],
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '1,7', '48,3', '49,7', '45,9', '46,4'],
+      [L('2 Часто', '2 Oft', '2 Often'), '1,1', '49,5', '52,0', '47,4', '46,5'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '0,6', '40,4', '42,9', '42,0', '44,2'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '0,4', '25,8', '38,2', '45,7', '47,2'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '0,2', '25,0', '30,8', '42,9', '50,0'],
     ],
     note: PROFILE_NOTE,
   }],
@@ -1010,11 +1010,16 @@ const S = {
       const peak = val(peaks[0]), base = baseVal(bases[0]), imp = (peak - base) * d;
       if (imp < (Number(p.tp_imp_atr) || 0) * atr) continue;
       let far = baseVal(peaks[0] + 1); // the far end of the pullback ("bottom" when going up)
-      for (let k = peaks[0] + 1; k <= i; k++) far = d > 0 ? Math.min(far, c[k].low) : Math.max(far, c[k].high);
+      let farI = peaks[0] + 1;
+      for (let k = peaks[0] + 1; k <= i; k++) { const v = baseVal(k); if ((far - v) * d >= 0 && (k === peaks[0] + 1 || (far - v) * d > 0)) { far = v; farI = k; } }
       const depth = (peak - far) * d / imp * 100;
       if (depth < Number(p.tp_depth_min) || depth > Number(p.tp_depth_max) || (far - base) * d <= 0) continue;
       const k = c[i], cl = k.close;
       if ((cl - k.open) * d <= 0 || (cl - (d > 0 ? c[i - 1].high : c[i - 1].low)) * d <= 0 || (cl - peak) * d > 0 || (cl - ema) * d <= 0) continue;
+      // Not late (user, 06.11.2026): only the first candle closing with the trend from the pullback's far end, and at most
+      // tp_return_max % of the pullback already won back when entering.
+      if (p.tp_first !== false) { let turned = false; for (let q = farI; q < i; q++) if (I.dirOf(c[q]) === d) turned = true; if (turned) continue; }
+      if (Number(p.tp_return_max) > 0 && (cl - far) * d > Number(p.tp_return_max) / 100 * (peak - far) * d) continue;
       if ((peak - cl) * d < (Number(p.tp_room_atr) || 0) * atr) continue;
       if ((cl - far) * d > (Number(p.tp_candle_atr) || Infinity) * atr) continue;
       const pct = depth.toFixed(0), stop = dp(far);
@@ -1303,7 +1308,7 @@ const HELP = {
   n_trendpull: [{
     title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
     body: [
-      L('Идея: вход по тренду, когда откат закончился. Строже: уже допустимая глубина отката, короче откат, больше импульс, больше места до прошлого экстремума, меньше сигнальная свеча.', 'Idee: Einstieg im Trend, wenn der Rücklauf beendet ist. Strenger: engere Rücklauftiefe, kürzerer Rücklauf, größerer Impuls, mehr Platz zum letzten Extrem, kleinere Signalkerze.', 'Idea: entry with the trend once the pullback is over. Stricter: narrower pullback depth, shorter pullback, bigger impulse, more room to the last extreme, smaller signal candle.'),
+      L('Во всех профилях: сигнал только на первой свече по тренду от дна отката, и к входу цена вернула не больше половины отката (настройки «Только первая свеча» и «Вернул от отката не больше»). Идея: вход по тренду, когда откат закончился. Строже: уже допустимая глубина отката, короче откат, больше импульс, больше места до прошлого экстремума, меньше сигнальная свеча.', 'In allen Profilen: Signal nur auf der ersten Trendkerze vom Rücklauf-Ende, und beim Einstieg ist höchstens die Hälfte des Rücklaufs zurückgewonnen (Einstellungen „Nur erste Kerze“ und „Vom Rücklauf zurück höchstens“). Idee: Einstieg im Trend, wenn der Rücklauf beendet ist. Strenger: engere Rücklauftiefe, kürzerer Rücklauf, größerer Impuls, mehr Platz zum letzten Extrem, kleinere Signalkerze.', 'In all profiles: signal only on the first with-trend candle from the pullback end, with at most half of the pullback won back at entry (settings "First candle only" and "Won back at most"). Idea: entry with the trend once the pullback is over. Stricter: narrower pullback depth, shorter pullback, bigger impulse, more room to the last extreme, smaller signal candle.'),
       L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
       L('1 Очень часто: глубина 23,6–78,6 %, откат до 8 свечей, импульс от 1 ATR, место от 0,2 ATR, свеча до 2,5 ATR.', '1 Sehr oft: Tiefe 23,6–78,6 %, Rücklauf bis 8 Kerzen, Impuls ab 1 ATR, Platz ab 0,2 ATR, Kerze bis 2,5 ATR.', '1 Very often: depth 23.6–78.6 %, pullback up to 8 candles, impulse from 1 ATR, room from 0.2 ATR, candle up to 2.5 ATR.'),
       L('2 Часто: глубина 30–70 %, откат до 6, импульс от 1,5, место от 0,3, свеча до 2.', '2 Oft: Tiefe 30–70 %, Rücklauf bis 6, Impuls ab 1,5, Platz ab 0,3, Kerze bis 2.', '2 Often: depth 30–70 %, pullback up to 6, impulse from 1.5, room from 0.3, candle up to 2.'),

@@ -418,6 +418,7 @@ const PARAM_NAMES = {
   tp_depth_min: ['Rücklauf mindestens, %', 'Глубина отката от, %', 'Pullback at least, %'], tp_depth_max: ['Rücklauf höchstens, %', 'Глубина отката до, %', 'Pullback at most, %'],
   tp_bars_max: ['Rücklauf höchstens … Kerzen', 'Откат не дольше … свечей', 'Pullback at most … candles'],
   tp_imp_atr: ['Impuls mindestens, ATR', 'Импульс от, ATR', 'Impulse at least, ATR'], tp_room_atr: ['Platz bis zum Extrem mindestens, ATR', 'Запас до экстремума от, ATR', 'Room to the extreme at least, ATR'],
+  tp_first: ['Nur erste Kerze nach dem Rücklauf', 'Только первая свеча после отката', 'First candle after the pullback only'], tp_return_max: ['Vom Rücklauf zurück höchstens, % (0 = aus)', 'Вернул от отката не больше, % (0 = выкл.)', 'Won back of the pullback at most, % (0 = off)'],
   tp_candle_atr: ['Vom Rücklauf-Ende bis Schluss höchstens, ATR', 'От конца отката до закрытия не больше, ATR', 'From pullback end to close at most, ATR'],
   tp_ema: ['EMA-Periode', 'Период EMA', 'EMA period'],
   candle_ma: ['SMA-Periode für Kerzenkreuzung', 'Период SMA для пересечения свечой', 'SMA period for candle cross'],
