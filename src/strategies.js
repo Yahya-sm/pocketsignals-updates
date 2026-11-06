@@ -101,6 +101,29 @@ const PRESETS = {
     { name: L('Строго', 'Streng', 'Strict'), values: { ...BS, bs_body: 3, bs_use_range: true, bs_max_slope: 1.5, bs_max_dist: 2.5 } },
     { name: L('С подтверждением', 'Mit Bestätigung', 'With confirmation'), values: { ...BS, bs_mode: 'C', bs_body: 2.5, bs_use_range: true, bs_max_slope: 1.5, bs_max_dist: 2.5 } },
   ],
+  // Strictness levels (user, 06.11.2026). "Medium" = the strategy's defaults; expiry stays the user's. Results: TESTS.
+  n_sharp: [
+    { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 3, sharp_low: 30, sharp_high: 70, sharp_wait: 15 } },
+    { name: L('Часто', 'Oft', 'Often'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 3, sharp_low: 25, sharp_high: 75, sharp_wait: 10 } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 4, sharp_low: 20, sharp_high: 80, sharp_wait: 10 } },
+    { name: L('Строже', 'Strenger', 'Stricter'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 5, sharp_low: 20, sharp_high: 80, sharp_wait: 8 } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 5, sharp_low: 15, sharp_high: 85, sharp_wait: 5 } },
+    { name: L('С подтверждением RSI', 'Mit RSI-Bestätigung', 'With RSI confirmation'), values: { bot: false, sharp_stoch: true, sharp_rsi: true, sharp_min: 4, sharp_low: 20, sharp_high: 80, sharp_wait: 10 } },
+  ],
+  early: [
+    { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { early_min: 2, early_drop_atr: 0.8 } },
+    { name: L('Часто', 'Oft', 'Often'), values: { early_min: 2, early_drop_atr: 1.2 } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { early_min: 3, early_drop_atr: 1.5 } },
+    { name: L('Строже', 'Strenger', 'Stricter'), values: { early_min: 3, early_drop_atr: 2 } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { early_min: 4, early_drop_atr: 2.5 } },
+  ],
+  n_trendpull: [
+    { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { tp_depth_min: 23.6, tp_depth_max: 78.6, tp_bars_max: 8, tp_imp_atr: 1, tp_room_atr: 0.2, tp_candle_atr: 2.5, min_adx: 0 } },
+    { name: L('Часто', 'Oft', 'Often'), values: { tp_depth_min: 30, tp_depth_max: 70, tp_bars_max: 6, tp_imp_atr: 1.5, tp_room_atr: 0.3, tp_candle_atr: 2, min_adx: 0 } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { tp_depth_min: 38.2, tp_depth_max: 61.8, tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, min_adx: 0 } },
+    { name: L('Строже', 'Strenger', 'Stricter'), values: { tp_depth_min: 38.2, tp_depth_max: 61.8, tp_bars_max: 4, tp_imp_atr: 2.5, tp_room_atr: 0.7, tp_candle_atr: 1.2, min_adx: 0 } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { tp_depth_min: 38.2, tp_depth_max: 61.8, tp_bars_max: 3, tp_imp_atr: 3, tp_room_atr: 1, tp_candle_atr: 1.2, min_adx: 20 } },
+  ],
   // Level 3 = exactly the user's prompt. Measured 28.10.2026 on 17 pairs / ~1.5 h: strict 0–2, medium ~8, soft ~14 signals.
   n_levelrev: [
     { name: L('Мягко', 'Locker', 'Loose'), values: { lr_min_strength: 4, lr_min_touches: 2, lr_near_sd: 2, lr_space_sd: 1.5, lr_corridor_sd: 2,
@@ -138,7 +161,45 @@ const PRESETS = {
 };
 
 // Backtest results shown in the strategy (folded, opened by a tap). Rows: [variant, ...values].
+const PROFILE_NOTE = L('Winrate, %. M1, 12 пар, 8000 минут на пару, обычный рынок (не OTC), без задержек. Безубыток: 54 % при выплате 85 %. Это один период, выбор лучшей клетки завышает результат, а при малом числе сигналов цифры почти случайны; преимущество не доказано.', 'Trefferquote, %. M1, 12 Paare, 8000 Minuten je Paar, normaler Markt (kein OTC), ohne Verzögerung. Break-even: 54 % bei 85 % Auszahlung. Ein Zeitraum; die beste Zelle auszuwählen überschätzt das Ergebnis, bei wenigen Signalen sind die Zahlen fast Zufall; kein Vorteil belegt.', 'Win rate, %. M1, 12 pairs, 8000 minutes per pair, normal market (not OTC), no delays. Break-even: 54 % at 85 % payout. One period; picking the best cell overstates the result, and with few signals the numbers are almost random; no edge proven.');
 const TESTS = {
+  n_sharp: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '56', '50,8', '50,9', '50,9', '50,6'],
+      [L('2 Часто', '2 Oft', '2 Often'), '49', '51,3', '51,7', '51,5', '50,6'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '30', '51,3', '52,5', '51,8', '50,6'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '15', '52,7', '52,1', '52,1', '50,3'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '12', '50,9', '53,5', '51,8', '51,2'],
+      [L('6 С подтверждением RSI', '6 Mit RSI-Bestätigung', '6 With RSI confirmation'), '17', '53,5', '53,4', '52,8', '51,7'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  early: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '38', '50,1', '47,9', '49,8', '48,5'],
+      [L('2 Часто', '2 Oft', '2 Often'), '27', '50,5', '47,9', '49,9', '47,9'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '16', '50,6', '49,2', '50,4', '48,5'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '11', '51,0', '49,1', '51,4', '49,3'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '5,5', '50,3', '49,4', '52,6', '49,2'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  n_trendpull: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '11', '49,3', '52,0', '50,6', '51,3'],
+      [L('2 Часто', '2 Oft', '2 Often'), '6,6', '50,3', '53,8', '52,0', '53,3'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '2,3', '50,0', '53,8', '51,7', '52,7'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '0,9', '44,4', '53,8', '51,9', '53,8'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '0,2', '35,3', '47,4', '55,0', '55,0'],
+    ],
+    note: PROFILE_NOTE,
+  }],
   n_big: [{
     title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
     cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
@@ -354,6 +415,7 @@ function liveMode(name, settings) {
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_big' && (p.bs_on || (settings.strat_presets?.n_big || []).length)) return 'closed'; // big-candle mode: closed candles only
+  if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   // Stochastic zone return: at the touch inside the forming candle (rx_live) or after the candle closed.
@@ -994,6 +1056,46 @@ function evaluate(candlesByTf, enabled, settings) {
 }
 
 const HELP = {
+  n_sharp: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Идея: серия свечей в одну сторону, затем стохастик выходит из зоны — сигнал на отскок. Строже: длиннее серия, дальше зона, меньше ожидание после серии.', 'Idee: Eine Kerzenserie in eine Richtung, dann verlässt der Stochastik seine Zone – Signal auf den Rücksprung. Strenger: längere Serie, weitere Zone, kürzere Wartezeit nach der Serie.', 'Idea: a series of candles one way, then the Stochastic leaves its zone – signal for a rebound. Stricter: longer series, wider zone, shorter wait after the series.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: серия от 3 свечей, зона 30/70, ожидание 15 свечей.', '1 Sehr oft: Serie ab 3 Kerzen, Zone 30/70, Wartezeit 15 Kerzen.', '1 Very often: series from 3 candles, zone 30/70, wait 15 candles.'),
+      L('2 Часто: серия от 3, зона 25/75, ожидание 10.', '2 Oft: Serie ab 3, Zone 25/75, Wartezeit 10.', '2 Often: series from 3, zone 25/75, wait 10.'),
+      L('3 Средне: серия от 4, зона 20/80, ожидание 10. Это обычные настройки стратегии, с него лучше начать.', '3 Mittel: Serie ab 4, Zone 20/80, Wartezeit 10. Die normalen Einstellungen, guter Start.', '3 Medium: series from 4, zone 20/80, wait 10. The usual settings, a good start.'),
+      L('4 Строже: серия от 5, зона 20/80, ожидание 8.', '4 Strenger: Serie ab 5, Zone 20/80, Wartezeit 8.', '4 Stricter: series from 5, zone 20/80, wait 8.'),
+      L('5 Строго: серия от 5, зона 15/85, ожидание 5.', '5 Streng: Serie ab 5, Zone 15/85, Wartezeit 5.', '5 Strict: series from 5, zone 15/85, wait 5.'),
+      L('6 С подтверждением RSI: как «Средне», но для CALL RSI не выше 45, для PUT не ниже 55.', '6 Mit RSI-Bestätigung: wie „Mittel“, aber RSI für CALL höchstens 45, für PUT mindestens 55.', '6 With RSI confirmation: like "Medium" but RSI at most 45 for CALL, at least 55 for PUT.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  early: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Идея: серия свечей в одну сторону, затем свеча закрывается за экстремумом последней свечи серии — сигнал на разворот. Строже: длиннее серия и больше пройденное движение в ATR.', 'Idee: Eine Kerzenserie in eine Richtung, dann schließt eine Kerze jenseits des Extrems der letzten Serienkerze – Signal auf die Umkehr. Strenger: längere Serie und größere Bewegung in ATR.', 'Idea: a series of candles one way, then a candle closes beyond the extreme of the last series candle – reversal signal. Stricter: longer series and bigger move in ATR.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: серия от 2 свечей, движение от 0,8 ATR.', '1 Sehr oft: Serie ab 2 Kerzen, Bewegung ab 0,8 ATR.', '1 Very often: series from 2 candles, move from 0.8 ATR.'),
+      L('2 Часто: серия от 2, движение от 1,2 ATR.', '2 Oft: Serie ab 2, Bewegung ab 1,2 ATR.', '2 Often: series from 2, move from 1.2 ATR.'),
+      L('3 Средне: серия от 3, движение от 1,5 ATR. Это обычные настройки стратегии, с него лучше начать.', '3 Mittel: Serie ab 3, Bewegung ab 1,5 ATR. Die normalen Einstellungen, guter Start.', '3 Medium: series from 3, move from 1.5 ATR. The usual settings, a good start.'),
+      L('4 Строже: серия от 3, движение от 2 ATR.', '4 Strenger: Serie ab 3, Bewegung ab 2 ATR.', '4 Stricter: series from 3, move from 2 ATR.'),
+      L('5 Строго: серия от 4, движение от 2,5 ATR.', '5 Streng: Serie ab 4, Bewegung ab 2,5 ATR.', '5 Strict: series from 4, move from 2.5 ATR.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_trendpull: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Идея: вход по тренду, когда откат закончился. Строже: уже допустимая глубина отката, короче откат, больше импульс, больше места до прошлого экстремума, меньше сигнальная свеча.', 'Idee: Einstieg im Trend, wenn der Rücklauf beendet ist. Strenger: engere Rücklauftiefe, kürzerer Rücklauf, größerer Impuls, mehr Platz zum letzten Extrem, kleinere Signalkerze.', 'Idea: entry with the trend once the pullback is over. Stricter: narrower pullback depth, shorter pullback, bigger impulse, more room to the last extreme, smaller signal candle.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: глубина 23,6–78,6 %, откат до 8 свечей, импульс от 1 ATR, место от 0,2 ATR, свеча до 2,5 ATR.', '1 Sehr oft: Tiefe 23,6–78,6 %, Rücklauf bis 8 Kerzen, Impuls ab 1 ATR, Platz ab 0,2 ATR, Kerze bis 2,5 ATR.', '1 Very often: depth 23.6–78.6 %, pullback up to 8 candles, impulse from 1 ATR, room from 0.2 ATR, candle up to 2.5 ATR.'),
+      L('2 Часто: глубина 30–70 %, откат до 6, импульс от 1,5, место от 0,3, свеча до 2.', '2 Oft: Tiefe 30–70 %, Rücklauf bis 6, Impuls ab 1,5, Platz ab 0,3, Kerze bis 2.', '2 Often: depth 30–70 %, pullback up to 6, impulse from 1.5, room from 0.3, candle up to 2.'),
+      L('3 Средне: глубина 38,2–61,8 %, откат до 5, импульс от 2, место от 0,5, свеча до 1,5. Это обычные настройки стратегии.', '3 Mittel: Tiefe 38,2–61,8 %, Rücklauf bis 5, Impuls ab 2, Platz ab 0,5, Kerze bis 1,5. Die normalen Einstellungen.', '3 Medium: depth 38.2–61.8 %, pullback up to 5, impulse from 2, room from 0.5, candle up to 1.5. The usual settings.'),
+      L('4 Строже: откат до 4, импульс от 2,5, место от 0,7, свеча до 1,2.', '4 Strenger: Rücklauf bis 4, Impuls ab 2,5, Platz ab 0,7, Kerze bis 1,2.', '4 Stricter: pullback up to 4, impulse from 2.5, room from 0.7, candle up to 1.2.'),
+      L('5 Строго: откат до 3, импульс от 3, место от 1, свеча до 1,2, ADX от 20. Сигналы очень редкие.', '5 Streng: Rücklauf bis 3, Impuls ab 3, Platz ab 1, Kerze bis 1,2, ADX ab 20. Sehr seltene Signale.', '5 Strict: pullback up to 3, impulse from 3, room from 1, candle up to 1.2, ADX from 20. Very rare signals.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
   n_big: [{
     title: L('Инструкция: большая свеча в слабом тренде', 'Anleitung: große Kerze im schwachen Trend', 'Guide: big candle in a slow trend'),
     body: [
