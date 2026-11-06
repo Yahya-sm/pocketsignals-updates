@@ -18,11 +18,7 @@ const META = {
   n_levelrev: [L('Разворот от уровня (пин-бар / V-разворот)', 'Umkehr am Level (Pinbar / V-Umkehr)', 'Reversal at a level (pin bar / V-turn)'), 'rev'],
   n_strongtrend: [L('Сильный тренд: вход в начале', 'Starker Trend: Einstieg am Anfang', 'Strong trend: entry at the start'), 'trend'],
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
-  early: [L('Ранний разворот', 'Frühe Umkehr', 'Early reversal'), 'rev'],
-  n_rsi8020: [L('Возврат из крайних зон (стохастик / RSI)', 'Rückkehr aus Extremzonen (Stochastik / RSI)', 'Return from extreme zones (Stochastic / RSI)'), 'rev'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
-  n_vortex: [L('Vortex + MACD', 'Vortex + MACD'), 'trend'],
-  n_psar: [L('Supertrend + PSAR', 'Supertrend + PSAR'), 'trend'],
   n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
@@ -76,12 +72,7 @@ const DEFAULTS = {
     dr_use_spike: true, dr_spike: 3, dr_use_m1: true },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_live: false, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
-  early: { ...REV, early_min: 3, early_drop_atr: 1.5 },
-  n_rsi8020: { ...REV, rx_osc: 'STOCH', rsi_levels: '80/20', rx_live: true, rx_k: 14, rx_ks: 3, rsi_period: 14 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
-  n_vortex: { ...TREND, vx_use_vortex: true, vortex_period: 14, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_adx_period: 14, vx_adx_min: 25,
-    vx_use_rsi: false, vx_rsi_period: 14, vx_rsi_mid: 50, vx_rsi_max: 70 },
-  n_psar: { ...TREND, st_period: 10, st_mult: 1.5, sar_step: 0.02, sar_max: 0.2, sar_window: 2 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
     tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20, tp_first: true, tp_return_max: 50 },
@@ -93,33 +84,12 @@ const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st
 const BS = { bs_on: true, bot: false, expiry: 120, bs_mode: 'A', bs_lookback: 15, bs_use_range: false, bs_range: 1.8, bs_ratio: 0.6, bs_min_atr: 0, bs_trend: true, bs_against: false, bs_max_slope: 0, bs_max_dist: 0, bs_gap: 1 };
 const NM1 = L('Очень часто', 'Sehr oft', 'Very often'), NM2 = L('Часто', 'Oft', 'Often'), NM3 = L('Средне', 'Mittel', 'Medium'), NM4 = L('Строже', 'Strenger', 'Stricter'), NM5 = L('Строго', 'Streng', 'Strict');
 const PRESETS = {
-  n_rsi8020: [
-    { name: NM1, values: { rsi_levels: '65/35' } },
-    { name: NM2, values: { rsi_levels: '70/30' } },
-    { name: NM3, values: { rsi_levels: '80/20' } },
-    { name: NM4, values: { rsi_levels: '85/15' } },
-    { name: NM5, values: { rsi_levels: '90/10' } },
-  ],
   n_stochenv: [
     { name: NM1, values: { env_pct: 0.05, stoch_zone: 30 } },
     { name: NM2, values: { env_pct: 0.07, stoch_zone: 25 } },
     { name: NM3, values: { env_pct: 0.1, stoch_zone: 20 } },
     { name: NM4, values: { env_pct: 0.15, stoch_zone: 20 } },
     { name: NM5, values: { env_pct: 0.2, stoch_zone: 15 } },
-  ],
-  n_vortex: [
-    { name: NM1, values: { vx_use_vortex: true, vx_use_macd: false, vx_use_adx: false, vx_use_rsi: false } },
-    { name: NM2, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 6, macd_slow: 13, macd_signal: 5, vx_use_adx: false, vx_use_rsi: false } },
-    { name: NM3, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_use_rsi: false } },
-    { name: NM4, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: true, vx_adx_min: 20, vx_use_rsi: false } },
-    { name: NM5, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: true, vx_adx_min: 25, vx_use_rsi: true, vx_rsi_mid: 50, vx_rsi_max: 70 } },
-  ],
-  n_psar: [
-    { name: NM1, values: { st_mult: 1.2, sar_window: 5 } },
-    { name: NM2, values: { st_mult: 1.2, sar_window: 3 } },
-    { name: NM3, values: { st_mult: 1.5, sar_window: 2 } },
-    { name: NM4, values: { st_mult: 2, sar_window: 2 } },
-    { name: NM5, values: { st_mult: 2.5, sar_window: 1 } },
   ],
   n_deeprev: [
     { name: NM1, values: { dr_min_conf: 5, dr_touches: 2, dr_use_cross: false, dr_use_m1: false } },
@@ -145,13 +115,6 @@ const PRESETS = {
     { name: L('Строже', 'Strenger', 'Stricter'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 5, sharp_low: 20, sharp_high: 80, sharp_wait: 8 } },
     { name: L('Строго', 'Streng', 'Strict'), values: { bot: false, sharp_stoch: true, sharp_rsi: false, sharp_min: 5, sharp_low: 15, sharp_high: 85, sharp_wait: 5 } },
     { name: L('С подтверждением RSI', 'Mit RSI-Bestätigung', 'With RSI confirmation'), values: { bot: false, sharp_stoch: true, sharp_rsi: true, sharp_min: 4, sharp_low: 20, sharp_high: 80, sharp_wait: 10 } },
-  ],
-  early: [
-    { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { early_min: 2, early_drop_atr: 0.8 } },
-    { name: L('Часто', 'Oft', 'Often'), values: { early_min: 2, early_drop_atr: 1.2 } },
-    { name: L('Средне', 'Mittel', 'Medium'), values: { early_min: 3, early_drop_atr: 1.5 } },
-    { name: L('Строже', 'Strenger', 'Stricter'), values: { early_min: 3, early_drop_atr: 2 } },
-    { name: L('Строго', 'Streng', 'Strict'), values: { early_min: 4, early_drop_atr: 2.5 } },
   ],
   n_trendpull: [
     { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { tp_depth_min: 23.6, tp_depth_max: 78.6, tp_bars_max: 8, tp_imp_atr: 1, tp_room_atr: 0.2, tp_candle_atr: 2.5, min_adx: 0 } },
@@ -206,18 +169,6 @@ const PRESETS = {
 // Backtest results shown in the strategy (folded, opened by a tap). Rows: [variant, ...values].
 const PROFILE_NOTE = L('Winrate, %. M1, 12 пар, 8000 минут на пару, обычный рынок (не OTC), без задержек. Безубыток: 54 % при выплате 85 %. Это один период, выбор лучшей клетки завышает результат, а при малом числе сигналов цифры почти случайны; преимущество не доказано.', 'Trefferquote, %. M1, 12 Paare, 8000 Minuten je Paar, normaler Markt (kein OTC), ohne Verzögerung. Break-even: 54 % bei 85 % Auszahlung. Ein Zeitraum; die beste Zelle auszuwählen überschätzt das Ergebnis, bei wenigen Signalen sind die Zahlen fast Zufall; kein Vorteil belegt.', 'Win rate, %. M1, 12 pairs, 8000 minutes per pair, normal market (not OTC), no delays. Break-even: 54 % at 85 % payout. One period; picking the best cell overstates the result, and with few signals the numbers are almost random; no edge proven.');
 const TESTS = {
-  n_rsi8020: [{
-    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
-    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
-    rows: [
-      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '70', '49,6', '50,0', '49,6', '49,2'],
-      [L('2 Часто', '2 Oft', '2 Often'), '69', '49,9', '50,3', '50,4', '49,8'],
-      [L('3 Средне', '3 Mittel', '3 Medium'), '64', '51,3', '51,2', '50,7', '50,6'],
-      [L('4 Строже', '4 Strenger', '4 Stricter'), '57', '50,3', '50,9', '50,5', '51,9'],
-      [L('5 Строго', '5 Streng', '5 Strict'), '46', '50,1', '52,4', '52,0', '51,4'],
-    ],
-    note: PROFILE_NOTE,
-  }],
   n_stochenv: [{
     title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
     cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
@@ -227,30 +178,6 @@ const TESTS = {
       [L('3 Средне', '3 Mittel', '3 Medium'), '3,4', '53,0', '57,9', '56,0', '54,1'],
       [L('4 Строже', '4 Strenger', '4 Stricter'), '0,8', '52,2', '62,3', '60,3', '60,3'],
       [L('5 Строго', '5 Streng', '5 Strict'), '0,2', '66,7', '73,3', '60,0', '73,3'],
-    ],
-    note: PROFILE_NOTE,
-  }],
-  n_vortex: [{
-    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
-    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
-    rows: [
-      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '49', '49,4', '49,2', '48,9', '48,2'],
-      [L('2 Часто', '2 Oft', '2 Often'), '33', '49,7', '48,8', '48,1', '47,7'],
-      [L('3 Средне', '3 Mittel', '3 Medium'), '31', '50,5', '49,1', '48,2', '47,6'],
-      [L('4 Строже', '4 Strenger', '4 Stricter'), '7,1', '50,4', '48,0', '46,5', '47,3'],
-      [L('5 Строго', '5 Streng', '5 Strict'), '2,9', '45,5', '41,1', '43,2', '46,1'],
-    ],
-    note: PROFILE_NOTE,
-  }],
-  n_psar: [{
-    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
-    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
-    rows: [
-      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '18', '50,2', '50,8', '49,7', '51,0'],
-      [L('2 Часто', '2 Oft', '2 Often'), '16', '50,5', '50,3', '49,6', '50,7'],
-      [L('3 Средне', '3 Mittel', '3 Medium'), '16', '47,8', '48,2', '48,6', '47,5'],
-      [L('4 Строже', '4 Strenger', '4 Stricter'), '13', '47,1', '49,2', '49,0', '46,1'],
-      [L('5 Строго', '5 Streng', '5 Strict'), '4,7', '50,9', '51,6', '49,8', '44,8'],
     ],
     note: PROFILE_NOTE,
   }],
@@ -288,18 +215,6 @@ const TESTS = {
       [L('4 Строже', '4 Strenger', '4 Stricter'), '15', '52,7', '52,1', '52,1', '50,3'],
       [L('5 Строго', '5 Streng', '5 Strict'), '12', '50,9', '53,5', '51,8', '51,2'],
       [L('6 С подтверждением RSI', '6 Mit RSI-Bestätigung', '6 With RSI confirmation'), '17', '53,5', '53,4', '52,8', '51,7'],
-    ],
-    note: PROFILE_NOTE,
-  }],
-  early: [{
-    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
-    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
-    rows: [
-      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '38', '50,1', '47,9', '49,8', '48,5'],
-      [L('2 Часто', '2 Oft', '2 Often'), '27', '50,5', '47,9', '49,9', '47,9'],
-      [L('3 Средне', '3 Mittel', '3 Medium'), '16', '50,6', '49,2', '50,4', '48,5'],
-      [L('4 Строже', '4 Strenger', '4 Stricter'), '11', '51,0', '49,1', '51,4', '49,3'],
-      [L('5 Строго', '5 Streng', '5 Strict'), '5,5', '50,3', '49,4', '52,6', '49,2'],
     ],
     note: PROFILE_NOTE,
   }],
@@ -446,14 +361,6 @@ const GROUPS = {
         'Each switchable, only confirms the impulse direction: Vortex – VI+ above VI− for up; MACD – line above signal; RSI – above the middle line (50), "at most" 0 = no limit. Ready combinations in the presets and the results table.'),
       keys: ['st_use_vortex', 'st_vortex_period', 'st_use_macd', 'st_macd_fast', 'st_macd_slow', 'st_macd_signal', 'st_use_rsi', 'st_rsi_period', 'st_rsi_mid', 'st_rsi_max'] },
   ],
-  n_vortex: [
-    { title: L('Индикаторы (включайте любые)', 'Indikatoren (beliebig an/aus)', 'Indicators (switch any on/off)'),
-      desc: L('Можно оставить один, два или все три. Первый включённый даёт сигнал своим пересечением (Vortex: VI+/VI−, MACD: линия/сигнальная, ADX один: DI+/DI−), остальные должны смотреть в ту же сторону. ADX ещё проверяет силу тренда: не меньше заданного (25 = есть тренд). RSI только подтверждает: для CALL выше средней линии (50), но не выше «перегрева» (70); для PUT зеркально. Один RSI сигнал не даёт.',
-        'Einer, zwei oder alle drei. Der erste eingeschaltete gibt das Signal mit seiner Kreuzung (Vortex: VI+/VI−, MACD: Linie/Signal, ADX allein: DI+/DI−), die anderen müssen in dieselbe Richtung zeigen. ADX prüft zusätzlich die Trendstärke (25 = Trend). RSI bestätigt nur: für CALL über der Mittellinie (50), aber unter „überhitzt“ (70); PUT gespiegelt. RSI allein gibt kein Signal.',
-        'One, two or all three. The first one on gives the signal with its cross (Vortex: VI+/VI−, MACD: line/signal, ADX alone: DI+/DI−), the others must point the same way. ADX also checks trend strength (25 = trend). RSI only confirms: for CALL above the middle line (50) but below "overheated" (70); PUT mirrored. RSI alone gives no signal.'),
-      keys: ['vx_use_vortex', 'vortex_period', 'vx_use_macd', 'macd_fast', 'macd_slow', 'macd_signal', 'vx_use_adx', 'vx_adx_period', 'vx_adx_min',
-        'vx_use_rsi', 'vx_rsi_period', 'vx_rsi_mid', 'vx_rsi_max'] },
-  ],
   n_deeprev: [
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
       desc: L('Направления, экспирация и минимальная уверенность (1–10). CALL — разворот вверх после падения; PUT — зеркально после роста (по умолчанию выкл.). Уверенность 7–8 = только лучшие сигналы.',
@@ -544,8 +451,6 @@ function liveMode(name, settings) {
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
-  // Stochastic zone return: at the touch inside the forming candle (rx_live) or after the candle closed.
-  if (name === 'n_rsi8020') return (p.rx_osc || 'STOCH') === 'STOCH' && p.rx_live !== false ? 'live' : 'closed';
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
   if (name === 'n_deeprev' || name === 'n_strongtrend' || name === 'n_trendpull') return 'closed';
   return 'legacy';
@@ -909,35 +814,6 @@ const S = {
   },
   // Impulse of N candles >= X ATR, then the first candle against it -> rebound.
   // Exhaustion: strong drop, then a candle with long lower wick closing up.
-  // Candle closes beyond the previous candle's extreme after a 3+ run.
-  early(x, p) {
-    const { d, n } = runLength(x.c, x.last - 1), k = x.c[x.last], prev = x.c[x.last - 1], a = x.atr[x.last - 1];
-    if (n < (p.early_min || 3) || !a) return null;
-    const move = Math.abs(prev.close - x.c[x.last - n].open);
-    if (move < (p.early_drop_atr || 1.5) * a) return null;
-    if (d < 0 && k.close > prev.high) return sig(1, 74, L('закрытие выше максимума свечи истощения', 'Schluss über dem Hoch der Erschöpfungskerze', 'close above the exhaustion candle high'));
-    if (d > 0 && k.close < prev.low) return sig(-1, 74, L('закрытие ниже минимума свечи истощения', 'Schluss unter dem Tief der Erschöpfungskerze', 'close below the exhaustion candle low'));
-    return null;
-  },
-  n_rsi8020(x, p) {
-    const [hi, lo] = String(p.rsi_levels || '70/30').split('/').map(Number), i = x.last;
-    // 04.11.2026 (user): Stochastic %K, signal the moment it crosses the lower line upwards (CALL) / the upper line
-    // downwards (PUT). With rx_live the forming candle counts (entry now, one signal per candle).
-    if ((p.rx_osc || 'STOCH') === 'STOCH') {
-      const k = I.stoch(x.c, Number(p.rx_k) || 14, Number(p.rx_ks) || 3, 3).k, k0 = k[i - 1], k1 = k[i];
-      if (k0 === null || k1 === null) return null;
-      const d = k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0;
-      if (!d) return null;
-      // No reason text on the card (user, 04.11.2026: "удали это").
-      const out = Object.assign(sig(d, 72, ''), { noFlip: true, noReason: true });
-      if (p.rx_live !== false) { out.entry = Math.floor(Date.now() / 1000); out.bar = x.c[i].time; }
-      return out;
-    }
-    const r = x.rsi(p.rsi_period || 14);
-    if (r[i - 1] < lo && r[i] >= lo) return sig(1, 72, L(`RSI вернулся выше ${lo}`, `RSI zurück über ${lo}`, `RSI back above ${lo}`));
-    if (r[i - 1] > hi && r[i] <= hi) return sig(-1, 72, L(`RSI вернулся ниже ${hi}`, `RSI zurück unter ${hi}`, `RSI back below ${hi}`));
-    return null;
-  },
   n_stochenv(x, p) {
     const i = x.last, m = x.sma(p.env_period || 20), pct = (p.env_pct || 0.1) / 100, z = p.stoch_zone || 20;
     const { k } = x.stoch(p.stoch_k || 5, 3, 3); if (m[i - 1] === null) return null;
@@ -946,39 +822,6 @@ const S = {
     if (touchedLo && k[i - 1] < z && k[i] >= z) return sig(1, 74, L('касание нижней Envelopes, Stochastic вышел из зоны 20', 'unteres Envelope berührt, Stochastic verlässt Zone 20', 'lower envelope touched, Stochastic leaves zone 20'));
     if (touchedHi && k[i - 1] > 100 - z && k[i] <= 100 - z) return sig(-1, 74, L('касание верхней Envelopes, Stochastic вышел из зоны 80', 'oberes Envelope berührt, Stochastic verlässt Zone 80', 'upper envelope touched, Stochastic leaves zone 80'));
     return null;
-  },
-  // Vortex, MACD and ADX can each be switched on or off (user, 30.10.2026). The first one on gives the trigger (its
-  // cross: VI+/VI−, MACD/signal, or DI+/DI− for ADX alone); the others must point the same way (ADX also ≥ vx_adx_min).
-  n_vortex(x, p) {
-    const i = x.last, useV = p.vx_use_vortex !== false, useM = p.vx_use_macd !== false, useA = !!p.vx_use_adx, useR = !!p.vx_use_rsi;
-    if (!useV && !useM && !useA) return null; // RSI alone gives no trigger, only a confirmation
-    const ap = Number(p.vx_adx_period) || 14;
-    const v = I.vortex(x.c, p.vortex_period || 14), mc = I.macd(x.close, p.macd_fast, p.macd_slow, p.macd_signal), a = ap === 14 ? x.adx : I.adx(x.c, ap);
-    const vp = v.map(q => q && q.plus), vm = v.map(q => q && q.minus), dp = a.map(q => q && q.pdi), dm = a.map(q => q && q.mdi);
-    const side = (u, w) => (u[i] == null || w[i] == null ? 0 : Math.sign(u[i] - w[i]));
-    const d = useV ? cross(vp, vm, i) : useM ? cross(mc.line, mc.signal, i) : cross(dp, dm, i);
-    if (!d) return null;
-    if (useV && side(vp, vm) !== d) return null;
-    if (useM && side(mc.line, mc.signal) !== d) return null;
-    if (useA && (side(dp, dm) !== d || !a[i] || a[i].adx < (Number(p.vx_adx_min) || 0))) return null;
-    // RSI: on the signal's side of the middle line, but not overheated (CALL below vx_rsi_max, PUT above 100 − it).
-    let rv = null;
-    if (useR) {
-      rv = x.rsi(Number(p.vx_rsi_period) || 14)[i];
-      const mid = Number(p.vx_rsi_mid ?? 50), mx = Number(p.vx_rsi_max) || 100;
-      if (rv == null || (d > 0 ? !(rv > mid && rv < mx) : !(rv < 100 - mid && rv > 100 - mx))) return null;
-    }
-    const up = d > 0, parts = [useV && 'Vortex', useM && 'MACD', useA && `ADX ${a[i].adx.toFixed(0)}`, useR && `RSI ${rv.toFixed(0)}`].filter(Boolean).join(' + ');
-    return sig(d, 74, L(`${parts}: ${up ? 'вверх' : 'вниз'}`, `${parts}: ${up ? 'aufwärts' : 'abwärts'}`, `${parts}: ${up ? 'up' : 'down'}`));
-  },
-  n_psar(x, p) {
-    const i = x.last, st = I.supertrend(x.c, p.st_period || 10, p.st_mult || 1.5), ps = x.psar(p.sar_step || 0.02, p.sar_max || 0.2);
-    if (!st[i] || !st[i - 1] || st[i].up === st[i - 1].up) return null;
-    const d = st[i].up ? 1 : -1;
-    if (!ps[i] || ps[i].up !== (d > 0)) return null;
-    const recent = ps.slice(i - (p.sar_window || 2), i + 1).some((q, j, a) => j > 0 && q && a[j - 1] && q.up !== a[j - 1].up);
-    if (!recent) return null;
-    return sig(d, 77, L('разворот Supertrend и PSAR', 'Supertrend und PSAR drehen', 'Supertrend and PSAR flip'));
   },
   // Trend pullback: only with the trend, after the pullback ended. Up (down = mirror): the last two confirmed swing highs
   // and lows rise and the last low is before the last high; the pullback from that high lasts at most tp_bars_max candles,
@@ -1187,19 +1030,6 @@ function evaluate(candlesByTf, enabled, settings) {
 }
 
 const HELP = {
-  n_rsi8020: [{
-    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
-    body: [
-      L('Строже: дальше зоны, из которых выходит осциллятор.', 'Strenger: weiter außen liegende Zonen.', 'Stricter: zones further out.'),
-      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
-      L('1 Очень часто: Зоны 65/35.', '1 Sehr oft: Zonen 65/35.', '1 Very often: Zones 65/35.'),
-      L('2 Часто: Зоны 70/30.', '2 Oft: Zonen 70/30.', '2 Often: Zones 70/30.'),
-      L('3 Средне: Зоны 80/20, обычная настройка.', '3 Mittel: Zonen 80/20, Standard.', '3 Medium: Zones 80/20, default.'),
-      L('4 Строже: Зоны 85/15.', '4 Strenger: Zonen 85/15.', '4 Stricter: Zones 85/15.'),
-      L('5 Строго: Зоны 90/10.', '5 Streng: Zonen 90/10.', '5 Strict: Zones 90/10.'),
-      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
-    ],
-  }],
   n_stochenv: [{
     title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
     body: [
@@ -1210,32 +1040,6 @@ const HELP = {
       L('3 Средне: Envelopes 0,1 %, зона 20, обычная настройка.', '3 Mittel: Envelopes 0,1 %, Zone 20, Standard.', '3 Medium: Envelopes 0.1 %, zone 20, default.'),
       L('4 Строже: Envelopes 0,15 %, зона 20.', '4 Strenger: Envelopes 0,15 %, Zone 20.', '4 Stricter: Envelopes 0.15 %, zone 20.'),
       L('5 Строго: Envelopes 0,2 %, зона 15.', '5 Streng: Envelopes 0,2 %, Zone 15.', '5 Strict: Envelopes 0.2 %, zone 15.'),
-      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
-    ],
-  }],
-  n_vortex: [{
-    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
-    body: [
-      L('Строже: больше индикаторов должны подтвердить пересечение Vortex.', 'Strenger: mehr Indikatoren müssen die Vortex-Kreuzung bestätigen.', 'Stricter: more indicators must confirm the Vortex cross.'),
-      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
-      L('1 Очень часто: Только Vortex.', '1 Sehr oft: Nur Vortex.', '1 Very often: Vortex only.'),
-      L('2 Часто: Vortex + быстрый MACD 6/13/5.', '2 Oft: Vortex + schneller MACD 6/13/5.', '2 Often: Vortex + fast MACD 6/13/5.'),
-      L('3 Средне: Vortex + MACD 12/26/9, обычная настройка.', '3 Mittel: Vortex + MACD 12/26/9, Standard.', '3 Medium: Vortex + MACD 12/26/9, default.'),
-      L('4 Строже: То же + ADX от 20.', '4 Strenger: Dazu ADX ab 20.', '4 Stricter: Plus ADX from 20.'),
-      L('5 Строго: То же + ADX от 25 и RSI с нужной стороны от 50, не дальше 70.', '5 Streng: Dazu ADX ab 25 und RSI auf der richtigen Seite von 50, höchstens 70.', '5 Strict: Plus ADX from 25 and RSI on the right side of 50, at most 70.'),
-      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
-    ],
-  }],
-  n_psar: [{
-    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
-    body: [
-      L('Строже: больший множитель Supertrend и меньше окно совпадения с PSAR.', 'Strenger: größerer Supertrend-Faktor, kleineres Fenster für die Übereinstimmung mit PSAR.', 'Stricter: bigger Supertrend factor, smaller window for agreement with PSAR.'),
-      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
-      L('1 Очень часто: Множитель 1,2, окно 5.', '1 Sehr oft: Faktor 1,2, Fenster 5.', '1 Very often: Factor 1.2, window 5.'),
-      L('2 Часто: Множитель 1,2, окно 3.', '2 Oft: Faktor 1,2, Fenster 3.', '2 Often: Factor 1.2, window 3.'),
-      L('3 Средне: Множитель 1,5, окно 2, обычная настройка.', '3 Mittel: Faktor 1,5, Fenster 2, Standard.', '3 Medium: Factor 1.5, window 2, default.'),
-      L('4 Строже: Множитель 2, окно 2.', '4 Strenger: Faktor 2, Fenster 2.', '4 Stricter: Factor 2, window 2.'),
-      L('5 Строго: Множитель 2,5, окно 1.', '5 Streng: Faktor 2,5, Fenster 1.', '5 Strict: Factor 2.5, window 1.'),
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
@@ -1289,19 +1093,6 @@ const HELP = {
       L('4 Строже: серия от 5, зона 20/80, ожидание 8.', '4 Strenger: Serie ab 5, Zone 20/80, Wartezeit 8.', '4 Stricter: series from 5, zone 20/80, wait 8.'),
       L('5 Строго: серия от 5, зона 15/85, ожидание 5.', '5 Streng: Serie ab 5, Zone 15/85, Wartezeit 5.', '5 Strict: series from 5, zone 15/85, wait 5.'),
       L('6 С подтверждением RSI: как «Средне», но для CALL RSI не выше 45, для PUT не ниже 55.', '6 Mit RSI-Bestätigung: wie „Mittel“, aber RSI für CALL höchstens 45, für PUT mindestens 55.', '6 With RSI confirmation: like "Medium" but RSI at most 45 for CALL, at least 55 for PUT.'),
-      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
-    ],
-  }],
-  early: [{
-    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
-    body: [
-      L('Идея: серия свечей в одну сторону, затем свеча закрывается за экстремумом последней свечи серии — сигнал на разворот. Строже: длиннее серия и больше пройденное движение в ATR.', 'Idee: Eine Kerzenserie in eine Richtung, dann schließt eine Kerze jenseits des Extrems der letzten Serienkerze – Signal auf die Umkehr. Strenger: längere Serie und größere Bewegung in ATR.', 'Idea: a series of candles one way, then a candle closes beyond the extreme of the last series candle – reversal signal. Stricter: longer series and bigger move in ATR.'),
-      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
-      L('1 Очень часто: серия от 2 свечей, движение от 0,8 ATR.', '1 Sehr oft: Serie ab 2 Kerzen, Bewegung ab 0,8 ATR.', '1 Very often: series from 2 candles, move from 0.8 ATR.'),
-      L('2 Часто: серия от 2, движение от 1,2 ATR.', '2 Oft: Serie ab 2, Bewegung ab 1,2 ATR.', '2 Often: series from 2, move from 1.2 ATR.'),
-      L('3 Средне: серия от 3, движение от 1,5 ATR. Это обычные настройки стратегии, с него лучше начать.', '3 Mittel: Serie ab 3, Bewegung ab 1,5 ATR. Die normalen Einstellungen, guter Start.', '3 Medium: series from 3, move from 1.5 ATR. The usual settings, a good start.'),
-      L('4 Строже: серия от 3, движение от 2 ATR.', '4 Strenger: Serie ab 3, Bewegung ab 2 ATR.', '4 Stricter: series from 3, move from 2 ATR.'),
-      L('5 Строго: серия от 4, движение от 2,5 ATR.', '5 Streng: Serie ab 4, Bewegung ab 2,5 ATR.', '5 Strict: series from 4, move from 2.5 ATR.'),
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],

@@ -420,7 +420,7 @@ function paramRows(x) {
     + rest.map(row).join('');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { rsi_levels: ['70/30', '75/25', '80/20'], rx_osc: ['STOCH', 'RSI'], bs_mode: ['A', 'C'] };
+const PARAM_CHOICES = { bs_mode: ['A', 'C'] };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
   if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : o}</option>`).join('')}</select>`;

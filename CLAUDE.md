@@ -55,6 +55,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 06.11.2026: `n_trendpull` late-entry rules `tp_first`, `tp_return_max` (user: signal was too late). Test: fewer signals, win rate not better (1.7/pair/day at most, 43–52 % at 2 min).
 
+- 06.11.2026: removed at the user's request (weak on backtests): `n_vortex`, `n_psar`, `early`, `n_rsi8020`. Focus: `n_stochenv`.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key
