@@ -399,6 +399,8 @@ const openStrats = new Set(), openHist = new Set(), openTests = new Set();
 // Folded sections of a strategy: result tables (x.tests) and the instruction (x.help), all closed by default.
 function testTable(x) {
   const list = [...(x.tests ? (Array.isArray(x.tests) ? x.tests : [x.tests]) : []), ...(x.help || [])];
+  const L = x.log; // "why no signal" counters of the big-candle mode
+  if (L && L.checked) list.push({ title: t('bl_title'), cols: [t('bl_reason'), t('bl_count')], rows: ['checked', 'small', 'range', 'ratio', 'atr', 'notrend', 'side', 'fast', 'far', 'pause', 'noconfirm', 'signals'].filter(k => k === 'checked' || L[k]).map(k => [t('bl_' + k), String(L[k])]) });
   return list.map((T, n) => oneTest(T, `${x.key}:${n}`)).join('');
 }
 function oneTest(T, key) {
@@ -418,7 +420,7 @@ function paramRows(x) {
     + rest.map(row).join('');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { rsi_levels: ['70/30', '75/25', '80/20'], rx_osc: ['STOCH', 'RSI'] };
+const PARAM_CHOICES = { rsi_levels: ['70/30', '75/25', '80/20'], rx_osc: ['STOCH', 'RSI'], bs_mode: ['A', 'C'] };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
   if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : o}</option>`).join('')}</select>`;

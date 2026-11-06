@@ -47,7 +47,9 @@ const DEFAULTS = {
   // (%K crosses 20 upwards after a fall / 80 downwards after a rise) within sharp_wait candles after the series.
   n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true,
     sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, ...SHARP_BOT },
-  n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT },
+  // bs_*: big candle inside a slow trend (demo mode, user 06.11.2026). Off = the old rule. Backtest: no profit shown, see TESTS.n_big.
+  n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT, bs_on: false, bs_mode: 'A', bs_lookback: 15, bs_body: 2, bs_use_range: false, bs_range: 1.8, bs_ratio: 0.6, bs_min_atr: 0,
+    bs_trend: true, bs_against: false, bs_ema_fast: 20, bs_ema_slow: 50, bs_slope: 10, bs_max_slope: 0, bs_max_dist: 0, bs_gap: 1 },
   // Reversal at a level (user's prompt of 28.10.2026): structure first (support/resistance from the history), the side
   // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
   // model B (vertical impulse into the level → big opposite candle). SD = average candle range of lr_sd_period candles.
@@ -88,7 +90,17 @@ const DEFAULTS = {
 // Strong-trend presets start from "all extras off, no higher timeframes" so a preset never keeps a stray switch.
 const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st_use_m5: false, st_use_m15: false };
 // Ready-made setting combinations (one tap in the app).
+const BS = { bs_on: true, bot: false, expiry: 120, bs_mode: 'A', bs_lookback: 15, bs_use_range: false, bs_range: 1.8, bs_ratio: 0.6, bs_min_atr: 0, bs_trend: true, bs_against: false, bs_max_slope: 0, bs_max_dist: 0, bs_gap: 1 };
 const PRESETS = {
+  // Strictness levels of the big-candle mode; every value is visible here and in the instruction.
+  n_big: [
+    { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { ...BS, bs_body: 1.5, bs_ratio: 0.5, bs_trend: false, bs_gap: 0 } },
+    { name: L('Часто', 'Oft', 'Often'), values: { ...BS, bs_body: 1.8, bs_ratio: 0.5 } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { ...BS, bs_body: 2 } },
+    { name: L('Строже', 'Strenger', 'Stricter'), values: { ...BS, bs_body: 2.5, bs_use_range: true, bs_max_dist: 3 } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { ...BS, bs_body: 3, bs_use_range: true, bs_max_slope: 1.5, bs_max_dist: 2.5 } },
+    { name: L('С подтверждением', 'Mit Bestätigung', 'With confirmation'), values: { ...BS, bs_mode: 'C', bs_body: 2.5, bs_use_range: true, bs_max_slope: 1.5, bs_max_dist: 2.5 } },
+  ],
   // Level 3 = exactly the user's prompt. Measured 28.10.2026 on 17 pairs / ~1.5 h: strict 0–2, medium ~8, soft ~14 signals.
   n_levelrev: [
     { name: L('Мягко', 'Locker', 'Loose'), values: { lr_min_strength: 4, lr_min_touches: 2, lr_near_sd: 2, lr_space_sd: 1.5, lr_corridor_sd: 2,
@@ -127,6 +139,20 @@ const PRESETS = {
 
 // Backtest results shown in the strategy (folded, opened by a tap). Rows: [variant, ...values].
 const TESTS = {
+  n_big: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('Прежнее правило', 'Bisherige Regel', 'Old rule'), '64', '49,3', '49,7', '50,5', '51,8'],
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '258', '50,1', '50,6', '50,1', '50,8'],
+      [L('2 Часто', '2 Oft', '2 Often'), '73', '49,7', '51,2', '50,6', '51,8'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '61', '49,4', '51,1', '50,7', '52,2'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '16', '49,4', '50,4', '51,3', '53,9'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '9,5', '51,8', '50,7', '51,3', '53,9'],
+      [L('6 С подтверждением', '6 Mit Bestätigung', '6 With confirmation'), '5,4', '52,9', '51,4', '52,0', '51,1'],
+    ],
+    note: L('Winrate, %. 12 пар, 8000 минут на пару, обычный рынок (не OTC), без задержек. Безубыток: 54 % при выплате 85 %. Это один период, выбор лучшей клетки из таблицы завышает результат; преимущество не доказано.', 'Trefferquote, %. 12 Paare, 8000 Minuten je Paar, normaler Markt (kein OTC), ohne Verzögerung. Break-even: 54 % bei 85 % Auszahlung. Ein Zeitraum; die beste Zelle auszuwählen überschätzt das Ergebnis; kein Vorteil belegt.', 'Win rate, %. 12 pairs, 8000 minutes per pair, normal market (not OTC), no delays. Break-even: 54 % at 85 % payout. One period; picking the best cell overstates the result; no edge proven.'),
+  }],
   n_strongtrend: [{
     title: L('Лучшие сочетания индикаторов (пресеты 1–4)', 'Beste Indikator-Kombinationen (Presets 1–4)', 'Best indicator combinations (presets 1–4)'),
     cols: [L('Пресет', 'Preset', 'Preset'), L('Настройки', 'Einstellungen', 'Settings'), L('Экспир.', 'Ablauf', 'Expiry'), L('Сигналов / 5 дн.', 'Signale / 5 T.', 'Signals / 5 d'), L('Отбор', 'Auswahl', 'Choice'), L('Проверка', 'Prüfung', 'Check')],
@@ -163,6 +189,16 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
     'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
+  n_big: [
+    { title: L('Режим большой свечи в слабом тренде', 'Modus große Kerze im schwachen Trend', 'Big candle in a slow trend'),
+      desc: L('Выключено — прежнее правило (тело × среднее). Режим A — вход сразу после большой свечи, режим C — после свечи подтверждения. Профили сверху включают режим сами.', 'Aus = bisherige Regel (Körper × Durchschnitt). Modus A = Einstieg direkt nach der großen Kerze, C = nach einer Bestätigungskerze. Die Profile oben schalten den Modus selbst ein.', 'Off = the old rule (body × average). Mode A = entry right after the big candle, C = after a confirming candle. The profiles above switch this on themselves.'),
+      keys: ['bs_on', 'bs_mode', 'expiry', 'bs_gap'] },
+    { title: L('Большая свеча', 'Große Kerze', 'Big candle'), desc: L('Сравнение с медианой предыдущих свечей: больше множитель — строже.', 'Vergleich mit dem Median der vorigen Kerzen: größerer Faktor = strenger.', 'Compared with the median of the previous candles: bigger factor = stricter.'),
+      keys: ['bs_lookback', 'bs_body', 'bs_use_range', 'bs_range', 'bs_ratio', 'bs_min_atr'] },
+    { title: L('Тренд', 'Trend', 'Trend'), desc: L('Направление по EMA и наклону, сила отдельно. ADX здесь выключен (мин. и макс. ADX = 0).', 'Richtung nach EMA und Neigung, Stärke getrennt. ADX ist hier aus (Min. und Max. ADX = 0).', 'Direction from EMA and slope, strength separately. ADX is off here (min and max ADX = 0).'),
+      keys: ['bs_trend', 'bs_against', 'bs_ema_fast', 'bs_ema_slow', 'bs_slope', 'bs_max_slope', 'bs_max_dist', 'min_adx', 'max_adx'] },
+    { title: L('Прежнее правило', 'Bisherige Regel', 'Old rule'), desc: L('Работает, когда режим выключен.', 'Gilt, wenn der Modus aus ist.', 'Used when the mode is off.'), keys: ['big_body', 'big_period'] },
+  ],
   n_levelrev: [
     MARKET_GROUP,
     { title: L('1 · Основное', '1 · Grundlegendes', '1 · Basics'),
@@ -317,6 +353,7 @@ function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
+  if (name === 'n_big' && (p.bs_on || (settings.strat_presets?.n_big || []).length)) return 'closed'; // big-candle mode: closed candles only
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   // Stochastic zone return: at the touch inside the forming candle (rx_live) or after the candle closed.
@@ -675,6 +712,7 @@ const S = {
   },
   n_ma25(x, p) { return botSig(BP.ma25(x.c, x.last, p, x.tfMin || 1)); }, // as in the Telegram bot
   n_big(x, p) {
+    if (p.bs_on) return bigSlow(x, p);
     if (p.bot) return botSig(BP.bigFade(x.c, x.last, p)); // Telegram-bot logic
     const k = x.c[x.last], ab = avgBody(x.c, p.big_period || 20, x.last - 1), mult = p.big_body || 2.5;
     if (!ab || I.body(k) < mult * ab) return null;
@@ -798,6 +836,44 @@ const S = {
   },
 };
 
+// Big candle in a slow trend (n_big, bs_on). Closed candles only, nothing after the signal candle is used.
+// Why no signal: counted per reason in bigLog, shown in the strategy ("why no signal").
+const bigLog = { checked: 0, small: 0, range: 0, ratio: 0, atr: 0, notrend: 0, side: 0, fast: 0, far: 0, pause: 0, noconfirm: 0, signals: 0 };
+const median = a => { const s = [...a].sort((u, v) => u - v), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+// Returns the candle's direction when candle i is a valid spike, otherwise the reason it is not (a string).
+function bigSpike(x, i, p) {
+  const c = x.c, k = c[i], n = Number(p.bs_lookback) || 15, a = x.atr[i]; if (i < n + 1 || !a) return 'small';
+  const body = I.body(k), rg = k.high - k.low, bodies = [], ranges = [];
+  for (let j = i - n; j < i; j++) { bodies.push(I.body(c[j])); ranges.push(c[j].high - c[j].low); }
+  if (!body || body < (Number(p.bs_body) || 2) * median(bodies)) return 'small';
+  if (p.bs_use_range && rg < (Number(p.bs_range) || 1.8) * median(ranges)) return 'range';
+  if (body / rg < Number(p.bs_ratio ?? 0.6)) return 'ratio';
+  if (p.bs_min_atr && body < p.bs_min_atr * a) return 'atr';
+  const cd = I.dirOf(k), f = x.ema(Number(p.bs_ema_fast) || 20), sl = x.ema(Number(p.bs_ema_slow) || 50), back = Number(p.bs_slope) || 10;
+  if (p.bs_trend) {
+    if (f[i] == null || sl[i] == null || f[i - back] == null) return 'notrend';
+    const slope = (f[i] - f[i - back]) / a, td = f[i] > sl[i] && slope > 0 ? 1 : f[i] < sl[i] && slope < 0 ? -1 : 0;
+    if (!td) return 'notrend';
+    if ((td === cd) === !!p.bs_against) return 'side'; // normally with the trend; bs_against = the separately tested case
+    if (p.bs_max_slope && Math.abs(slope) > p.bs_max_slope) return 'fast';
+  }
+  if (p.bs_max_dist && f[i] != null && Math.abs(k.close - f[i]) / a > p.bs_max_dist) return 'far';
+  return cd;
+}
+function bigSlow(x, p) {
+  const log = x.logOn, c = x.c, conf = p.bs_mode === 'C', i = conf ? x.last - 1 : x.last;
+  if (log) bigLog.checked++;
+  const r = bigSpike(x, i, p);
+  if (typeof r === 'string') { if (log) bigLog[r]++; return null; }
+  // One signal per impulse: an earlier spike within the pause blocks this one.
+  for (let j = i - (Number(p.bs_gap) || 0); j < i; j++) if (typeof bigSpike(x, j, p) !== 'string') { if (log) bigLog.pause++; return null; }
+  const d = -r;
+  if (conf && I.dirOf(c[x.last]) !== d) { if (log) bigLog.noconfirm++; return null; }
+  if (log) bigLog.signals++;
+  const m = median(c.slice(i - (Number(p.bs_lookback) || 15), i).map(I.body)), ratio = m ? I.body(c[i]) / m : 0;
+  return Object.assign(sig(d, 75, L(`большая свеча ${ratio.toFixed(1)}× медианы${conf ? ', откат подтверждён' : ''}`, `große Kerze ${ratio.toFixed(1)}× Median${conf ? ', Rücklauf bestätigt' : ''}`, `big candle ${ratio.toFixed(1)}× median${conf ? ', pullback confirmed' : ''}`)), { noFlip: true });
+}
+
 // Shared filters from the strategy settings.
 function passesFilters(x, p, s, type) {
   const a = x.adx[x.last];
@@ -869,6 +945,7 @@ function evaluate(candlesByTf, enabled, settings) {
       x.ctx = candlesByTf.ctx; // higher timeframes from their own history (M5/M15), for multi-timeframe strategies
       let s = null, p = base, pr = null;
       for (const set of sets) {
+        x.logOn = set === sets[0]; // with several profiles the log follows the first one
         let r; try { r = fn(x, set.p); } catch { r = null; }
         if (r && r.dir && passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
       }
@@ -916,6 +993,28 @@ function evaluate(candlesByTf, enabled, settings) {
   return out;
 }
 
-const HELP = {}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull'];
+const HELP = {
+  n_big: [{
+    title: L('Инструкция: большая свеча в слабом тренде', 'Anleitung: große Kerze im schwachen Trend', 'Guide: big candle in a slow trend'),
+    body: [
+      L('Идея: при медленном росте появляется большая зелёная свеча — сигнал PUT на короткий откат. При медленном падении и большой красной свече — CALL. Это ставка на откат, а не на разворот тренда, и откат не гарантирован.',
+        'Idee: Bei langsamem Anstieg erscheint eine große grüne Kerze – Signal PUT auf einen kurzen Rücklauf. Bei langsamem Fall und großer roter Kerze – CALL. Das ist eine Wette auf den Rücklauf, nicht auf eine Trendwende, und er ist nicht garantiert.',
+        'Idea: in a slow rise a big green candle appears – PUT signal for a short pullback. In a slow fall with a big red candle – CALL. It bets on the pullback, not on a trend reversal, and the pullback is not guaranteed.'),
+      L('Как включить: нажмите один профиль вверху. Без профиля и без переключателя режима работает прежнее правило. Несколько профилей сразу дают сигнал, если сработал любой из них; для наблюдения лучше один.',
+        'Einschalten: oben ein Profil antippen. Ohne Profil und ohne Modus-Schalter gilt die bisherige Regel. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.',
+        'To switch on: tap one profile above. Without a profile or the mode switch the old rule applies. Several profiles signal when any fires; for observing use one.'),
+      L('Значения профилей ниже применяются вместо настроек ниже на странице, пока профиль включён. Чтобы менять числа вручную, выключите профили и включите «Режим большой свечи в тренде».',
+        'Die Profilwerte gelten statt der Einstellungen weiter unten, solange das Profil an ist. Um Zahlen selbst zu ändern: Profile aus und „Modus große Kerze im Trend“ ein.',
+        'Profile values replace the settings further down while the profile is on. To change numbers yourself, turn profiles off and switch on "Big candle in a trend mode".'),
+      L('1 Очень часто: тело ≥ 1,5 медианы, доля тела от 50 %, тренд не нужен, без паузы. Сигналов очень много.', '1 Sehr oft: Körper ≥ 1,5 Median, Anteil ab 50 %, kein Trend nötig, keine Pause. Sehr viele Signale.', '1 Very often: body ≥ 1.5 median, share from 50 %, no trend needed, no pause. Very many signals.'),
+      L('2 Часто: тело ≥ 1,8, доля от 50 %, по тренду, пауза 1.', '2 Oft: Körper ≥ 1,8, Anteil ab 50 %, mit dem Trend, Pause 1.', '2 Often: body ≥ 1.8, share from 50 %, with the trend, pause 1.'),
+      L('3 Средне: тело ≥ 2,0, доля от 60 %, по тренду, пауза 1. С него лучше начать.', '3 Mittel: Körper ≥ 2,0, Anteil ab 60 %, mit dem Trend, Pause 1. Guter Start.', '3 Medium: body ≥ 2.0, share from 60 %, with the trend, pause 1. A good start.'),
+      L('4 Строже: тело ≥ 2,5, вся свеча ≥ 1,8, до EMA не дальше 3 ATR.', '4 Strenger: Körper ≥ 2,5, ganze Kerze ≥ 1,8, EMA höchstens 3 ATR entfernt.', '4 Stricter: body ≥ 2.5, whole candle ≥ 1.8, at most 3 ATR from the EMA.'),
+      L('5 Строго: тело ≥ 3,0, вся свеча ≥ 1,8, тренд не быстрее 1,5 ATR, до EMA не дальше 2,5 ATR.', '5 Streng: Körper ≥ 3,0, ganze Kerze ≥ 1,8, Trend höchstens 1,5 ATR, EMA höchstens 2,5 ATR.', '5 Strict: body ≥ 3.0, whole candle ≥ 1.8, trend at most 1.5 ATR, at most 2.5 ATR from the EMA.'),
+      L('6 С подтверждением: как «Строго», но тело ≥ 2,5 и вход только после следующей свечи в сторону отката. Вход на свечу позже.', '6 Mit Bestätigung: wie „Streng“, aber Körper ≥ 2,5 und Einstieg erst nach der nächsten Kerze in Rücklaufrichtung. Eine Kerze später.', '6 With confirmation: like "Strict" but body ≥ 2.5, entry only after the next candle in the pullback direction. One candle later.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. «Почему нет сигнала» показывает, какое условие отсеивает больше всего. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. „Warum kein Signal“ zeigt, welche Bedingung am meisten aussortiert. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. "Why no signal" shows which condition rejects most. Test on demo only.'),
+    ],
+  }],
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull'];
 
-module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
+module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, bigLog, list: Object.keys(META) };

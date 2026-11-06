@@ -46,6 +46,9 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
   in `evaluate` (default 0.7, 0 = off); `po_click_toggle` (main.js, PC only): click in the PO window hides the app, double click restores.
   Known open: `x.tfMin` reads S10/S15/S30 as minutes; "choose update file" accepts older versions.
 
+- 06.11.2026: `n_big` got a demo mode "big candle in a slow trend" (`bs_*`, `bigSlow` in strategies.js): 6 strictness presets, folded guide/test table,
+  "why no signal" counters (`bigLog`). Off by default. Tests on raw_pb: no proven edge. Entry mode B (inside the next candle) not built.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key
