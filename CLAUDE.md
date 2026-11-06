@@ -51,6 +51,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 06.11.2026: `n_sharp`, `early`, `n_trendpull` got strictness presets with folded guide/test table ("Medium" = defaults, expiry not touched). Tests on raw_pb M1: no proven edge.
 
+- 06.11.2026: strictness presets also for n_rsi8020, n_stochenv, n_vortex, n_psar, n_ma25 (old 1–3 = new 2–4, migration `ma25_presets_1106`), n_deeprev, n_strongtrend (levels are 5–9). n_levelrev (hidden) unchanged.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key

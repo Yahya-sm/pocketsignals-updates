@@ -91,7 +91,43 @@ const DEFAULTS = {
 const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st_use_m5: false, st_use_m15: false };
 // Ready-made setting combinations (one tap in the app).
 const BS = { bs_on: true, bot: false, expiry: 120, bs_mode: 'A', bs_lookback: 15, bs_use_range: false, bs_range: 1.8, bs_ratio: 0.6, bs_min_atr: 0, bs_trend: true, bs_against: false, bs_max_slope: 0, bs_max_dist: 0, bs_gap: 1 };
+const NM1 = L('Очень часто', 'Sehr oft', 'Very often'), NM2 = L('Часто', 'Oft', 'Often'), NM3 = L('Средне', 'Mittel', 'Medium'), NM4 = L('Строже', 'Strenger', 'Stricter'), NM5 = L('Строго', 'Streng', 'Strict');
 const PRESETS = {
+  n_rsi8020: [
+    { name: NM1, values: { rsi_levels: '65/35' } },
+    { name: NM2, values: { rsi_levels: '70/30' } },
+    { name: NM3, values: { rsi_levels: '80/20' } },
+    { name: NM4, values: { rsi_levels: '85/15' } },
+    { name: NM5, values: { rsi_levels: '90/10' } },
+  ],
+  n_stochenv: [
+    { name: NM1, values: { env_pct: 0.05, stoch_zone: 30 } },
+    { name: NM2, values: { env_pct: 0.07, stoch_zone: 25 } },
+    { name: NM3, values: { env_pct: 0.1, stoch_zone: 20 } },
+    { name: NM4, values: { env_pct: 0.15, stoch_zone: 20 } },
+    { name: NM5, values: { env_pct: 0.2, stoch_zone: 15 } },
+  ],
+  n_vortex: [
+    { name: NM1, values: { vx_use_vortex: true, vx_use_macd: false, vx_use_adx: false, vx_use_rsi: false } },
+    { name: NM2, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 6, macd_slow: 13, macd_signal: 5, vx_use_adx: false, vx_use_rsi: false } },
+    { name: NM3, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: false, vx_use_rsi: false } },
+    { name: NM4, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: true, vx_adx_min: 20, vx_use_rsi: false } },
+    { name: NM5, values: { vx_use_vortex: true, vx_use_macd: true, macd_fast: 12, macd_slow: 26, macd_signal: 9, vx_use_adx: true, vx_adx_min: 25, vx_use_rsi: true, vx_rsi_mid: 50, vx_rsi_max: 70 } },
+  ],
+  n_psar: [
+    { name: NM1, values: { st_mult: 1.2, sar_window: 5 } },
+    { name: NM2, values: { st_mult: 1.2, sar_window: 3 } },
+    { name: NM3, values: { st_mult: 1.5, sar_window: 2 } },
+    { name: NM4, values: { st_mult: 2, sar_window: 2 } },
+    { name: NM5, values: { st_mult: 2.5, sar_window: 1 } },
+  ],
+  n_deeprev: [
+    { name: NM1, values: { dr_min_conf: 5, dr_touches: 2, dr_use_cross: false, dr_use_m1: false } },
+    { name: NM2, values: { dr_min_conf: 5, dr_touches: 2, dr_use_cross: false, dr_use_m1: true } },
+    { name: NM3, values: { dr_min_conf: 6, dr_touches: 2, dr_use_cross: true, dr_use_m1: true } },
+    { name: NM4, values: { dr_min_conf: 7, dr_touches: 2, dr_use_cross: true, dr_use_m1: true } },
+    { name: NM5, values: { dr_min_conf: 8, dr_touches: 3, dr_use_cross: true, dr_use_m1: true } },
+  ],
   // Strictness levels of the big-candle mode; every value is visible here and in the instruction.
   n_big: [
     { name: L('Очень часто', 'Sehr oft', 'Very often'), values: { ...BS, bs_body: 1.5, bs_ratio: 0.5, bs_trend: false, bs_gap: 0 } },
@@ -150,19 +186,98 @@ const PRESETS = {
       values: { ...ST_OFF, expiry: 60, st_fade: true, st_body_atr: 0.6, st_adx: 30, st_use_macd: true, st_macd_fast: 12, st_macd_slow: 26, st_macd_signal: 9 } },
     { name: L('Vortex 7 + MACD 6/13/5 · 3 мин', 'Vortex 7 + MACD 6/13/5 · 3 Min', 'Vortex 7 + MACD 6/13/5 · 3 min'),
       values: { ...ST_OFF, expiry: 180, st_fade: true, st_body_atr: 0.6, st_adx: 25, st_use_vortex: true, st_vortex_period: 7, st_use_macd: true, st_macd_fast: 6, st_macd_slow: 13, st_macd_signal: 5 } },
+    { name: NM1, values: { ...ST_OFF, st_adx: 20, st_fresh: 5, st_di_gap: 2, st_big_k: 2, st_body_atr: 0.3, st_max_run: 8 } },
+    { name: NM2, values: { ...ST_OFF, st_adx: 20, st_fresh: 5, st_di_gap: 3, st_big_k: 2, st_body_atr: 0.5, st_max_run: 7 } },
+    { name: NM3, values: { ...ST_OFF, st_adx: 25, st_fresh: 4, st_di_gap: 4, st_big_k: 2, st_body_atr: 0.6, st_max_run: 6 } },
+    { name: NM4, values: { ...ST_OFF, st_adx: 25, st_fresh: 3, st_di_gap: 5, st_big_k: 2, st_body_atr: 0.8, st_max_run: 5 } },
+    { name: NM5, values: { ...ST_OFF, st_adx: 30, st_fresh: 3, st_di_gap: 7, st_big_k: 2, st_body_atr: 0.9, st_max_run: 5 } },
   ],
   // MA 2/5: fewer and better crosses. Measured 28.10.2026 (17 OTC pairs, 90 min, 2 min expiry): only "calm before" raised
   // the win rate (none 291 signals 52 %, 8 → 53 / 56 %, 10 → 33 / 72 %, 12 → 17 / 81 %); trend EMA, RSI, body, ADX did not.
   n_ma25: [
-    { name: L('Мягко', 'Locker', 'Loose'), values: { m25_quiet: 8, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
-    { name: L('Средне', 'Mittel', 'Medium'), values: { m25_quiet: 10, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
-    { name: L('Строго', 'Streng', 'Strict'), values: { m25_quiet: 12, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: NM1, values: { m25_quiet: 5, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: NM2, values: { m25_quiet: 8, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: NM3, values: { m25_quiet: 10, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: NM4, values: { m25_quiet: 12, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
+    { name: NM5, values: { m25_quiet: 15, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_vol: 0, min_adx: 0, room_check: false } },
   ],
 };
 
 // Backtest results shown in the strategy (folded, opened by a tap). Rows: [variant, ...values].
 const PROFILE_NOTE = L('Winrate, %. M1, 12 пар, 8000 минут на пару, обычный рынок (не OTC), без задержек. Безубыток: 54 % при выплате 85 %. Это один период, выбор лучшей клетки завышает результат, а при малом числе сигналов цифры почти случайны; преимущество не доказано.', 'Trefferquote, %. M1, 12 Paare, 8000 Minuten je Paar, normaler Markt (kein OTC), ohne Verzögerung. Break-even: 54 % bei 85 % Auszahlung. Ein Zeitraum; die beste Zelle auszuwählen überschätzt das Ergebnis, bei wenigen Signalen sind die Zahlen fast Zufall; kein Vorteil belegt.', 'Win rate, %. M1, 12 pairs, 8000 minutes per pair, normal market (not OTC), no delays. Break-even: 54 % at 85 % payout. One period; picking the best cell overstates the result, and with few signals the numbers are almost random; no edge proven.');
 const TESTS = {
+  n_rsi8020: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '70', '49,6', '50,0', '49,6', '49,2'],
+      [L('2 Часто', '2 Oft', '2 Often'), '69', '49,9', '50,3', '50,4', '49,8'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '64', '51,3', '51,2', '50,7', '50,6'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '57', '50,3', '50,9', '50,5', '51,9'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '46', '50,1', '52,4', '52,0', '51,4'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  n_stochenv: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '21', '51,3', '52,6', '51,7', '51,5'],
+      [L('2 Часто', '2 Oft', '2 Often'), '9,6', '52,8', '54,4', '52,2', '54,6'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '3,4', '53,0', '57,9', '56,0', '54,1'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '0,8', '52,2', '62,3', '60,3', '60,3'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '0,2', '66,7', '73,3', '60,0', '73,3'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  n_vortex: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '49', '49,4', '49,2', '48,9', '48,2'],
+      [L('2 Часто', '2 Oft', '2 Often'), '33', '49,7', '48,8', '48,1', '47,7'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '31', '50,5', '49,1', '48,2', '47,6'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '7,1', '50,4', '48,0', '46,5', '47,3'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '2,9', '45,5', '41,1', '43,2', '46,1'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  n_psar: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '18', '50,2', '50,8', '49,7', '51,0'],
+      [L('2 Часто', '2 Oft', '2 Often'), '16', '50,5', '50,3', '49,6', '50,7'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '16', '47,8', '48,2', '48,6', '47,5'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '13', '47,1', '49,2', '49,0', '46,1'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '4,7', '50,9', '51,6', '49,8', '44,8'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  n_ma25: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '62', '49,1', '50,1', '49,9', '49,3'],
+      [L('2 Часто', '2 Oft', '2 Often'), '26', '49,4', '51,3', '50,0', '48,6'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '14', '49,1', '50,8', '49,3', '48,6'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '7,4', '50,2', '54,0', '50,7', '49,4'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '3,2', '50,5', '53,3', '50,7', '50,5'],
+    ],
+    note: PROFILE_NOTE,
+  }],
+  n_deeprev: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '6,1', '49,1', '49,8', '50,7', '48,7'],
+      [L('2 Часто', '2 Oft', '2 Often'), '1,1', '51,0', '55,1', '53,1', '47,5'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '0,3', '50,0', '59,3', '50,0', '43,3'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '0,3', '50,0', '54,5', '45,8', '44,0'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '0,1', '53,8', '58,3', '50,0', '38,5'],
+    ],
+    note: PROFILE_NOTE,
+  }],
   n_sharp: [{
     title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
     cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
@@ -215,6 +330,17 @@ const TESTS = {
     note: L('Winrate, %. 12 пар, 8000 минут на пару, обычный рынок (не OTC), без задержек. Безубыток: 54 % при выплате 85 %. Это один период, выбор лучшей клетки из таблицы завышает результат; преимущество не доказано.', 'Trefferquote, %. 12 Paare, 8000 Minuten je Paar, normaler Markt (kein OTC), ohne Verzögerung. Break-even: 54 % bei 85 % Auszahlung. Ein Zeitraum; die beste Zelle auszuwählen überschätzt das Ergebnis; kein Vorteil belegt.', 'Win rate, %. 12 pairs, 8000 minutes per pair, normal market (not OTC), no delays. Break-even: 54 % at 85 % payout. One period; picking the best cell overstates the result; no edge proven.'),
   }],
   n_strongtrend: [{
+    title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
+    cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
+    rows: [
+      [L('5 Очень часто', '5 Sehr oft', '5 Very often'), '3,8', '50,2', '49,2', '47,0', '46,2'],
+      [L('6 Часто', '6 Oft', '6 Often'), '2,3', '53,3', '50,3', '48,2', '44,1'],
+      [L('7 Средне', '7 Mittel', '7 Medium'), '0,8', '53,2', '50,0', '50,0', '41,8'],
+      [L('8 Строже', '8 Strenger', '8 Stricter'), '0,3', '56,0', '57,7', '65,4', '42,3'],
+      [L('9 Строго', '9 Streng', '9 Strict'), '0,1', '42,9', '37,5', '44,4', '55,6'],
+    ],
+    note: PROFILE_NOTE,
+  }, {
     title: L('Лучшие сочетания индикаторов (пресеты 1–4)', 'Beste Indikator-Kombinationen (Presets 1–4)', 'Best indicator combinations (presets 1–4)'),
     cols: [L('Пресет', 'Preset', 'Preset'), L('Настройки', 'Einstellungen', 'Settings'), L('Экспир.', 'Ablauf', 'Expiry'), L('Сигналов / 5 дн.', 'Signale / 5 T.', 'Signals / 5 d'), L('Отбор', 'Auswahl', 'Choice'), L('Проверка', 'Prüfung', 'Check')],
     rows: [
@@ -1056,6 +1182,97 @@ function evaluate(candlesByTf, enabled, settings) {
 }
 
 const HELP = {
+  n_rsi8020: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Строже: дальше зоны, из которых выходит осциллятор.', 'Strenger: weiter außen liegende Zonen.', 'Stricter: zones further out.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: Зоны 65/35.', '1 Sehr oft: Zonen 65/35.', '1 Very often: Zones 65/35.'),
+      L('2 Часто: Зоны 70/30.', '2 Oft: Zonen 70/30.', '2 Often: Zones 70/30.'),
+      L('3 Средне: Зоны 80/20, обычная настройка.', '3 Mittel: Zonen 80/20, Standard.', '3 Medium: Zones 80/20, default.'),
+      L('4 Строже: Зоны 85/15.', '4 Strenger: Zonen 85/15.', '4 Stricter: Zones 85/15.'),
+      L('5 Строго: Зоны 90/10.', '5 Streng: Zonen 90/10.', '5 Strict: Zones 90/10.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_stochenv: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Строже: цена дальше за Envelopes и уже зона стохастика.', 'Strenger: Preis weiter jenseits der Envelopes, engere Stochastik-Zone.', 'Stricter: price further beyond the envelopes, narrower Stochastic zone.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: Envelopes 0,05 %, зона 30.', '1 Sehr oft: Envelopes 0,05 %, Zone 30.', '1 Very often: Envelopes 0.05 %, zone 30.'),
+      L('2 Часто: Envelopes 0,07 %, зона 25.', '2 Oft: Envelopes 0,07 %, Zone 25.', '2 Often: Envelopes 0.07 %, zone 25.'),
+      L('3 Средне: Envelopes 0,1 %, зона 20, обычная настройка.', '3 Mittel: Envelopes 0,1 %, Zone 20, Standard.', '3 Medium: Envelopes 0.1 %, zone 20, default.'),
+      L('4 Строже: Envelopes 0,15 %, зона 20.', '4 Strenger: Envelopes 0,15 %, Zone 20.', '4 Stricter: Envelopes 0.15 %, zone 20.'),
+      L('5 Строго: Envelopes 0,2 %, зона 15.', '5 Streng: Envelopes 0,2 %, Zone 15.', '5 Strict: Envelopes 0.2 %, zone 15.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_vortex: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Строже: больше индикаторов должны подтвердить пересечение Vortex.', 'Strenger: mehr Indikatoren müssen die Vortex-Kreuzung bestätigen.', 'Stricter: more indicators must confirm the Vortex cross.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: Только Vortex.', '1 Sehr oft: Nur Vortex.', '1 Very often: Vortex only.'),
+      L('2 Часто: Vortex + быстрый MACD 6/13/5.', '2 Oft: Vortex + schneller MACD 6/13/5.', '2 Often: Vortex + fast MACD 6/13/5.'),
+      L('3 Средне: Vortex + MACD 12/26/9, обычная настройка.', '3 Mittel: Vortex + MACD 12/26/9, Standard.', '3 Medium: Vortex + MACD 12/26/9, default.'),
+      L('4 Строже: То же + ADX от 20.', '4 Strenger: Dazu ADX ab 20.', '4 Stricter: Plus ADX from 20.'),
+      L('5 Строго: То же + ADX от 25 и RSI с нужной стороны от 50, не дальше 70.', '5 Streng: Dazu ADX ab 25 und RSI auf der richtigen Seite von 50, höchstens 70.', '5 Strict: Plus ADX from 25 and RSI on the right side of 50, at most 70.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_psar: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Строже: больший множитель Supertrend и меньше окно совпадения с PSAR.', 'Strenger: größerer Supertrend-Faktor, kleineres Fenster für die Übereinstimmung mit PSAR.', 'Stricter: bigger Supertrend factor, smaller window for agreement with PSAR.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: Множитель 1,2, окно 5.', '1 Sehr oft: Faktor 1,2, Fenster 5.', '1 Very often: Factor 1.2, window 5.'),
+      L('2 Часто: Множитель 1,2, окно 3.', '2 Oft: Faktor 1,2, Fenster 3.', '2 Often: Factor 1.2, window 3.'),
+      L('3 Средне: Множитель 1,5, окно 2, обычная настройка.', '3 Mittel: Faktor 1,5, Fenster 2, Standard.', '3 Medium: Factor 1.5, window 2, default.'),
+      L('4 Строже: Множитель 2, окно 2.', '4 Strenger: Faktor 2, Fenster 2.', '4 Stricter: Factor 2, window 2.'),
+      L('5 Строго: Множитель 2,5, окно 1.', '5 Streng: Faktor 2,5, Fenster 1.', '5 Strict: Factor 2.5, window 1.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_ma25: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Строже: дольше не было пересечения линий перед сигналом. Прежние профили 1–3 теперь 2–4.', 'Strenger: längere Zeit ohne Kreuzung vor dem Signal. Die früheren Profile 1–3 sind jetzt 2–4.', 'Stricter: longer time without a cross before the signal. The former profiles 1–3 are now 2–4.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: Спокойно 5 свечей.', '1 Sehr oft: Ruhe 5 Kerzen.', '1 Very often: Calm 5 candles.'),
+      L('2 Часто: Спокойно 8 свечей.', '2 Oft: Ruhe 8 Kerzen.', '2 Often: Calm 8 candles.'),
+      L('3 Средне: Спокойно 10 свечей.', '3 Mittel: Ruhe 10 Kerzen.', '3 Medium: Calm 10 candles.'),
+      L('4 Строже: Спокойно 12 свечей.', '4 Strenger: Ruhe 12 Kerzen.', '4 Stricter: Calm 12 candles.'),
+      L('5 Строго: Спокойно 15 свечей.', '5 Streng: Ruhe 15 Kerzen.', '5 Strict: Calm 15 candles.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_deeprev: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Строже: выше минимальная уверенность и больше обязательных условий. Направления остаются вашими.', 'Strenger: höhere Mindest-Zuversicht und mehr Pflichtbedingungen. Die Richtungen bleiben Ihre.', 'Stricter: higher minimum confidence and more required conditions. Directions stay yours.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('1 Очень часто: Уверенность от 5, без возврата RSI и без входа на M1.', '1 Sehr oft: Zuversicht ab 5, ohne RSI-Rückkehr und M1-Einstieg.', '1 Very often: Confidence from 5, no RSI return, no M1 entry.'),
+      L('2 Часто: Уверенность от 5, без возврата RSI.', '2 Oft: Zuversicht ab 5, ohne RSI-Rückkehr.', '2 Often: Confidence from 5, no RSI return.'),
+      L('3 Средне: Уверенность от 6, все правила, обычная настройка.', '3 Mittel: Zuversicht ab 6, alle Regeln, Standard.', '3 Medium: Confidence from 6, all rules, default.'),
+      L('4 Строже: Уверенность от 7.', '4 Strenger: Zuversicht ab 7.', '4 Stricter: Confidence from 7.'),
+      L('5 Строго: Уверенность от 8, уровень от 3 касаний.', '5 Streng: Zuversicht ab 8, Level ab 3 Berührungen.', '5 Strict: Confidence from 8, level from 3 touches.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
+  n_strongtrend: [{
+    title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
+    body: [
+      L('Профили 1–4 — прежние проверенные сочетания, они работают против импульса. Профили 5–9 — уровни строгости: направление остаётся вашим (настройка «Против импульса»). Строже: выше ADX, больше разрыв DI, больше свечи, меньше свечей подряд.', 'Profile 1–4 sind die bisherigen geprüften Kombinationen, sie arbeiten gegen den Impuls. Profile 5–9 sind Strenge-Stufen: die Richtung bleibt Ihre (Einstellung „Gegen den Impuls“). Strenger: höherer ADX, größerer DI-Abstand, größere Kerzen, weniger Kerzen in Folge.', 'Profiles 1–4 are the former tested combinations, against the impulse. Profiles 5–9 are strictness levels: direction stays yours ("Against the impulse" setting). Stricter: higher ADX, bigger DI gap, bigger candles, fewer candles in a row.'),
+      L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
+      L('5 Очень часто: ADX от 20, DI от 2, тело от 0,3 ATR, до 8 свечей.', '5 Sehr oft: ADX ab 20, DI ab 2, Körper ab 0,3 ATR, bis 8 Kerzen.', '5 Very often: ADX from 20, DI from 2, body from 0.3 ATR, up to 8 candles.'),
+      L('6 Часто: ADX от 20, DI от 3, тело от 0,5, до 7.', '6 Oft: ADX ab 20, DI ab 3, Körper ab 0,5, bis 7.', '6 Often: ADX from 20, DI from 3, body from 0.5, up to 7.'),
+      L('7 Средне: ADX от 25, DI от 4, тело от 0,6, до 6.', '7 Mittel: ADX ab 25, DI ab 4, Körper ab 0,6, bis 6.', '7 Medium: ADX from 25, DI from 4, body from 0.6, up to 6.'),
+      L('8 Строже: ADX от 25, DI от 5, тело от 0,8, до 5, обычная настройка.', '8 Strenger: ADX ab 25, DI ab 5, Körper ab 0,8, bis 5, Standard.', '8 Stricter: ADX from 25, DI from 5, body from 0.8, up to 5, default.'),
+      L('9 Строго: ADX от 30, DI от 7, тело от 0,9, до 5.', '9 Streng: ADX ab 30, DI ab 7, Körper ab 0,9, bis 5.', '9 Strict: ADX from 30, DI from 7, body from 0.9, up to 5.'),
+      L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
+    ],
+  }],
   n_sharp: [{
     title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
     body: [

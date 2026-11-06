@@ -66,6 +66,13 @@ class Engine extends EventEmitter {
       s.trendpull_on_1105 = true;
       writeJson(this.settingsFile, s);
     }
+    // 06.11.2026: MA 2/5 got a new first level, so the saved old profiles 1–3 move up by one.
+    if (!this.settings.ma25_presets_1106) {
+      const s = this.settings;
+      if (s.strat_presets?.n_ma25) s.strat_presets.n_ma25 = s.strat_presets.n_ma25.map(n => n + 1);
+      s.ma25_presets_1106 = true;
+      writeJson(this.settingsFile, s);
+    }
     // Same general filters as on the user's PC (the phone still had the old stricter ones and gave no signals).
     if (!this.settings.pc_match_1028) {
       Object.assign(this.settings, { min_payout: 75, min_confirm: 1, min_strength: 60, trend_only: false, no_countertrend: false,
