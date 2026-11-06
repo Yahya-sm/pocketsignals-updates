@@ -75,7 +75,8 @@ function openPocketOption(symbol, name, withTimeframe = false, exp = 0, lang = '
 // A double click starts with a click that hides the window, so a double click right after hiding (700 ms) does not show it again.
 function watchPoClicks(w) {
   let hiddenAt = 0;
-  const report = "if(!window.__psClicks){window.__psClicks=1;addEventListener('click',()=>console.log('__ps_click__'),true);addEventListener('dblclick',()=>console.log('__ps_dbl__'),true);}";
+  // Only real mouse clicks (isTrusted): buttons in PocketSignals drive the page with scripted clicks (asset, expiry), which must not hide the app.
+  const report = "if(!window.__psClicks){window.__psClicks=1;addEventListener('click',e=>{if(e.isTrusted)console.log('__ps_click__')},true);addEventListener('dblclick',e=>{if(e.isTrusted)console.log('__ps_dbl__')},true);}";
   w.webContents.on('did-finish-load', () => { w.webContents.executeJavaScript(report).catch(() => {}); });
   w.webContents.on('console-message', (e, _level, message) => {
     const m = message ?? e.message;
