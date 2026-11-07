@@ -110,6 +110,27 @@ class Engine extends EventEmitter {
     this.po.on('log', () => this.emit('state'));
   }
 
+  // Own OTC candle history for later tests (user, 07.11.2026): closed M1 candles of the scanned OTC pairs, one CSV per UTC day
+  // (symbol,time,open,high,low,close,payout). Prices only, no account data. Phone: the fs shim hands this to AndroidApp.recAppend.
+  _recordOtc(sym, closed) {
+    if (this.settings.otc_record === false || !/_otc$/i.test(sym)) return;
+    this.otcLast ||= new Map(); this.otcRec ||= { rows: 0 };
+    const last = this.otcLast.get(sym) || 0, payout = this.assets.get(sym)?.payout ?? '', days = {};
+    let top = last, rows = 0;
+    for (const k of closed) {
+      if (k.time <= last) continue;
+      const day = new Date(k.time * 1000).toISOString().slice(0, 10);
+      days[day] = (days[day] || '') + [sym, k.time, k.open, k.high, k.low, k.close, payout].join(',') + '\n';
+      top = Math.max(top, k.time); rows++;
+    }
+    if (!rows) return;
+    try {
+      const dir = path.join(DATA, 'otc'); fs.mkdirSync(dir, { recursive: true });
+      for (const [day, text] of Object.entries(days)) fs.appendFileSync(path.join(dir, day + '.csv'), text);
+      this.otcLast.set(sym, top); this.otcRec.rows += rows;
+    } catch (e) { this.otcRec.error = String(e.message || e).slice(0, 120); }
+  }
+
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
@@ -461,6 +482,7 @@ class Engine extends EventEmitter {
     const all = this._withLive(h.asset, hist, 60); // newest minutes (and the forming one) from the live prices
     const closed = all.filter(k => k.time < nowMin);
     if (!closed.length) return;
+    this._recordOtc(h.asset, closed);
     this.candles.set(h.asset, closed);
     this._settleResults(h.asset, closed);           // results only from closed candles
     // Fast scanning also looks at the forming candle; one signal per candle is kept by the signal id.
@@ -754,6 +776,7 @@ class Engine extends EventEmitter {
       status: this.status, connected: this.po.authed, lastError: this.po.lastError || null, log: this.po.log.slice(-40),
       // What session is stored (never the session itself): shown under the session field.
       session: this.po.ssid ? { length: this.po.ssid.length, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid) } : null, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid || ''),
+      otcRec: { rows: this.otcRec?.rows || 0, pairs: this.otcLast?.size || 0, error: this.otcRec?.error || null, dir: path.join(DATA, 'otc') },
       watching: this.selectedAssets().length, assetsKnown: this.assets.size,
       // Running signals carry the pair's current M5 trend (recomputed from the latest candles).
       signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, trends: this.trendMinutes.map(m => ({ tf: 'M' + m, dir: this.m5Trend(s.symbol, m) })).filter(x => x.dir) } : s)),
@@ -772,7 +795,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

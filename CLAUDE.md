@@ -65,6 +65,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: `n_sharp` option rising ADX (`sharp_ax_*`, off by default; was strong, weakened, rises; expiry 300); `sharp_trig` STOCH/RSI/ANY; `sharp_exp_adapt` = `adaptiveExpiry` (ATR ratio and room to the level ahead, 1–5 candles, guesses). Test raw_pb profile 3: off 51.4 % at 5 min (n 1153), option 47.0 % at 5 min, 60.5 % at 2 min but n 88. Not proof.
 
+- 07.11.2026: OTC recording `_recordOtc` (`otc_record`, default on): `data/otc/<UTC day>.csv` on the PC; phone via `AndroidApp.recAppend` into files/otc (newest 60 days), `recExport` = zip in Download. Prices only; never commit `data/`.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key

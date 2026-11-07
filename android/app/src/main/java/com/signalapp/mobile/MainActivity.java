@@ -371,6 +371,71 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> downloadAndInstall(url));
         }
 
+        // OTC candle recording (engine._recordOtc): files/otc/<day>.csv, the newest 60 days stay.
+        private java.io.File otcDir() {
+            java.io.File d = new java.io.File(getFilesDir(), "otc");
+            d.mkdirs();
+            return d;
+        }
+
+        @JavascriptInterface
+        public void recAppend(String name, String text) {
+            if (name == null || text == null || !name.matches("\\d{4}-\\d{2}-\\d{2}\\.csv")) return;
+            java.io.File dir = otcDir();
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(dir, name), true)) {
+                out.write(text.getBytes("UTF-8"));
+            } catch (Exception e) { return; }
+            String[] all = dir.list();
+            if (all == null || all.length <= 60) return;
+            java.util.Arrays.sort(all);
+            for (int i = 0; i < all.length - 60; i++) new java.io.File(dir, all[i]).delete();
+        }
+
+        @JavascriptInterface
+        public String recInfo() {
+            long bytes = 0; int days = 0;
+            java.io.File[] all = otcDir().listFiles();
+            if (all != null) for (java.io.File f : all) { bytes += f.length(); days++; }
+            return "{\"days\":" + days + ",\"bytes\":" + bytes + "}";
+        }
+
+        // All recorded days as one zip: the Download folder (Android 10+), else the app's own external folder.
+        // Returns where it went, empty on failure.
+        @JavascriptInterface
+        public String recExport() {
+            java.io.File[] all = otcDir().listFiles();
+            if (all == null || all.length == 0) return "";
+            String name = "PocketSignals-OTC-" + System.currentTimeMillis() + ".zip", where;
+            java.io.OutputStream raw = null;
+            try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+                    v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/zip");
+                    v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download");
+                    android.net.Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (uri == null) return "";
+                    raw = getContentResolver().openOutputStream(uri);
+                    where = "Download/" + name;
+                } else {
+                    java.io.File f = new java.io.File(getExternalFilesDir(null), name);
+                    raw = new java.io.FileOutputStream(f);
+                    where = f.getPath();
+                }
+                try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(raw)) {
+                    byte[] buf = new byte[65536];
+                    for (java.io.File f : all) {
+                        zip.putNextEntry(new java.util.zip.ZipEntry(f.getName()));
+                        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+                            for (int n; (n = in.read(buf)) > 0; ) zip.write(buf, 0, n);
+                        }
+                        zip.closeEntry();
+                    }
+                }
+                return where;
+            } catch (Exception e) { return ""; }
+        }
+
         // Demo or real trading page to open PocketOption with.
         @JavascriptInterface
         public void setPoStart(String url) {

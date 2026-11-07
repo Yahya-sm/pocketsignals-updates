@@ -25,6 +25,7 @@ __mods.fs = {
     throw new Error('ENOENT ' + k);
   },
   writeFileSync(p, d) { try { localStorage.setItem('file:' + __base(p), d); } catch (e) {} },
+  appendFileSync(p, d) { if (typeof window !== 'undefined' && window.AndroidApp && window.AndroidApp.recAppend) window.AndroidApp.recAppend(__base(p), String(d)); },
   mkdirSync() {}, existsSync(p) { return localStorage.getItem('file:' + __base(p)) !== null; },
 };
 __mods.path = { join: (...a) => a.join('/') };

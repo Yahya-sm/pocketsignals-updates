@@ -110,7 +110,9 @@ function render() {
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
-    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter;
+    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
+    { const r = state.otcRec || {}; let extra = ''; if (isAndroid && window.AndroidApp.recInfo) { try { const a = JSON.parse(window.AndroidApp.recInfo()); extra = ' · ' + t('otc_rec_store', { d: a.days, mb: (a.bytes / 1048576).toFixed(1) }); } catch {} } else if (isDesktop && r.dir) extra = ' · ' + r.dir;
+      $('#otcRecInfo').textContent = (r.error ? r.error + ' · ' : '') + t('otc_rec_info', { n: r.rows || 0, p: r.pairs || 0 }) + extra; $('#otcExportBtn').hidden = !(isAndroid && window.AndroidApp.recExport); }
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
     $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sInterval').value = String(s.scan_interval || 60);
     $('#sMin').value = s.min_strength; $('#sMax').value = s.max_per_scan; $('#sPayout').value = s.min_payout;
@@ -596,6 +598,7 @@ document.addEventListener('change', e => {
   if (el.id === 'sM5') patch.show_m5 = el.checked;
   if (el.id === 'sPoStart') patch.po_start_mode = el.value;
   if (el.id === 'sTvOpen') patch.tv_open = el.value;
+  if (el.id === 'sOtcRec') patch.otc_record = el.checked;
   if (el.dataset.trendtf !== undefined) { // at least one timeframe stays on
     const tfs = [...document.querySelectorAll('[data-trendtf]:checked')].map(x => x.value);
     if (tfs.length) patch.trend_tfs = tfs; else el.checked = true;
@@ -692,6 +695,10 @@ $('#importBtn').onclick = async () => {
   const r = await call({ action: 'import', data });
   if (r.ok) { $('#importText').value = ''; toast(t('toast_imported', { s: r.strategies, a: r.active })); }
   else toast(r.error ? t(r.error) : t('toast_import_fail'));
+};
+$('#otcExportBtn').onclick = () => {
+  const p = window.AndroidApp.recExport();
+  toast(p ? t('otc_export_ok', { p }) : t('otc_export_fail'));
 };
 $('#exportBtn').onclick = async () => {
   const r = await call({ action: 'export' }); if (!r.ok) return;
