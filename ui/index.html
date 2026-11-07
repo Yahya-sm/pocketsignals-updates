@@ -70,7 +70,7 @@
   </section>
 
   <section id="settings" class="tab">
-    <h3 data-i18n="general"></h3>
+    <details class="setfold"><summary><h3 data-i18n="general"></h3></summary>
     <div class="group">
       <label class="row"><span data-i18n="language"></span>
         <select id="sLang"><option value="de">Deutsch</option><option value="ru">Русский</option><option value="en">English</option></select></label>
@@ -114,13 +114,16 @@
       <label class="row"><span data-i18n="max_per_min"></span><input type="number" id="sMax" min="1" max="20"></label>
       <label class="row"><span data-i18n="min_payout"></span><input type="number" id="sPayout" min="0" max="100"></label>
     </div>
-    <h3 data-i18n="markets"></h3>
+    </details>
+    <details class="setfold"><summary><h3 data-i18n="markets"></h3></summary>
     <div class="group" id="cats"></div>
-    <h3><span data-i18n="strategies"></span> <span id="stratCount"></span></h3>
+    </details>
+    <details class="setfold"><summary><h3><span data-i18n="strategies"></span> <span id="stratCount"></span></h3></summary>
     <input type="search" id="stratSearch" data-i18n-ph="strat_search">
     <div class="chips"><button class="chip active" data-filter="all" data-i18n="all"></button><button class="chip" data-filter="on" data-i18n="active"></button><button class="chip" data-filter="fav" data-i18n="favorites"></button></div>
     <div id="strats"></div>
-    <h3 data-i18n="transfer"></h3>
+    </details>
+    <details class="setfold"><summary><h3 data-i18n="transfer"></h3></summary>
     <p class="hint" data-i18n="transfer_hint"></p>
     <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" hidden>
     <textarea id="importText" rows="3" placeholder='{"strategies": [...], "strategy_settings": {...}}'></textarea>
@@ -129,7 +132,8 @@
       <button class="btn" id="importBtn" data-i18n="import"></button>
       <button class="btn ghost" id="exportBtn" data-i18n="export"></button>
     </div>
-    <h3 data-i18n="po_session"></h3>
+    </details>
+    <details class="setfold"><summary><h3 data-i18n="po_session"></h3></summary>
     <p class="hint" id="sessionHint" data-i18n="session_hint"></p>
     <textarea id="ssid" rows="3" placeholder='42["auth",{"session":"…","isDemo":1,…}]'></textarea>
     <button class="btn wide" id="ssidBtn" data-i18n="save_session"></button>
@@ -138,21 +142,25 @@
       <button class="btn ghost wide" id="exportSessionBtn" data-i18n="export_session"></button>
       <p class="hint" data-i18n="export_session_hint"></p>
     </div>
-    <h3 data-i18n="conn_log"></h3>
+    </details>
+    <details class="setfold"><summary><h3 data-i18n="conn_log"></h3></summary>
     <pre id="connLog" class="connlog"></pre>
     <button class="btn ghost wide" id="copyLogBtn" data-i18n="copy_log"></button>
+    </details>
     <div id="updateBox" hidden>
-      <h3 data-i18n="update"></h3>
+      <details class="setfold"><summary><h3 data-i18n="update"></h3></summary>
       <p class="hint"><span data-i18n="version"></span> <b id="appVersion"></b> <span id="onlineStatus"></span></p>
       <button class="btn wide" id="checkBtn" data-i18n="check_btn"></button>
       <button class="btn wide" id="installBtn" hidden></button>
       <p class="hint" data-i18n="update_hint"></p>
       <button class="btn ghost wide" id="updateBtn" data-i18n="update_btn"></button>
+      </details>
     </div>
     <div id="lanBox">
-      <h3 data-i18n="phone_wifi"></h3>
+      <details class="setfold"><summary><h3 data-i18n="phone_wifi"></h3></summary>
       <p class="hint" data-i18n="phone_wifi_hint"></p>
       <div id="lan"></div>
+      </details>
     </div>
   </section>
 </main>

@@ -329,3 +329,13 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .trendbox { font-size: 12px; gap: 6px; }
 
 .pfold > small { display: block; color: var(--muted); margin: 2px 0 6px; line-height: 1.35; }
+
+/* Settings sections folded (user, 07.11.2026) */
+.setfold { background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin: 8px 0; }
+.setfold > summary { display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: pointer; list-style: none; }
+.setfold > summary::-webkit-details-marker { display: none; }
+.setfold > summary::before { content: '\25B8'; color: var(--muted); }
+.setfold[open] > summary::before { content: '\25BE'; }
+.setfold > summary h3 { margin: 0; font-size: 13px; }
+.setfold[open] { padding: 0 8px 8px; }
+.setfold[open] > summary { padding: 12px 6px; }
