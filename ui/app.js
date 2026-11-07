@@ -110,7 +110,7 @@ function render() {
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
-    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sTrendTf').value = s.trend_tf || 'M5'; $('#sTrendFilter').checked = s.trend_filter;
+    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter;
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
     $('#sMiniCount').value = String(s.mini_count || 2); $('#sMiniPos').value = s.mini_pos || 'tr'; $('#sInterval').value = String(s.scan_interval || 60);
     $('#sMin').value = s.min_strength; $('#sMax').value = s.max_per_scan; $('#sPayout').value = s.min_payout;
@@ -162,9 +162,8 @@ function visibleSignals() {
 }
 // Trend badge; clicking it opens the pair in PocketOption on the trend timeframe.
 const m5Badge = s => {
-  if (!state.settings.show_m5 || !s.m5) return '';
-  const tf = state.settings.trend_tf || 'M5';
-  return `<button class="m5 ${s.m5}" data-po="${esc(s.id)}" data-potf="${tf}" title="${t('m5_title', { tf })} – ${t('open_tf')}">${tf} ${s.m5 === 'CALL' ? '▲' : s.m5 === 'PUT' ? '▼' : '◆'}</button>`;
+  if (!state.settings.show_m5 || !s.trends) return '';
+  return s.trends.map(({ tf, dir }) => `<button class="m5 ${dir}" data-po="${esc(s.id)}" data-potf="${tf}" title="${t('m5_title', { tf })} – ${t('open_tf')}">${tf} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</button>`).join('');
 };
 const resultBadge = s => (s.result ? `<span class="res ${s.result}">${I18N.de['res_' + s.result] ? t('res_' + s.result) : s.result}</span>` : '');
 
@@ -173,7 +172,7 @@ const resultBadge = s => (s.result ? `<span class="res ${s.result}">${I18N.de['r
 function renderLive() {
   if (!state) return;
   const all = visibleSignals();
-  const sig = s => [s.id, isDone(s) ? 1 : 0, s.result || '', s.m5 || '', pins.includes(s.id) ? 1 : 0].join(':');
+  const sig = s => [s.id, isDone(s) ? 1 : 0, s.result || '', (s.trends || []).map(x => x.tf + x.dir).join(), pins.includes(s.id) ? 1 : 0].join(':');
   let live = all.filter(s => dirFilter === 'all' || s.dir === dirFilter);
   // Scrolled down to a signal: the order is held, new signals wait behind the "↑ N new" pill (no jumping cards).
   // At the top, after the pill or the Signals tab: newest first again.
@@ -182,13 +181,13 @@ function renderLive() {
   if (scrolled && heldOrder) { fresh = live.filter(s => !heldOrder.includes(s.id)).length; live = heldOrder.map(id => live.find(s => s.id === id)).filter(Boolean); }
   else heldOrder = live.map(s => s.id);
   $('#newPill').hidden = !fresh; if (fresh) $('#newPill').textContent = t('new_signals', { n: fresh });
-  const liveKey = [LANG, state.settings.show_m5, state.settings.trend_tf, ...live.map(sig)].join('|');
+  const liveKey = [LANG, state.settings.show_m5, state.settings.trend_tfs, ...live.map(sig)].join('|');
   if ($('#live').dataset.key !== liveKey) { const top = main.scrollTop; $('#live').innerHTML = live.map(card).join(''); $('#live').dataset.key = liveKey; main.scrollTop = top; }
   $('#liveEmpty').hidden = live.length > 0;
   updateAdxBoxes();
 
   const top = all.slice(0, state.settings.mini_count || 2);
-  const miniKey = [LANG, state.settings.show_m5, state.settings.trend_tf, ...top.map(sig)].join('|');
+  const miniKey = [LANG, state.settings.show_m5, state.settings.trend_tfs, ...top.map(sig)].join('|');
   if ($('#mini').dataset.key === miniKey) return;
   $('#mini').dataset.key = miniKey;
   $('#mini').innerHTML = top.map(s => `<div class="mrow ${s.dir}${isDone(s) ? ' done' : ''}" data-expand="1">
@@ -583,7 +582,10 @@ document.addEventListener('change', e => {
   if (el.id === 'sM5') patch.show_m5 = el.checked;
   if (el.id === 'sPoStart') patch.po_start_mode = el.value;
   if (el.id === 'sTvOpen') patch.tv_open = el.value;
-  if (el.id === 'sTrendTf') patch.trend_tf = el.value;
+  if (el.dataset.trendtf !== undefined) { // at least one timeframe stays on
+    const tfs = [...document.querySelectorAll('[data-trendtf]:checked')].map(x => x.value);
+    if (tfs.length) patch.trend_tfs = tfs; else el.checked = true;
+  }
   if (el.id === 'sTrendFilter') patch.trend_filter = el.checked;
   if (el.id === 'sMiniCount') patch.mini_count = +el.value;
   if (el.id === 'sMiniPos') patch.mini_pos = el.value;

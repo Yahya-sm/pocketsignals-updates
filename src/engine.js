@@ -82,7 +82,7 @@ class Engine extends EventEmitter {
     this.signals = readJson(this.signalsFile, []);
     this.assets = new Map();      // symbol -> { symbol, name, type, payout, active, key, otc, category }
     this.candles = new Map();     // symbol -> closed candles
-    this.trendCandles = new Map(); // symbol -> { tf, at, candles } in the trend timeframe
+    this.trendCandles = new Map(); // "symbol|minutes" -> { at, candles } in a trend timeframe
     this.trendReq = new Map();     // request index -> { tf }
     this.ctxReq = new Map();       // request index -> { m } (M5/M15 history for multi-timeframe strategies)
     this.ctxCandles = new Map();   // symbol -> { M5, M15, at }
@@ -359,13 +359,12 @@ class Engine extends EventEmitter {
     list.forEach((a, i) => setTimeout(() => this.po.loadHistory(a.symbol, 60, 60 * 300), i * 40));
     // Trend candles in the trend timeframe itself (PocketOption sends at most ~150 candles per request,
     // too few one-minute candles for M10+). Fetched at most once a minute per pair.
-    const tm = this.trendMinutes;
-    if (tm > 1 && (this.settings.show_m5 !== false || this.settings.trend_filter)) {
-      list.forEach((a, i) => {
-        const have = this.trendCandles.get(a.symbol);
-        if (have && have.tf === tm && Date.now() - have.at < 55000) return;
-        setTimeout(() => { this.trendReq.set(this.po.loadHistory(a.symbol, tm * 60, tm * 60 * 60), { tf: tm }); }, list.length * 40 + i * 40);
-      });
+    if (this.settings.show_m5 !== false || this.settings.trend_filter) {
+      this.trendMinutes.filter(tm => tm > 1).forEach((tm, n) => list.forEach((a, i) => {
+        const have = this.trendCandles.get(a.symbol + '|' + tm);
+        if (have && Date.now() - have.at < 55000) return;
+        setTimeout(() => { this.trendReq.set(this.po.loadHistory(a.symbol, tm * 60, tm * 60 * 60), { tf: tm }); }, list.length * 40 * (n + 1) + i * 40);
+      }));
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
     const st = strategies.paramsFor('n_strongtrend', this.settings), en = this.enabledStrategies();
@@ -405,10 +404,10 @@ class Engine extends EventEmitter {
     if (this.lastEval.get(key) === last || last < now - 3 * sec) return; // already done / stale
     const entry = Math.ceil(now / sec) * sec; // next full 10/15/30-second mark
     this.lastEval.set(key, last);
-    const tf = 'S' + sec, trend = this.settings.trend_filter ? this.m5Trend(h.asset) : null;
+    const tf = 'S' + sec;
     for (const sig of strategies.evaluate({ [tf]: closed }, this.enabledStrategies(), this.settings)) {
       if (sig.strength < (this.settings.min_strength || 0)) continue;
-      if (!this._ownTrendLogic(sig) && ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0))) continue;
+      if (!this._ownTrendLogic(sig) && this._againstTrend(h.asset, sig.dir)) continue;
       this.scanSignals.push({ ...sig, asset: h.asset, candle: closed[closed.length - 1], entry });
     }
   }
@@ -431,7 +430,7 @@ class Engine extends EventEmitter {
     if (req) { // answer to a trend-timeframe request
       this.trendReq.delete(h.index);
       const c = h.data.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })).sort((a, b) => a.time - b.time);
-      this.trendCandles.set(h.asset, { tf: req.tf, at: Date.now(), candles: this._withLive(h.asset, c, req.tf * 60) });
+      this.trendCandles.set(h.asset + '|' + req.tf, { at: Date.now(), candles: this._withLive(h.asset, c, req.tf * 60) });
       return;
     }
     const nowMin = Math.floor(Date.now() / 60000) * 60;
@@ -455,7 +454,7 @@ class Engine extends EventEmitter {
     const closedOnly = enabled.filter(n => mode(n) === 'closed' || mode(n) === 'both');
     const liveOnly = enabled.filter(n => mode(n) === 'live' || mode(n) === 'both');
     // Optional filter: skip signals against the trend on the trend timeframe (sideways trend does not filter).
-    const trend = this.settings.trend_filter ? this.m5Trend(h.asset) : null;
+    // Several timeframes (user, 07.11.2026): one contradicting timeframe is enough to drop the signal.
     const run = (candles, names, live) => {
       if (!names.length) return;
       const last = candles[candles.length - 1].time;
@@ -472,7 +471,7 @@ class Engine extends EventEmitter {
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
         if (!this._ownTrendLogic(sig) && sig.strength < (this.settings.min_strength || 0)) continue;
-        if (!this._ownTrendLogic(sig) && ((trend === 'CALL' && sig.dir < 0) || (trend === 'PUT' && sig.dir > 0))) continue;
+        if (!this._ownTrendLogic(sig) && this._againstTrend(h.asset, sig.dir)) continue;
         this.scanSignals.push({ ...sig, asset: h.asset, candle: candles[candles.length - 1] });
       }
     };
@@ -544,17 +543,24 @@ class Engine extends EventEmitter {
     if (changed) { writeJson(this.signalsFile, this.signals); this.emit('state'); }
   }
 
-  // Timeframe of the trend badge (setting trend_tf, default M5), in minutes.
+  // Trend timeframes in minutes, ascending (setting trend_tfs; older settings have one trend_tf; default M5).
   get trendMinutes() {
-    const m = parseInt(String(this.settings.trend_tf || 'M5').slice(1), 10);
-    return [1, 2, 3, 5, 10, 15, 30].includes(m) ? m : 5;
+    const raw = Array.isArray(this.settings.trend_tfs) ? this.settings.trend_tfs : [this.settings.trend_tf || 'M5'];
+    const ms = raw.map(x => parseInt(String(x).slice(1), 10)).filter(m => [1, 2, 3, 5, 10, 15, 30].includes(m));
+    return ms.length ? [...new Set(ms)].sort((a, b) => a - b) : [5];
+  }
+
+  // Filter on: does any chosen timeframe point the other way? FLAT or no data does not filter.
+  _againstTrend(symbol, dir) {
+    if (!this.settings.trend_filter) return false;
+    return this.trendMinutes.some(tm => { const tr = this.m5Trend(symbol, tm); return (tr === 'CALL' && dir < 0) || (tr === 'PUT' && dir > 0); });
   }
 
   // Direction on the trend timeframe: EMA 9 above EMA 21 with price above EMA 9 = CALL, the mirror = PUT, else FLAT.
-  m5Trend(symbol) {
-    const tm = this.trendMinutes, own = this.trendCandles.get(symbol);
+  m5Trend(symbol, tm) {
+    const own = this.trendCandles.get(symbol + '|' + tm);
     let tc;
-    if (own && own.tf === tm) tc = own.candles;
+    if (own) tc = own.candles;
     else { const c = this.candles.get(symbol); if (!c) return null; tc = I.resample(c, tm); }
     if (tc.length < 25) return null;
     const close = tc.map(k => k.close), f = I.ema(close, 9), s = I.ema(close, 21), i = close.length - 1;
@@ -726,7 +732,7 @@ class Engine extends EventEmitter {
       session: this.po.ssid ? { length: this.po.ssid.length, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid) } : null, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid || ''),
       watching: this.selectedAssets().length, assetsKnown: this.assets.size,
       // Running signals carry the pair's current M5 trend (recomputed from the latest candles).
-      signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, m5: this.m5Trend(s.symbol) } : s)),
+      signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, trends: this.trendMinutes.map(m => ({ tf: 'M' + m, dir: this.m5Trend(s.symbol, m) })).filter(x => x.dir) } : s)),
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],
@@ -742,7 +748,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tf: 'M' + this.trendMinutes, trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

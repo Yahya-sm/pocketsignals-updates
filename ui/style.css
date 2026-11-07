@@ -339,3 +339,5 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .setfold > summary h3 { margin: 0; font-size: 13px; }
 .setfold[open] { padding: 0 8px 8px; }
 .setfold[open] > summary { padding: 12px 6px; }
+
+.trendtfs { flex-wrap: wrap; } .trendtfs .tfs { padding: 6px 0 0; }
