@@ -341,3 +341,21 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .setfold[open] > summary { padding: 12px 6px; }
 
 .trendtfs { flex-wrap: wrap; } .trendtfs .tfs { padding: 6px 0 0; }
+
+/* Compact signal card with price hint (user, 07.11.2026) */
+.sig .pairmeta .m5 { margin-left: 2px; }
+.sig-now { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 8px 0 4px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sig-now .timer { margin: 0; font-size: 16px; }
+.pricehint:empty { display: none; }
+.pricehint { margin: 0 0 5px; }
+.pz { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 7px; }
+.pz.green { color: var(--call); background: rgba(22,199,132,.14); }
+.pz.yellow { color: var(--warn); background: rgba(255,190,60,.14); }
+.pz.red { color: var(--put); background: rgba(234,57,67,.14); }
+.btns .morebtn { flex: 0 0 44px; background: var(--card2); color: inherit; }
+.sig-more { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.sig-more > .why, .sig-more > .trendbox, .sig-more > .adxbox, .sig-more > .recexp { flex: 1 0 100%; margin: 0; }
+.sig-more > .why { font-size: 12px; color: var(--muted); }
+.zones { margin-bottom: 12px; }
+.zrow { display: grid; grid-template-columns: 1fr 50px 50px; align-items: center; padding: 4px 2px; font-size: 13px; text-align: right; }
+.zrow .pz { justify-self: start; }

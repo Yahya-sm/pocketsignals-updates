@@ -102,7 +102,7 @@ function render() {
   if (histView === 'all') $('#allStats').innerHTML = `<div class="stats">${statTiles(sigs)}</div>${strategyStats(sigs)}`;
   $('#hist').hidden = histView !== 'list'; $('#stratStats').hidden = histView !== 'stats'; $('#myStats').hidden = histView !== 'mine'; $('#archStats').hidden = histView !== 'archive';
   $('#hist').innerHTML = state.signals.map(row).join('') || `<p class="empty">${t('no_history')}</p>`;
-  $('#stratStats').innerHTML = strategyStats(sigs);
+  $('#stratStats').innerHTML = zoneStats(sigs) + strategyStats(sigs);
   if (histView === 'mine') $('#myStats').innerHTML = myStats();
   $('#clearBtn').textContent = t(histView === 'mine' ? 'clear_mine' : 'clear_history'); $('#clearBtn').hidden = histView === 'archive';
   if (histView === 'archive' && $('#archStats').dataset.done !== LANG) { $('#archStats').innerHTML = archiveStats(); $('#archStats').dataset.done = LANG; }
@@ -161,8 +161,9 @@ function visibleSignals() {
   return [...pinned, ...rest];
 }
 // Trend badge; clicking it opens the pair in PocketOption on the trend timeframe.
-const m5Badge = s => {
+const m5Badge = (s, plain) => {
   if (!state.settings.show_m5 || !s.trends) return '';
+  if (plain) return s.trends.map(({ tf, dir }) => `<span class="m5 ${dir}">${tf} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</span>`).join('');
   return s.trends.map(({ tf, dir }) => `<button class="m5 ${dir}" data-po="${esc(s.id)}" data-potf="${tf}" title="${t('m5_title', { tf })} – ${t('open_tf')}">${tf} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</button>`).join('');
 };
 const resultBadge = s => (s.result ? `<span class="res ${s.result}">${I18N.de['res_' + s.result] ? t('res_' + s.result) : s.result}</span>` : '');
@@ -204,36 +205,44 @@ function reportMiniHeight() {
   if (isDesktop && window.desktop.miniHeight) requestAnimationFrame(() => window.desktop.miniHeight($('#mini').scrollHeight));
 }
 
-const seen = new Set();
+const seen = new Set(), openCards = new Set();
+// Countdown only: where the price is against the signal's price.
+function priceHint(s) {
+  if (!s.live || Date.now() / 1000 >= s.entryTime) return '';
+  return `<span class="pz ${s.live.zone}">${t('price_' + s.live.zone)}</span>`;
+}
+// Result per colour at the entry second, counted from the price at that second (not from the signal's price).
+function zoneStats(list) {
+  const row = z => {
+    const x = list.filter(s => s.entryZone === z), w = x.filter(s => s.zoneResult === 'WIN').length, l = x.filter(s => s.zoneResult === 'LOSS').length;
+    return `<div class="zrow"><span class="pz ${z}">${t('zone_' + z)}</span><span>${w + l}</span><b>${w + l ? Math.round(100 * w / (w + l)) + '%' : '–'}</b></div>`;
+  };
+  return `<div class="zones"><h3>${t('zone_title')}</h3>${['green', 'yellow', 'red'].map(row).join('')}<p class="hint">${t('zone_hint')}</p></div>`;
+}
 function card(s) {
   const fresh = !seen.has(s.id); seen.add(s.id);
   const created = Math.floor((s.created || Date.now()) / 1000), tp = timeProgress(s.entryTime, s.expiry, created);
   const done = isDone(s), pinned = pins.includes(s.id);
+  const more = openCards.has(s.id);
   return `<div class="sig ${s.dir}${fresh && !done ? ' new' : ''}${done ? ' done' : ''}">
     <div class="sig-top">
       <button class="star${pinned ? ' on' : ''}" data-pin="${esc(s.id)}" title="${t('pin')}">${pinned ? '★' : '☆'}</button>
       <div class="pairbox"><div class="pair">${esc(s.name)}</div>
-        <div class="pairmeta">${t('payout')} <b>${s.payout}%</b> · ${s.otc ? t('otc') : t('real_market')} ${m5Badge(s)}</div></div>
+        <div class="pairmeta">${esc(tr(s.strategyName))} · ${s.tf || 'M1'} ${m5Badge(s, true)}</div></div>
       ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}"><span class="arrow">${s.dir === 'CALL' ? '▲' : '▼'}</span>${s.dir}</div>`}
     </div>
-    <div class="strategy">
-      <div style="flex:1;min-width:0"><div class="lbl">${t('found_by')}</div>
-        <div class="nm">${esc(tr(s.strategyName))}</div><div class="why">${esc(tr(s.reason))}</div></div>
-      <button class="tag" data-po="${esc(s.id)}" data-potf="${s.tf || 'M1'}" title="${t('open_tf')}">${s.tf || 'M1'} ↗</button>
-    </div>
-    <div class="grid3">
-      <div><small>${t('entry')}</small><b>${fmtTime(s.entryTime)}</b></div>
-      <div><small>${t('expiry')}</small><b>${fmtExp(s.expiry)}</b></div>
-      <div><small>${t('strength')}</small><b>${s.strength}</b></div>
-    </div>
-    ${done ? '' : `<div class="trendbox" data-trend-id="${esc(s.id)}">${trendBox(s)}</div><div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>`}
+    <div class="sig-now"><div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
+      <span>${fmtExp(s.expiry)} · ${s.payout}%</span></div>
+    ${done ? '' : `<div class="pricehint" data-zone-id="${esc(s.id)}">${priceHint(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
-    <div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
-    ${done ? '' : recBtn(s)}
     <div class="btns">
-      <button class="po" data-po="${esc(s.id)}" data-poexp="60">PocketOption ↗</button>
-      <button class="tv" data-tv="${esc(s.id)}">TradingView ↗</button>
+      <button class="po" data-po="${esc(s.id)}" data-poexp="${s.expiry}">PocketOption ↗</button>
+      <button class="morebtn" data-more="${esc(s.id)}" aria-expanded="${more}" title="${t('card_more')}">${more ? '▴' : '▾'}</button>
     </div>
+    ${more ? `<div class="sig-more"><div class="why">${esc(tr(s.reason))}</div>
+      ${done ? '' : `<div class="trendbox" data-trend-id="${esc(s.id)}">${trendBox(s)}</div><div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>${recBtn(s)}`}
+      <button class="tag" data-po="${esc(s.id)}" data-potf="${s.tf || 'M1'}" title="${t('open_tf')}">${s.tf || 'M1'} ↗</button>
+      <button class="tag" data-tv="${esc(s.id)}">TradingView ↗</button></div>` : ''}
   </div>`;
 }
 // Recommended expiry (engine.recExpiry): a tap opens PocketOption on the pair and sets this expiry there.
@@ -273,6 +282,10 @@ function trendBox(s) {
 }
 function updateAdxBoxes() {
   if (!state) return;
+  document.querySelectorAll('[data-zone-id]').forEach(el => {
+    const s = state.signals.find(x => x.id === el.dataset.zoneId), html = s ? priceHint(s) : '';
+    if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
+  });
   document.querySelectorAll('[data-trend-id]').forEach(el => {
     const s = state.signals.find(x => x.id === el.dataset.trendId);
     if (s) { const html = trendBox(s); if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; } }
@@ -531,6 +544,7 @@ document.addEventListener('click', e => {
     if (s) { s.mine = !s.mine; call({ action: 'mine', id: s.id, on: s.mine }); render(); }
     return;
   }
+  if (el.dataset.more) { const k = el.dataset.more; openCards.has(k) ? openCards.delete(k) : openCards.add(k); $('#live').dataset.key = ''; renderLive(); return; }
   if (el.dataset.pin) togglePin(el.dataset.pin);
   if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf, false, +el.dataset.poexp || 0);
   if (el.dataset.tv) { const s = state.signals.find(x => x.id === el.dataset.tv); if (s) openUrl(s.tv); }

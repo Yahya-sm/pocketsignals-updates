@@ -61,6 +61,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: added from the user's prompts, off by default: `n_emapull` (EMA 20/50 + RSI bounce), `n_levelstoch` (M15 level + M5 pin bar + Stochastic 3 1 1, one line so no cross; runs on M1, once per closed M5). Skip OTC by default (`byTf.otc`). Test raw_pb: 50.3 % at 3 min (n 2897), 43.6 % at 5 min (n 82); no 65 %. News filter not built.
 
+- 07.11.2026: compact signal card (user: too much to read before entry): pair, direction, countdown, expiry, payout, one PO button with the signal's expiry; the rest under ▾; strength no longer shown. Countdown price hint `_samplePrice`: off in ATR (0.2/0.5, untested guesses), `entryZone` + `zoneResult` measured from the price at the entry second (History → Statistics).
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key
@@ -100,8 +102,7 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 ## Design rules
 - Dark, minimal, rounded: colors are CSS variables in `style.css` (`--bg #0a0e16`, `--card`, `--call` green, `--put` red,
   `--accent` blue). Cards 16 px radius, chips, slim dark scrollbar, bottom tab bar, no white or default controls.
-- Every signal card shows: pair icon (AUD over USD), payout, CALL/PUT, **which strategy found it** + reason, timeframe button
-  (opens PocketOption on that timeframe), trend badge (clickable), entry/expiry/strength, countdown + progress, PO and TV buttons, star.
+- Every signal card shows at a glance: pair, CALL/PUT, strategy + timeframe, trend badges, countdown, expiry, payout, price hint, progress, PO button, star. Reason, ADX, trend box, recommended expiry and TV are under ▾.
 - Signals sorted newest first (starred on top); while the user is scrolled down the order is held and a "↑ N new" pill
   appears (pill or the Signals tab = back to the top, fresh list). They disappear at expiry. Each running card has a live ADX box (5 s).
 - Every new text goes into `ui/i18n.js` in **all three** languages (de, ru, en).

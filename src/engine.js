@@ -178,6 +178,26 @@ class Engine extends EventEmitter {
     this.restartTimer();
     // Live ADX on the running signal cards (user, 03.11.2026): every 5 s, so a fading trend is seen before entering.
     setInterval(() => { if (this._sampleAdx()) this.emit('state'); }, 5000);
+    // Price against the signal during the countdown (user, 07.11.2026), once a second.
+    setInterval(() => { if (this._samplePrice()) this.emit('state'); }, 1000);
+  }
+
+  // Countdown hint: how far the price already went in the signal's direction, in ATR of the signal candle.
+  // Below 0.2 green, below 0.5 yellow, else red (first guesses, not tested: the app stores no tick history).
+  // The colour at the entry second is stored, the result per colour is counted from that price (see _settleResults).
+  _samplePrice() {
+    const now = Date.now() / 1000; let changed = false, save = false;
+    for (const s of this.signals.slice(0, 30)) {
+      if (s.manual || s.result || s.entryZone || !s.atr0 || now >= s.entryTime + 10) { if (s.live) { delete s.live; changed = true; } continue; }
+      const t = this.ticks.get(s.symbol), last = t && t[t.length - 1];
+      if (!last || now - last[0] > 15) { if (s.live) { delete s.live; changed = true; } continue; }
+      const off = +((last[1] - s.entryPrice) * (s.dir === 'CALL' ? 1 : -1) / s.atr0).toFixed(2);
+      const zone = off < 0.2 ? 'green' : off < 0.5 ? 'yellow' : 'red';
+      if (now >= s.entryTime) { s.entryZone = zone; s.entryOff = off; s.entryLive = last[1]; delete s.live; changed = save = true; }
+      else if (!s.live || s.live.off !== off) { s.live = { off, zone }; changed = true; }
+    }
+    if (save) writeJson(this.signalsFile, this.signals);
+    return changed;
   }
 
   // ADX 14 / +DI / −DI of the signal's pair on its timeframe, including the forming candle (live prices).
@@ -518,6 +538,8 @@ class Engine extends EventEmitter {
       strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
+    const hist0 = this.candles.get(s.asset), atr0 = hist0 && hist0.length > 15 ? I.atr(hist0, 14)[hist0.length - 1] : null;
+    if (atr0 > 0) sig.atr0 = atr0;
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
     try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; sig.recShort = re.short; } } catch {}
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
@@ -540,6 +562,7 @@ class Engine extends EventEmitter {
       const diff = k.close - s.entryPrice;
       s.result = diff === 0 ? 'DRAW' : (diff > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS';
       s.exitPrice = k.close; changed = true;
+      if (s.entryLive != null) { const dz = k.close - s.entryLive; s.zoneResult = dz === 0 ? 'DRAW' : (dz > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS'; }
     }
     if (changed) { writeJson(this.signalsFile, this.signals); this.emit('state'); }
   }
