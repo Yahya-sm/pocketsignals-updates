@@ -59,7 +59,7 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: `n_sharp` late-signal limits `sharp_k_late` 20, `sharp_rsi_back` 10 (user: signal after RSI had already moved). Test on raw_pb: the RSI limit does the work (profile 6: 1539 signals 53.4 % → 678 / 54.4 % at 2 min); one period, not proof, OTC untested.
 
-- 07.11.2026: added from the user's prompts, off by default: `n_emapull` (EMA 20/50 + RSI bounce), `n_levelstoch` (M15 level + M5 pin bar + Stochastic 3 1 1, one line so no cross; runs on M1, once per closed M5). Skip OTC by default (`byTf.otc`). Test raw_pb: 50.3 % at 3 min (n 2897), 43.6 % at 5 min (n 82); no 65 %. News filter not built. Option `ep_wick` (off): long-wick reversal candle at EMA 20 closing back. Option `ep_reclaim` (off): previous candle closed beyond EMA 20, this one returns with the trend colour.
+- 07.11.2026: added from the user's prompt, off by default: `n_levelstoch` (M15 level + M5 pin bar + Stochastic 3 1 1, one line so no cross; runs on M1, once per closed M5). Skips OTC by default (`byTf.otc`). Test raw_pb: 43.6 % at 5 min (n 82); no 65 %. News filter not built. `n_emapull` (EMA 20/50 + RSI) was removed the same day at the user's request (50.3 % at 3 min, called unreliable).
 
 - 07.11.2026: compact signal card (user: too much to read before entry): pair, direction, countdown, expiry, payout, one PO button with the signal's expiry; the rest under ▾; strength no longer shown. Countdown price hint `_samplePrice`: off in ATR (0.2/0.5, untested guesses), `entryZone` + `zoneResult` measured from the price at the entry second (History → Statistics).
 

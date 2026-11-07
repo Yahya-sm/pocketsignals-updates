@@ -20,7 +20,6 @@ const META = {
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
   n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
-  n_emapull: [L('EMA 20/50 + RSI: отскок от EMA 20', 'EMA 20/50 + RSI: Abpraller an EMA 20', 'EMA 20/50 + RSI: bounce off EMA 20'), 'trend'],
   n_levelstoch: [L('Уровень M15 + пин-бар M5 + Stochastic', 'Level M15 + Pinbar M5 + Stochastic', 'M15 level + M5 pin bar + Stochastic'), 'rev'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
@@ -76,8 +75,7 @@ const DEFAULTS = {
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_live: false, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
-  // From the user's written prompts, 07.11.2026 (see S.n_emapull, S.n_levelstoch).
-  n_emapull: { expiry: 180, ep_no_otc: true, ep_trend_bars: 10, ep_gap_atr: 0.2, ep_over_atr: 0.5, ep_rsi_dead: 2, ep_wick: false, ep_wick_body: 2, ep_reclaim: false },
+  // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
   n_levelstoch: { expiry: 300, ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
@@ -485,7 +483,7 @@ function liveMode(name, settings) {
   if ((name === 'n_big' || name === 'n_sharp') && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
-  if (name === 'n_deeprev' || name === 'n_strongtrend' || name === 'n_trendpull' || name === 'n_emapull' || name === 'n_levelstoch') return 'closed';
+  if (name === 'n_deeprev' || name === 'n_strongtrend' || name === 'n_trendpull' || name === 'n_levelstoch') return 'closed';
   return 'legacy';
 }
 
@@ -877,31 +875,6 @@ const S = {
   },
   // Impulse of N candles >= X ATR, then the first candle against it -> rebound.
   // Exhaustion: strong drop, then a candle with long lower wick closing up.
-  // Trend (user's prompt): EMA 20 on the right side of EMA 50 for ep_trend_bars candles and apart (no flat), RSI 14 past 50 by more than
-  // ep_rsi_dead, a counter candle just before, and the closed candle touches EMA 20 (at most ep_over_atr beyond) and closes away from it.
-  n_emapull(x, p) {
-    if (p.ep_no_otc !== false && x.otc) return null;
-    const c = x.c, i = x.last, f = x.ema(20), s = x.ema(50), r = x.rsi(14)[i], atr = x.atr[i];
-    if (!atr || f[i] == null || s[i] == null || r == null) return null;
-    const d = f[i] > s[i] ? 1 : f[i] < s[i] ? -1 : 0; if (!d) return null;
-    for (let j = i - (Number(p.ep_trend_bars) || 10); j <= i; j++) if (f[j] == null || s[j] == null || (f[j] - s[j]) * d <= 0) return null;
-    if (Math.abs(f[i] - s[i]) < (Number(p.ep_gap_atr) || 0) * atr) return null;
-    if ((r - 50) * d <= (Number(p.ep_rsi_dead) || 0)) return null;
-    const k = c[i], tip = d > 0 ? k.low : k.high;
-    // Option (user, 07.11.2026): the previous candle closed beyond EMA 20, this one has the trend's colour and closes back across it.
-    const pk = c[i - 1], reclaim = p.ep_reclaim && f[i - 1] != null && (pk.close - f[i - 1]) * d <= 0 && (k.close - f[i]) * d > 0 && (k.close - k.open) * d > 0;
-    if (!reclaim && (tip - f[i]) * d > 0) return null;
-    if ((k.close - f[i]) * d <= 0) return null; // closed beyond the line: no bounce
-    // Option (user, 07.11.2026): a reversal candle instead: long wick through EMA 20, any colour, any depth of the wick.
-    if (reclaim) { /* enough on its own */ } else if (p.ep_wick) {
-      const rng = k.high - k.low, body = Math.abs(k.close - k.open), wick = d > 0 ? Math.min(k.open, k.close) - k.low : k.high - Math.max(k.open, k.close);
-      if (!(rng > 0) || wick < 0.5 * rng || wick < (Number(p.ep_wick_body) || 2) * body) return null;
-    } else if ((f[i] - tip) * d > (Number(p.ep_over_atr) || 0.5) * atr || (k.close - k.open) * d <= 0) return null;
-    if (I.dirOf(c[i - 1]) !== -d && I.dirOf(c[i - 2]) !== -d) return null;
-    return sig(d, 75, d > 0
-      ? L(`отскок от EMA 20 вверх, EMA 20 выше EMA 50, RSI ${r.toFixed(0)}`, `Abpraller an EMA 20 nach oben, EMA 20 über EMA 50, RSI ${r.toFixed(0)}`, `bounce up off EMA 20, EMA 20 above EMA 50, RSI ${r.toFixed(0)}`)
-      : L(`отскок от EMA 20 вниз, EMA 20 ниже EMA 50, RSI ${r.toFixed(0)}`, `Abpraller an EMA 20 nach unten, EMA 20 unter EMA 50, RSI ${r.toFixed(0)}`, `bounce down off EMA 20, EMA 20 below EMA 50, RSI ${r.toFixed(0)}`));
-  },
   // Reversal (user's prompt): zones of ≥ ls_touches M15 swing points; on M1 it runs once per closed M5 candle. The M5 candle is a pin bar touching
   // the zone and closing back, price came slowly (no big candle), the zone is not sawn through. Stochastic 3 1 1 has one line (%K = %D), so
   // "lines crossed" cannot happen: it must be in the zone and turning.
@@ -1147,13 +1120,6 @@ function evaluate(candlesByTf, enabled, settings) {
 }
 
 const HELP = {
-  n_emapull: [{
-    title: L('Инструкция и проверка на истории', 'Anleitung und Prüfung auf der Historie', 'Guide and history test'),
-    body: [
-      L('Тренд: EMA 20 с нужной стороны от EMA 50 и линии не переплетены. Откат: свеча коснулась EMA 20. RSI 14 дальше от 50 (стоп-зона 48–52). Вход: свеча закрылась в сторону тренда.', 'Trend: EMA 20 auf der richtigen Seite von EMA 50, Linien nicht verflochten. Rücklauf: Kerze berührt EMA 20. RSI 14 weg von 50 (Sperrzone 48–52). Einstieg: Kerze schließt in Trendrichtung.', 'Trend: EMA 20 on the right side of EMA 50, lines not interwoven. Pullback: candle touches EMA 20. RSI 14 away from 50 (blocked 48–52). Entry: candle closes with the trend.'),
-      L('Проверка на 12 обычных парах (M1, около 8000 свечей на пару): 2897 сигналов, за 3 минуты 50,3 %, за 5 минут 49,3 %. Заявленные 65 % не подтвердились, для окупаемости нужно около 54 %. OTC не проверялся и по умолчанию пропускается. Новости приложение не отслеживает.', 'Test auf 12 normalen Paaren (M1, etwa 8000 Kerzen je Paar): 2897 Signale, 3 Minuten 50,3 %, 5 Minuten 49,3 %. Die behaupteten 65 % wurden nicht bestätigt, Break-even etwa 54 %. OTC nicht geprüft und standardmäßig ausgelassen. Nachrichten verfolgt die App nicht.', 'Test on 12 regular pairs (M1, about 8000 candles each): 2897 signals, 3 minutes 50.3 %, 5 minutes 49.3 %. The claimed 65 % was not confirmed; break-even is about 54 %. OTC not tested and skipped by default. The app does not track news.'),
-    ],
-  }],
   n_levelstoch: [{
     title: L('Инструкция и проверка на истории', 'Anleitung und Prüfung auf der Historie', 'Guide and history test'),
     body: [
@@ -1261,6 +1227,6 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. «Почему нет сигнала» показывает, какое условие отсеивает больше всего. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. „Warum kein Signal“ zeigt, welche Bedingung am meisten aussortiert. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. "Why no signal" shows which condition rejects most. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_emapull', 'n_levelstoch'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch'];
 
 module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, bigLog, list: Object.keys(META) };
