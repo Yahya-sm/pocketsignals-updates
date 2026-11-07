@@ -59,6 +59,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: `n_sharp` late-signal limits `sharp_k_late` 20, `sharp_rsi_back` 10 (user: signal after RSI had already moved). Test on raw_pb: the RSI limit does the work (profile 6: 1539 signals 53.4 % → 678 / 54.4 % at 2 min); one period, not proof, OTC untested.
 
+- 07.11.2026: added from the user's prompts, off by default: `n_emapull` (EMA 20/50 + RSI bounce), `n_levelstoch` (M15 level + M5 pin bar + Stochastic 3 1 1, one line so no cross; runs on M1, once per closed M5). Skip OTC by default (`byTf.otc`). Test raw_pb: 50.3 % at 3 min (n 2897), 43.6 % at 5 min (n 82); no 65 %. News filter not built.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key

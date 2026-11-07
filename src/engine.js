@@ -368,7 +368,7 @@ class Engine extends EventEmitter {
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
     const st = strategies.paramsFor('n_strongtrend', this.settings), en = this.enabledStrategies();
-    if (en.includes('n_deeprev') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
+    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
       list.forEach((a, i) => {
         const have = this.ctxCandles.get(a.symbol);
         if (have && Date.now() - have.at < 55000) return;
@@ -468,6 +468,7 @@ class Engine extends EventEmitter {
         if (c.length && (live ? c[c.length - 1].time + m * 60 > last : c[c.length - 1].time + m * 60 === last + 60)) byTf[tf] = c;
       }
       byTf.ctx = this.ctxCandles.get(h.asset);
+      byTf.otc = /_otc$/i.test(h.asset);
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
         if (!this._ownTrendLogic(sig) && sig.strength < (this.settings.min_strength || 0)) continue;
