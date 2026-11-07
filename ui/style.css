@@ -327,3 +327,5 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .adx-spark { width: 54px; height: 20px; }
 .tr-ico { width: 20px; height: 20px; }
 .trendbox { font-size: 12px; gap: 6px; }
+
+.pfold > small { display: block; color: var(--muted); margin: 2px 0 6px; line-height: 1.35; }

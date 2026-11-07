@@ -57,6 +57,8 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 06.11.2026: removed at the user's request (weak on backtests): `n_vortex`, `n_psar`, `early`, `n_rsi8020`. Focus: `n_stochenv`.
 
+- 07.11.2026: `n_sharp` late-signal limits `sharp_k_late` 20, `sharp_rsi_back` 10 (user: signal after RSI had already moved). Test on raw_pb: the RSI limit does the work (profile 6: 1539 signals 53.4 % → 678 / 54.4 % at 2 min); one period, not proof, OTC untested.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key

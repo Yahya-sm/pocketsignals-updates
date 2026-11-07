@@ -42,7 +42,7 @@ const DEFAULTS = {
   // 04.11.2026 (user): the series of candles is only the setup; the signal is the Stochastic turning out of its zone
   // (%K crosses 20 upwards after a fall / 80 downwards after a rise) within sharp_wait candles after the series.
   n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true,
-    sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, ...SHARP_BOT },
+    sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, sharp_k_late: 20, sharp_rsi_back: 10, ...SHARP_BOT },
   // bs_*: big candle inside a slow trend (demo mode, user 06.11.2026). Off = the old rule. Backtest: no profit shown, see TESTS.n_big.
   n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT, bs_on: false, bs_mode: 'A', bs_lookback: 15, bs_body: 2, bs_use_range: false, bs_range: 1.8, bs_ratio: 0.6, bs_min_atr: 0,
     bs_trend: true, bs_against: false, bs_ema_fast: 20, bs_ema_slow: 50, bs_slope: 10, bs_max_slope: 0, bs_max_dist: 0, bs_gap: 1 },
@@ -209,12 +209,12 @@ const TESTS = {
     title: L('Проверка профилей на истории', 'Prüfung der Profile auf der Historie', 'Profile test on history'),
     cols: [L('Профиль', 'Profil', 'Profile'), L('Сигн./пара/день', 'Sign./Paar/Tag', 'Sign./pair/day'), '1 м', '2 м', '3 м', '5 м'],
     rows: [
-      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '56', '50,8', '50,9', '50,9', '50,6'],
-      [L('2 Часто', '2 Oft', '2 Often'), '49', '51,3', '51,7', '51,5', '50,6'],
-      [L('3 Средне', '3 Mittel', '3 Medium'), '30', '51,3', '52,5', '51,8', '50,6'],
-      [L('4 Строже', '4 Strenger', '4 Stricter'), '15', '52,7', '52,1', '52,1', '50,3'],
-      [L('5 Строго', '5 Streng', '5 Strict'), '12', '50,9', '53,5', '51,8', '51,2'],
-      [L('6 С подтверждением RSI', '6 Mit RSI-Bestätigung', '6 With RSI confirmation'), '17', '53,5', '53,4', '52,8', '51,7'],
+      [L('1 Очень часто', '1 Sehr oft', '1 Very often'), '15', '51,3', '49,9', '50,2', '50,2'],
+      [L('2 Часто', '2 Oft', '2 Often'), '18', '52,2', '52,0', '51,0', '51,8'],
+      [L('3 Средне', '3 Mittel', '3 Medium'), '13', '52,8', '53,1', '51,6', '51,4'],
+      [L('4 Строже', '4 Strenger', '4 Stricter'), '5,6', '54,0', '54,7', '53,9', '53,1'],
+      [L('5 Строго', '5 Streng', '5 Strict'), '6,6', '51,8', '54,6', '51,8', '52,2'],
+      [L('6 С подтверждением RSI', '6 Mit RSI-Bestätigung', '6 With RSI confirmation'), '7,4', '55,6', '54,4', '53,1', '52,1'],
     ],
     note: PROFILE_NOTE,
   }],
@@ -291,6 +291,20 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
     'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
+  n_sharp: [
+    { title: L('Серия свечей', 'Kerzenserie', 'Candle series'), desc: L('Сколько свечей подряд нужно и сколько ждать после серии. Больше свечей и меньше ожидание — строже.', 'Wie viele Kerzen in Folge und wie lange nach der Serie gewartet wird. Mehr Kerzen, kürzere Wartezeit = strenger.', 'How many candles in a row and how long to wait after the series. More candles, shorter wait = stricter.'), keys: ['sharp_expiry', 'sharp_min', 'sharp_wait', 'sharp_mirror'] },
+    { title: L('Стохастик', 'Stochastik', 'Stochastic'), desc: L('Сигнал, когда %K выходит из зоны. Последняя настройка запрещает поздний сигнал.', 'Signal, wenn %K die Zone verlässt. Die letzte Einstellung sperrt späte Signale.', 'Signal when %K leaves the zone. The last setting blocks late signals.'), keys: ['sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late'] },
+    { title: L('RSI', 'RSI', 'RSI'), desc: L('Фильтр RSI и запрет сигнала, когда RSI уже далеко ушёл от экстремума.', 'RSI-Filter und Sperre, wenn der RSI schon weit vom Extrem entfernt ist.', 'RSI filter and a block when RSI is already far from its extreme.'), keys: ['sharp_rsi', 'sharp_rsi_back'] },
+  ],
+  n_stochenv: [
+    { title: L('Envelopes', 'Envelopes', 'Envelopes'), desc: L('Линии вокруг средней. Больше отклонение — строже.', 'Linien um den Durchschnitt. Größere Abweichung = strenger.', 'Lines around the average. Bigger deviation = stricter.'), keys: ['env_period', 'env_pct'] },
+    { title: L('Стохастик', 'Stochastik', 'Stochastic'), desc: L('%K и зона, из которой он должен выйти. Меньше зона — строже.', '%K und die Zone, die er verlassen muss. Kleinere Zone = strenger.', '%K and the zone it must leave. Smaller zone = stricter.'), keys: ['stoch_k', 'stoch_zone'] },
+  ],
+  n_trendpull: [
+    { title: L('Основное', 'Grundlegendes', 'Basics'), desc: L('Экспирация и направления.', 'Ablaufzeit und Richtungen.', 'Expiry and directions.'), keys: ['expiry', 'tp_buy', 'tp_sell'] },
+    { title: L('Импульс и откат', 'Impuls und Rücklauf', 'Impulse and pullback'), desc: L('Какой должна быть волна и глубина отката.', 'Wie die Welle und die Rücklauftiefe sein müssen.', 'What the wave and the pullback depth must be.'), keys: ['tp_right', 'tp_imp_atr', 'tp_ema', 'tp_depth_min', 'tp_depth_max', 'tp_bars_max'] },
+    { title: L('Вход и запрет позднего сигнала', 'Einstieg und Sperre später Signale', 'Entry and late-signal block'), desc: L('Насколько рано должен прийти сигнал после конца отката.', 'Wie früh das Signal nach dem Rücklauf-Ende kommen muss.', 'How early the signal must come after the pullback ends.'), keys: ['tp_first', 'tp_return_max', 'tp_room_atr', 'tp_candle_atr'] },
+  ],
   n_big: [
     { title: L('Режим большой свечи в слабом тренде', 'Modus große Kerze im schwachen Trend', 'Big candle in a slow trend'),
       desc: L('Выключено — прежнее правило (тело × среднее). Режим A — вход сразу после большой свечи, режим C — после свечи подтверждения. Профили сверху включают режим сами.', 'Aus = bisherige Regel (Körper × Durchschnitt). Modus A = Einstieg direkt nach der großen Kerze, C = nach einer Bestätigungskerze. Die Profile oben schalten den Modus selbst ein.', 'Off = the old rule (body × average). Mode A = entry right after the big candle, C = after a confirming candle. The profiles above switch this on themselves.'),
@@ -591,6 +605,15 @@ const S = {
         const r = runLength(x.c, j); if (r.d === -dir && r.n > best) best = r.n;
       }
       if (best < min) return null;
+      // Not late (user, 07.11.2026): %K at most sharp_k_late points past its line, RSI at most sharp_rsi_back points off its
+      // extreme of the last sharp_wait candles. 0 = off.
+      const kLate = Number(p.sharp_k_late) || 0, rBack = Number(p.sharp_rsi_back) || 0;
+      if (kLate && (dir > 0 ? k1 - lo : hi - k1) > kLate) return null;
+      if (rBack) {
+        const rs = x.rsi(14); let ext = rs[i];
+        for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) if (rs[j] != null) ext = dir > 0 ? Math.min(ext, rs[j]) : Math.max(ext, rs[j]);
+        if (rs[i] == null || Math.abs(rs[i] - ext) > rBack) return null;
+      }
       if (p.sharp_rsi) { const r = x.rsi(14)[i]; if (dir > 0 ? r > 45 : r < 55) return null; }
       return Object.assign(sig(dir, 70 + (best - min) * 8, dir > 0
         ? L(`${best} красных свечей, стохастик вышел вверх из зоны ${lo}`, `${best} rote Kerzen, Stochastik verlässt die ${lo}-Zone nach oben`, `${best} red candles, Stochastic turned up out of the ${lo} zone`)
@@ -1085,7 +1108,7 @@ const HELP = {
   n_sharp: [{
     title: L('Инструкция: уровни строгости', 'Anleitung: Strenge-Stufen', 'Guide: strictness levels'),
     body: [
-      L('Идея: серия свечей в одну сторону, затем стохастик выходит из зоны — сигнал на отскок. Строже: длиннее серия, дальше зона, меньше ожидание после серии.', 'Idee: Eine Kerzenserie in eine Richtung, dann verlässt der Stochastik seine Zone – Signal auf den Rücksprung. Strenger: längere Serie, weitere Zone, kürzere Wartezeit nach der Serie.', 'Idea: a series of candles one way, then the Stochastic leaves its zone – signal for a rebound. Stricter: longer series, wider zone, shorter wait after the series.'),
+      L('Во всех профилях запрет позднего сигнала: %K ушёл за линию не больше чем на 20, а RSI отошёл от экстремума не больше чем на 10. Идея: серия свечей в одну сторону, затем стохастик выходит из зоны — сигнал на отскок. Строже: длиннее серия, дальше зона, меньше ожидание после серии.', 'In allen Profilen Sperre später Signale: %K höchstens 20 über die Linie hinaus, RSI höchstens 10 vom Extrem entfernt. Idee: Eine Kerzenserie in eine Richtung, dann verlässt der Stochastik seine Zone – Signal auf den Rücksprung. Strenger: längere Serie, weitere Zone, kürzere Wartezeit nach der Serie.', 'In all profiles late signals are blocked: %K at most 20 past the line, RSI at most 10 off its extreme. Idea: a series of candles one way, then the Stochastic leaves its zone – signal for a rebound. Stricter: longer series, wider zone, shorter wait after the series.'),
       L('Как включить: нажмите один профиль вверху. Пока профиль включён, его значения заменяют такие же настройки ниже на странице; экспирация и таймфрейм остаются вашими. Без профиля работают ваши настройки. Несколько профилей дают сигнал, если сработал любой; для наблюдения лучше один.', 'Einschalten: oben ein Profil antippen. Solange es an ist, ersetzen seine Werte dieselben Einstellungen weiter unten; Ablaufzeit und Zeitrahmen bleiben Ihre. Ohne Profil gelten Ihre Einstellungen. Mehrere Profile geben ein Signal, wenn eines auslöst; zum Beobachten besser nur eines.', 'To switch on: tap one profile above. While it is on, its values replace the same settings further down; expiry and timeframe stay yours. Without a profile your settings apply. Several profiles signal when any fires; for observing use one.'),
       L('1 Очень часто: серия от 3 свечей, зона 30/70, ожидание 15 свечей.', '1 Sehr oft: Serie ab 3 Kerzen, Zone 30/70, Wartezeit 15 Kerzen.', '1 Very often: series from 3 candles, zone 30/70, wait 15 candles.'),
       L('2 Часто: серия от 3, зона 25/75, ожидание 10.', '2 Oft: Serie ab 3, Zone 25/75, Wartezeit 10.', '2 Often: series from 3, zone 25/75, wait 10.'),

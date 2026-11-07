@@ -414,10 +414,14 @@ function oneTest(T, key) {
 // Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
 function paramRows(x) {
   const row = k => k in x.params ? `<label class="prow"><span>${esc(x.labels && x.labels[k] ? tr(x.labels[k]) : paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
-  if (!x.groups) return Object.keys(x.params).map(row).join('');
-  const used = new Set(x.groups.flatMap(g => g.keys)), rest = Object.keys(x.params).filter(k => !used.has(k));
-  return x.groups.map(g => `<div class="pgroup"><b>${esc(tr(g.title))}</b><small>${esc(tr(g.desc))}</small>${g.keys.map(row).join('')}</div>`).join('')
-    + rest.map(row).join('');
+  // Every block is folded (user, 07.11.2026); only the open block's rows are drawn. Same open/closed state as the tables.
+  const used = new Set((x.groups || []).flatMap(g => g.keys)), rest = Object.keys(x.params).filter(k => !used.has(k));
+  const fold = (title, desc, keys, id) => {
+    const body = keys.map(row).join(''); if (!body) return '';
+    const key = `${x.key}:p${id}`, open = openTests.has(key);
+    return `<div class="tests"><button class="tests-h" data-tests="${key}" aria-expanded="${open}">${open ? '▾' : '▸'} ${esc(title)}</button>${open ? `<div class="tests-b pfold">${desc ? `<small>${esc(desc)}</small>` : ''}${body}</div>` : ''}</div>`;
+  };
+  return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
 const PARAM_CHOICES = { bs_mode: ['A', 'C'] };
