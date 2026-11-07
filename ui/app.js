@@ -236,7 +236,7 @@ function card(s) {
     ${done ? '' : `<div class="pricehint" data-zone-id="${esc(s.id)}">${priceHint(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="btns">
-      <button class="po" data-po="${esc(s.id)}" data-poexp="${s.expiry}">PocketOption ↗</button>
+      <div class="posplit"><button class="po" data-po="${esc(s.id)}" data-poexp="${s.expiry}" title="${t('po_set_hint')}"><small>PocketOption ↗</small><b>⏱ ${fmtExp(s.expiry)}</b></button><button class="po keep" data-po="${esc(s.id)}" title="${t('po_keep_hint')}"><small>PocketOption ↗</small><b>${t('po_keep')}</b></button></div>
       <button class="morebtn" data-more="${esc(s.id)}" aria-expanded="${more}" title="${t('card_more')}">${more ? '▴' : '▾'}</button>
     </div>
     ${more ? `<div class="sig-more"><div class="why">${esc(tr(s.reason))}</div>
