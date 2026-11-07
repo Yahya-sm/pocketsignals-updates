@@ -18,6 +18,8 @@ const META = {
   n_strongtrend: [L('Сильный тренд: вход в начале', 'Starker Trend: Einstieg am Anfang', 'Strong trend: entry at the start'), 'trend'],
   n_deeprev: [L('Разворот после глубокого падения (M15/M5/M1)', 'Umkehr nach tiefem Fall (M15/M5/M1)', 'Reversal after a deep fall (M15/M5/M1)'), 'rev'],
   n_stochenv: [L('Stoch + Envelopes', 'Stoch + Envelopes'), 'rev'],
+  n_adxonly: [L('Только ADX (эксперимент)', 'Nur ADX (Experiment)', 'ADX only (experiment)'), 'trend'],
+  n_impulse: [L('Ранний импульс (живой)', 'Früher Impuls (live)', 'Early impulse (live)'), 'trend'],
   n_bbrsi: [L('Bollinger + RSI 2 (возврат к средней)', 'Bollinger + RSI 2 (Rückkehr zur Mitte)', 'Bollinger + RSI 2 (mean reversion)'), 'rev'],
   n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
   n_levelstoch: [L('Уровень M15 + пин-бар M5 + Stochastic', 'Level M15 + Pinbar M5 + Stochastic', 'M15 level + M5 pin bar + Stochastic'), 'rev'],
@@ -72,6 +74,10 @@ const DEFAULTS = {
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   // Mean reversion (07.11.2026, chosen from the raw_pb tests): close beyond Bollinger, RSI 2 at an extreme, flat market (ADX).
+  // Live (user, 07.11.2026): a sharp move at the start of the forming candle, entry now in its direction. Untested (no tick history).
+  // Experiment (user, 07.11.2026): ADX alone. ADX crosses ax_level upwards on the closed candle, direction = DI+ vs DI−.
+  n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14 },
+  n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
   n_levelstoch: { expiry: 300, ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
@@ -85,6 +91,11 @@ const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st
 // Ready-made setting combinations (one tap in the app).
 const NM1 = L('Очень часто', 'Sehr oft', 'Very often'), NM2 = L('Часто', 'Oft', 'Often'), NM3 = L('Средне', 'Mittel', 'Medium'), NM4 = L('Строже', 'Strenger', 'Stricter'), NM5 = L('Строго', 'Streng', 'Strict');
 const PRESETS = {
+  n_impulse: [
+    { name: L('Чаще', 'Öfter', 'More often'), values: { im_atr: 0.7, im_sec: 40, im_back: 35 } },
+    { name: L('Средне', 'Mittel', 'Medium'), values: { im_atr: 1, im_sec: 30, im_back: 25 } },
+    { name: L('Строго', 'Streng', 'Strict'), values: { im_atr: 1.5, im_sec: 20, im_back: 15 } },
+  ],
   n_bbrsi: [
     { name: L('Чаще', 'Öfter', 'More often'), values: { bb_mult: 2.5, bb_rsi: 5, bb_adx: 20, expiry: 180 } },
     { name: L('Строго', 'Streng', 'Strict'), values: { bb_mult: 3, bb_rsi: 2, bb_adx: 25, expiry: 300 } },
@@ -273,6 +284,12 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
     'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
+  n_adxonly: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX поднимается через уровень снизу вверх. CALL, если DI+ выше DI−, PUT — наоборот. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle von unten nach oben kreuzt. CALL, wenn DI+ über DI− liegt, sonst PUT. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level upwards. CALL if DI+ is above DI−, otherwise PUT. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period'] },
+  ],
+  n_impulse: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал внутри текущей свечи: за первые … секунд цена ушла от открытия минимум на … ATR (средний размер свечи) и откатила от своего края не больше … %. Вход сразу, по направлению движения. Один сигнал на свечу. Работает только при сканировании чаще раза в минуту (Настройки → интервал сканирования, лучше 5–10 с).', 'Signal in der laufenden Kerze: in den ersten … Sekunden hat sich der Preis mindestens … ATR (durchschnittliche Kerzengröße) von der Eröffnung entfernt und höchstens … % vom Extrem zurückgesetzt. Einstieg sofort in Bewegungsrichtung. Ein Signal je Kerze. Funktioniert nur bei Scan öfter als einmal pro Minute (Einstellungen → Scan-Intervall, besser 5–10 s).', 'Signal inside the forming candle: within the first … seconds price moved at least … ATR (average candle size) from the open and pulled back at most … % from its extreme. Entry now, in the direction of the move. One signal per candle. Works only when scanning more often than once a minute (Settings → scan interval, 5–10 s is best).'), keys: ['expiry', 'im_atr', 'im_sec', 'im_back', 'im_no_otc'] },
+  ],
   n_bbrsi: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('CALL: свеча закрылась ниже нижней линии Bollinger и RSI 2 ниже порога. PUT — зеркально (выше верхней, RSI 2 выше 100 − порог). Только когда ADX ниже предела (флэт); 0 = без ADX. Больше отклонение и меньше порог — строже.', 'CALL: Kerze schließt unter dem unteren Bollinger-Band und RSI 2 unter der Schwelle. PUT gespiegelt (über dem oberen, RSI 2 über 100 − Schwelle). Nur wenn ADX unter der Grenze (Seitwärts); 0 = ohne ADX. Größere Abweichung, kleinere Schwelle = strenger.', 'CALL: candle closes below the lower Bollinger band and RSI 2 is below the threshold. PUT mirrored (above the upper band, RSI 2 above 100 − threshold). Only when ADX is below the limit (flat); 0 = no ADX. Bigger deviation, smaller threshold = stricter.'), keys: ['expiry', 'bb_period', 'bb_mult', 'bb_rsi', 'bb_adx'] },
   ],
@@ -448,6 +465,8 @@ function adaptiveExpiry(x, dir) {
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
+  if (name === 'n_impulse') return 'live';
+  if (name === 'n_adxonly') return 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
   if (name === 'n_sharp' && p.bot) return 'both';
@@ -866,6 +885,24 @@ const S = {
       ? L(`пин-бар M5 от поддержки M15 (${zone.n} касания), Stochastic разворачивается вверх`, `M5-Pinbar an M15-Unterstützung (${zone.n} Berührungen), Stochastic dreht nach oben`, `M5 pin bar at M15 support (${zone.n} touches), Stochastic turning up`)
       : L(`пин-бар M5 от сопротивления M15 (${zone.n} касания), Stochastic разворачивается вниз`, `M5-Pinbar an M15-Widerstand (${zone.n} Berührungen), Stochastic dreht nach unten`, `M5 pin bar at M15 resistance (${zone.n} touches), Stochastic turning down`)), { noFlip: true });
   },
+  n_adxonly(x, p) {
+    const i = x.last, n = Number(p.ax_period) || 14, lv = Number(p.ax_level) || 25;
+    const a = n === 14 ? x.adx : I.adx(x.c, n), b = a[i], b0 = a[i - 1];
+    if (!b || !b0 || !(b0.adx < lv && b.adx >= lv) || b.pdi === b.mdi) return null;
+    const d = b.pdi > b.mdi ? 1 : -1;
+    return Object.assign(sig(d, 75, L(`ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} пересёк ${lv}, DI${d > 0 ? '+' : '−'} сверху`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} kreuzt ${lv}, DI${d > 0 ? '+' : '−'} oben`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} crossed ${lv}, DI${d > 0 ? '+' : '−'} on top`)), { noFlip: true });
+  },
+  n_impulse(x, p) {
+    if (p.im_no_otc && x.otc) return null;
+    const c = x.c, i = x.last, k = c[i], tf = (x.tfMin || 1) * 60, age = Date.now() / 1000 - k.time;
+    if (age < 0 || age > (Number(p.im_sec) || 30) || age >= tf) return null;
+    const atr = x.atr[i - 1]; if (!(atr > 0)) return null; // ATR of the closed candles
+    const mv = k.close - k.open, d = Math.sign(mv); if (!d || Math.abs(mv) < (Number(p.im_atr) || 1) * atr) return null;
+    const ext = d > 0 ? k.high : k.low, run = Math.abs(ext - k.open), back = Math.abs(ext - k.close);
+    if (run > 0 && back / run * 100 > (Number(p.im_back) || 25)) return null;
+    const r = Math.abs(mv) / atr;
+    return Object.assign(sig(d, 75, L(`⏰ вход сейчас — за ${Math.round(age)} с цена прошла ${r.toFixed(1)} ATR ${d > 0 ? 'вверх' : 'вниз'}`, `⏰ Einstieg jetzt – in ${Math.round(age)} s ${r.toFixed(1)} ATR ${d > 0 ? 'nach oben' : 'nach unten'}`, `⏰ enter now – ${r.toFixed(1)} ATR ${d > 0 ? 'up' : 'down'} in ${Math.round(age)} s`)), { entry: Math.floor(Date.now() / 1000), bar: k.time, noFlip: true });
+  },
   n_bbrsi(x, p) {
     const i = x.last, close = x.close[i], b = I.bollinger(x.close, Number(p.bb_period) || 20, Number(p.bb_mult) || 3)[i], r = x.rsi(2)[i];
     const lim = Number(p.bb_rsi) || 2, amax = Number(p.bb_adx) || 0, a = x.adx[i];
@@ -1054,6 +1091,13 @@ function evaluate(candlesByTf, enabled, settings) {
 }
 
 const HELP = {
+  n_impulse: [{
+    title: L('Инструкция', 'Anleitung', 'Guide'),
+    body: [
+      L('Ловит резкое движение в начале свечи и даёт вход сразу, по направлению движения. Таймфрейм M1, интервал сканирования 5–10 с. Экспирация по умолчанию 1 мин.', 'Fängt eine scharfe Bewegung am Anfang der Kerze und gibt den Einstieg sofort, in Bewegungsrichtung. Zeitrahmen M1, Scan-Intervall 5–10 s. Ablauf standardmäßig 1 Min.', 'Catches a sharp move at the start of the candle and gives the entry at once, in the move direction. Timeframe M1, scan interval 5–10 s. Default expiry 1 min.'),
+      L('Не проверена на истории: в минутных свечах не видно, что было в первые секунды, а приложение не хранит тики. На истории вход после закрытия резкой свечи по её направлению давал 49–50 %. Только демо, смотрите результат в Истории → Статистика.', 'Nicht auf der Historie geprüft: Minutenkerzen zeigen nicht die ersten Sekunden, und die App speichert keine Ticks. Auf der Historie brachte ein Einstieg nach Schluss einer scharfen Kerze in ihre Richtung 49–50 %. Nur Demo, Ergebnis unter Verlauf → Statistik.', 'Not tested on history: minute candles do not show the first seconds and the app stores no ticks. On history, entering after a sharp candle closed, in its direction, gave 49–50 %. Demo only; see History → Statistics.'),
+    ],
+  }],
   n_bbrsi: [{
     title: L('Инструкция и проверка на истории', 'Anleitung und Prüfung auf der Historie', 'Guide and history test'),
     body: [
@@ -1147,6 +1191,6 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly'];
 
 module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };

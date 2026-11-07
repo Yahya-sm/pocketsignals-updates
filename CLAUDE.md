@@ -71,6 +71,10 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: `n_bbrsi` added, off by default (Bollinger 20/3 + RSI 2 < 2, ADX < 25, expiry 300; preset "More often" BB 2.5 / RSI 5 / ADX 20 / 180). Closed candles, OWN_LOGIC (no trend filter). Best result so far on raw_pb (12 pairs, 4 months M1): strict 2921 signals 55.7 % at 5 min (halves 56.4 / 55.0); more often 13133 / 53.5 % at 3 min. Entry delay and OTC untested. Level M15 bounce and session breakout were tested the same day: ~50 %, not added.
 
+- 07.11.2026: `n_impulse` (live, off by default): forming M1 candle, within `im_sec` s of its open price moved ≥ `im_atr` × ATR (closed candles), pullback from the extreme ≤ `im_back` %; entry now in the move direction, one per candle (`bar`). Needs scan interval < 60 s. Untested (no tick history; tick recording declined by the user because of phone storage). Closed-candle continuation on raw_pb was 49–50 %.
+
+- 07.11.2026: `n_adxonly` (experiment, off by default): closed candle, ADX 14 crosses `ax_level` (25) upwards, direction = whichever DI is on top (no DI cross needed), expiry 60. Test raw_pb 4 months M1: 20/25/30/35 → 48.0/49.1/49.2/49.4 % at 1 min, below 50 in both halves.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key
@@ -121,3 +125,4 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - Do the whole thing, test it for real (connect to PocketOption, run the bundle phone-like), then report honestly what was and
   was not tested. Don't guess causes – look at logs (Settings → Verbindungsprotokoll) and test hypotheses.
 - Don't install/update the user's apps unless asked; give them the update (push → online update).
+
