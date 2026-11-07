@@ -44,7 +44,8 @@ const DEFAULTS = {
   // 04.11.2026 (user): the series of candles is only the setup; the signal is the Stochastic turning out of its zone
   // (%K crosses 20 upwards after a fall / 80 downwards after a rise) within sharp_wait candles after the series.
   n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true,
-    sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, sharp_k_late: 20, sharp_rsi_back: 10, ...SHARP_BOT },
+    sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, sharp_k_late: 20, sharp_rsi_back: 10,
+    sharp_trig: 'STOCH', sharp_exp_adapt: false, sharp_ax_on: false, sharp_ax_min: 20, sharp_ax_bars: 3, sharp_ax_prev: 25, sharp_ax_exp: 300, ...SHARP_BOT },
   // bs_*: big candle inside a slow trend (demo mode, user 06.11.2026). Off = the old rule. Backtest: no profit shown, see TESTS.n_big.
   n_big: { ...REV, big_body: 2.5, big_period: 20, ...BIG_BOT, bs_on: false, bs_mode: 'A', bs_lookback: 15, bs_body: 2, bs_use_range: false, bs_range: 1.8, bs_ratio: 0.6, bs_min_atr: 0,
     bs_trend: true, bs_against: false, bs_ema_fast: 20, bs_ema_slow: 50, bs_slope: 10, bs_max_slope: 0, bs_max_dist: 0, bs_gap: 1 },
@@ -300,6 +301,8 @@ const GROUPS = {
     { title: L('Серия свечей', 'Kerzenserie', 'Candle series'), desc: L('Сколько свечей подряд нужно и сколько ждать после серии. Больше свечей и меньше ожидание — строже.', 'Wie viele Kerzen in Folge und wie lange nach der Serie gewartet wird. Mehr Kerzen, kürzere Wartezeit = strenger.', 'How many candles in a row and how long to wait after the series. More candles, shorter wait = stricter.'), keys: ['sharp_expiry', 'sharp_min', 'sharp_wait', 'sharp_mirror'] },
     { title: L('Стохастик', 'Stochastik', 'Stochastic'), desc: L('Сигнал, когда %K выходит из зоны. Последняя настройка запрещает поздний сигнал.', 'Signal, wenn %K die Zone verlässt. Die letzte Einstellung sperrt späte Signale.', 'Signal when %K leaves the zone. The last setting blocks late signals.'), keys: ['sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late'] },
     { title: L('RSI', 'RSI', 'RSI'), desc: L('Фильтр RSI и запрет сигнала, когда RSI уже далеко ушёл от экстремума.', 'RSI-Filter und Sperre, wenn der RSI schon weit vom Extrem entfernt ist.', 'RSI filter and a block when RSI is already far from its extreme.'), keys: ['sharp_rsi', 'sharp_rsi_back'] },
+    { title: L('Опция: рост ADX', 'Option: steigender ADX', 'Option: rising ADX'), desc: L('Сигнал только если ADX был сильным, ослаб и снова растёт. Пока опция выключена, стратегия работает как обычно. Своя экспирация действует только с опцией.', 'Signal nur, wenn der ADX stark war, nachließ und wieder steigt. Aus = die Strategie arbeitet wie gewohnt. Die eigene Ablaufzeit gilt nur mit der Option.', 'Signal only if ADX was strong, weakened and rises again. Off = the strategy works as usual. Its own expiry applies only with the option.'), keys: ['sharp_ax_on', 'sharp_ax_min', 'sharp_ax_bars', 'sharp_ax_prev', 'sharp_ax_exp'] },
+    { title: L('Опции: триггер и экспирация', 'Optionen: Auslöser und Ablaufzeit', 'Options: trigger and expiry'), desc: L('Что даёт сигнал: Stochastic, RSI или любой из них. Адаптивная экспирация: тихий рынок 2 мин, обычный 3, широкий 5, но ближний уровень впереди сокращает её до 1–3 мин. Пороги пока предположения.', 'Was das Signal auslöst: Stochastic, RSI oder eines von beiden. Adaptive Ablaufzeit: ruhiger Markt 2 Min, normal 3, breit 5; ein nahes Level voraus kürzt auf 1–3 Min. Die Schwellen sind Annahmen.', 'What triggers the signal: Stochastic, RSI or either. Adaptive expiry: quiet market 2 min, normal 3, wide 5; a near level ahead cuts it to 1–3 min. The thresholds are guesses.'), keys: ['sharp_trig', 'sharp_exp_adapt'] },
   ],
   n_stochenv: [
     { title: L('Envelopes', 'Envelopes', 'Envelopes'), desc: L('Линии вокруг средней. Больше отклонение — строже.', 'Linien um den Durchschnitt. Größere Abweichung = strenger.', 'Lines around the average. Bigger deviation = stricter.'), keys: ['env_period', 'env_pct'] },
@@ -462,6 +465,17 @@ const botSig = r => {
 };
 // Which candles a strategy gets: 'legacy' as before; 'closed' only closed candles (once per candle);
 // 'live' only with the forming candle; 'both' before the close (live) plus a fallback right after it.
+// Adaptive expiry (user, 07.11.2026), in seconds: volatility = ATR 14 / its average of 50 candles gives 2, 3 or 5 candles;
+// a level ahead closer than 1, 2 or 3 average candles cuts it to 1, 2 or 3. Thresholds are guesses.
+function adaptiveExpiry(x, dir) {
+  const i = x.last, tf = (x.tfMin || 1) * 60; let sum = 0, n = 0;
+  for (let j = i - 49; j <= i; j++) if (x.atr[j] > 0) { sum += x.atr[j]; n++; }
+  const vol = n && x.atr[i] > 0 ? x.atr[i] / (sum / n) : 1;
+  let bars = vol < 0.85 ? 2 : vol < 1.25 ? 3 : 5;
+  const room = roomAhead(x.c, i, dir).dist;
+  if (room < 1) bars = 1; else if (room < 2) bars = Math.min(bars, 2); else if (room < 3) bars = Math.min(bars, 3);
+  return bars * tf;
+}
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
@@ -603,7 +617,13 @@ const S = {
       const i = x.last, st = I.stoch(x.c, Number(p.sharp_k) || 14, Number(p.sharp_ks) || 3, 3).k;
       const lo = Number(p.sharp_low) || 20, hi = Number(p.sharp_high) || 80, k0 = st[i - 1], k1 = st[i];
       if (k0 === null || k1 === null) return null;
-      const dir = k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0;
+      // Trigger of choice (user, 07.11.2026): Stochastic, RSI 14 or either of them leaving the same zone.
+      const trig = p.sharp_trig || 'STOCH';
+      let dir = trig === 'RSI' ? 0 : k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0, byRsi = false;
+      if (!dir && trig !== 'STOCH') {
+        const rc = x.rsi(14), r0 = rc[i - 1], r1 = rc[i];
+        if (r0 != null && r1 != null) { dir = r0 < lo && r1 >= lo ? 1 : r0 > hi && r1 <= hi ? -1 : 0; byRsi = !!dir; }
+      }
       if (!dir || (!p.sharp_mirror && dir < 0)) return null;
       let best = 0;
       for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) {
@@ -613,16 +633,31 @@ const S = {
       // Not late (user, 07.11.2026): %K at most sharp_k_late points past its line, RSI at most sharp_rsi_back points off its
       // extreme of the last sharp_wait candles. 0 = off.
       const kLate = Number(p.sharp_k_late) || 0, rBack = Number(p.sharp_rsi_back) || 0;
-      if (kLate && (dir > 0 ? k1 - lo : hi - k1) > kLate) return null;
+      if (kLate && !byRsi && (dir > 0 ? k1 - lo : hi - k1) > kLate) return null;
       if (rBack) {
         const rs = x.rsi(14); let ext = rs[i];
         for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) if (rs[j] != null) ext = dir > 0 ? Math.min(ext, rs[j]) : Math.max(ext, rs[j]);
         if (rs[i] == null || Math.abs(rs[i] - ext) > rBack) return null;
       }
       if (p.sharp_rsi) { const r = x.rsi(14)[i]; if (dir > 0 ? r > 45 : r < 55) return null; }
-      return Object.assign(sig(dir, 70 + (best - min) * 8, dir > 0
+      // ADX option: at least sharp_ax_min and rising over sharp_ax_bars candles; with sharp_ax_prev the last 15 candles
+      // had a strong ADX that then weakened by at least 3 points before this rise.
+      if (p.sharp_ax_on) {
+        const A = I.adx(x.c, 14), a = A[i], b = A[i - (Number(p.sharp_ax_bars) || 3)];
+        if (!a || !b || a.adx < (Number(p.sharp_ax_min) || 0) || a.adx <= b.adx) return null;
+        const prev = Number(p.sharp_ax_prev) || 0;
+        if (prev) {
+          let top = 0, topAt = -1;
+          for (let j = i - 15; j < i; j++) if (A[j] && A[j].adx > top) { top = A[j].adx; topAt = j; }
+          let low = Infinity; for (let j = topAt; j >= 0 && j < i; j++) if (A[j]) low = Math.min(low, A[j].adx);
+          if (top < prev || low > top - 3 || a.adx <= low) return null;
+        }
+      }
+      const res = Object.assign(sig(dir, 70 + (best - min) * 8, dir > 0
         ? L(`${best} красных свечей, стохастик вышел вверх из зоны ${lo}`, `${best} rote Kerzen, Stochastik verlässt die ${lo}-Zone nach oben`, `${best} red candles, Stochastic turned up out of the ${lo} zone`)
-        : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_expiry), { noFlip: true });
+        : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_exp_adapt ? adaptiveExpiry(x, dir) : p.sharp_ax_on ? (Number(p.sharp_ax_exp) || p.sharp_expiry) : p.sharp_expiry), { noFlip: true });
+      if (byRsi) res.reason = { ru: res.reason.ru.replace('стохастик', 'RSI'), de: res.reason.de.replace('Stochastik', 'RSI'), en: res.reason.en.replace('Stochastic', 'RSI') };
+      return res;
     }
     const { d, n } = runLength(x.c, x.last);
     if (n < min || (!p.sharp_mirror && d > 0)) return null;
