@@ -787,7 +787,7 @@ class Engine extends EventEmitter {
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
           presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null, labels: strategies.LABELS[k] || null,
-          activePresets: this.settings.strat_presets?.[k] || [], help: strategies.HELP[k] || null, log: k === 'n_big' ? strategies.bigLog : null,
+          activePresets: this.settings.strat_presets?.[k] || [], help: strategies.HELP[k] || null, log: null,
         })),
         strat_sounds: this.settings.strat_sounds || {},
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,

@@ -67,6 +67,10 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: OTC recording `_recordOtc` (`otc_record`, default on): `data/otc/<UTC day>.csv` on the PC; phone via `AndroidApp.recAppend` into files/otc (newest 60 days), `recExport` = zip in Download. Prices only; never commit `data/`.
 
+- 07.11.2026: `n_big` (pullback after big candle, incl. `bs_*` mode, `bigLog`) removed at the user's request ("unstable"). Last test raw_pb M1: 5895 signals 50.5 % at 3 min; trend-continuation variant 2899 / 49.9 %. `BP.bigFade` in bot_ports.js stays unused.
+
+- 07.11.2026: `n_bbrsi` added, off by default (Bollinger 20/3 + RSI 2 < 2, ADX < 25, expiry 300; preset "More often" BB 2.5 / RSI 5 / ADX 20 / 180). Closed candles, OWN_LOGIC (no trend filter). Best result so far on raw_pb (12 pairs, 4 months M1): strict 2921 signals 55.7 % at 5 min (halves 56.4 / 55.0); more often 13133 / 53.5 % at 3 min. Entry delay and OTC untested. Level M15 bounce and session breakout were tested the same day: ~50 %, not added.
+
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
   `updates/PocketSignals-Update-<v>.signalupdate` (`tools/build-update.js`) and the APK (`android/build-apk.sh`, signing key
