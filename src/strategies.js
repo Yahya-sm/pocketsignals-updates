@@ -77,7 +77,7 @@ const DEFAULTS = {
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   // From the user's written prompts, 07.11.2026 (see S.n_emapull, S.n_levelstoch).
-  n_emapull: { expiry: 180, ep_no_otc: true, ep_trend_bars: 10, ep_gap_atr: 0.2, ep_over_atr: 0.5, ep_rsi_dead: 2 },
+  n_emapull: { expiry: 180, ep_no_otc: true, ep_trend_bars: 10, ep_gap_atr: 0.2, ep_over_atr: 0.5, ep_rsi_dead: 2, ep_wick: false, ep_wick_body: 2, ep_reclaim: false },
   n_levelstoch: { expiry: 300, ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
@@ -888,8 +888,15 @@ const S = {
     if (Math.abs(f[i] - s[i]) < (Number(p.ep_gap_atr) || 0) * atr) return null;
     if ((r - 50) * d <= (Number(p.ep_rsi_dead) || 0)) return null;
     const k = c[i], tip = d > 0 ? k.low : k.high;
-    if ((tip - f[i]) * d > 0 || (f[i] - tip) * d > (Number(p.ep_over_atr) || 0.5) * atr) return null;
-    if ((k.close - f[i]) * d <= 0 || (k.close - k.open) * d <= 0) return null;
+    // Option (user, 07.11.2026): the previous candle closed beyond EMA 20, this one has the trend's colour and closes back across it.
+    const pk = c[i - 1], reclaim = p.ep_reclaim && f[i - 1] != null && (pk.close - f[i - 1]) * d <= 0 && (k.close - f[i]) * d > 0 && (k.close - k.open) * d > 0;
+    if (!reclaim && (tip - f[i]) * d > 0) return null;
+    if ((k.close - f[i]) * d <= 0) return null; // closed beyond the line: no bounce
+    // Option (user, 07.11.2026): a reversal candle instead: long wick through EMA 20, any colour, any depth of the wick.
+    if (reclaim) { /* enough on its own */ } else if (p.ep_wick) {
+      const rng = k.high - k.low, body = Math.abs(k.close - k.open), wick = d > 0 ? Math.min(k.open, k.close) - k.low : k.high - Math.max(k.open, k.close);
+      if (!(rng > 0) || wick < 0.5 * rng || wick < (Number(p.ep_wick_body) || 2) * body) return null;
+    } else if ((f[i] - tip) * d > (Number(p.ep_over_atr) || 0.5) * atr || (k.close - k.open) * d <= 0) return null;
     if (I.dirOf(c[i - 1]) !== -d && I.dirOf(c[i - 2]) !== -d) return null;
     return sig(d, 75, d > 0
       ? L(`отскок от EMA 20 вверх, EMA 20 выше EMA 50, RSI ${r.toFixed(0)}`, `Abpraller an EMA 20 nach oben, EMA 20 über EMA 50, RSI ${r.toFixed(0)}`, `bounce up off EMA 20, EMA 20 above EMA 50, RSI ${r.toFixed(0)}`)
