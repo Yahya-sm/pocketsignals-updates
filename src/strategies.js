@@ -472,6 +472,13 @@ function adaptiveExpiry(x, dir) {
   if (room < 1) bars = 1; else if (room < 2) bars = Math.min(bars, 2); else if (room < 3) bars = Math.min(bars, 3);
   return bars * tf;
 }
+// Mini M5 chart for the signal card (user 08.11.2026): last 24 M5 candles built from the strategy's candles, the last one may be unfinished.
+function m5Mini(x) {
+  const c = x.c, n = c.length; if (n < 2) return undefined;
+  const step = c[n - 1].time - c[n - 2].time; if (!(step > 0) || step > 300) return undefined; // S… names give a wrong tfMin, so use the spacing
+  const m5 = (step === 300 ? c : I.resample(c, 5, true)).slice(-24);
+  return m5.length >= 6 ? m5.map(k => [k.open, k.high, k.low, k.close]) : undefined;
+}
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
@@ -917,7 +924,7 @@ const S = {
       const seg = c.slice(i - k, i + 1), ext = s < 0 ? Math.min(...seg.map(q => q.low)) : Math.max(...seg.map(q => q.high));
       const mv = Math.abs(c[i - k].open - ext) / atr; if (mv < (Number(p.sr_move) || 1.5)) return null;
       const d = -s;
-      return Object.assign(sig(d, 75, L(`${k} свечей ${s < 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), закрылась свеча-пауза`, `${k} Kerzen ${s < 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pausenkerze geschlossen`, `${k} candles ${s < 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause candle closed`)), { noFlip: true });
+      return Object.assign(sig(d, 75, L(`${k} свечей ${s < 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), закрылась свеча-пауза`, `${k} Kerzen ${s < 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pausenkerze geschlossen`, `${k} candles ${s < 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause candle closed`)), { noFlip: true, m5: m5Mini(x) });
     }
     const r = c[i], pz = c[i - 1], d = Math.sign(r.close - r.open); if (!d) return null;
     let ab = 0; for (let j = i - 21; j < i - 1; j++) ab += body(c[j]); ab /= 20; if (!(ab > 0)) return null;
@@ -928,7 +935,7 @@ const S = {
     const pr = body(pz) / ab; if (pr >= (Number(p.sr_pause) || 0.3)) return null;
     if (d > 0 ? r.close <= pz.high : r.close >= pz.low) return null;
     if (p.sr_ema_on !== false) { const e = x.ema(Number(p.sr_ema) || 9)[i]; if (e == null || (r.close - e) * d <= 0) return null; }
-    return Object.assign(sig(d, 75, L(`${k} свечей ${d > 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), пауза, разворотная свеча закрылась ${d > 0 ? 'выше' : 'ниже'}`, `${k} Kerzen ${d > 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pause, Umkehrkerze schließt ${d > 0 ? 'darüber' : 'darunter'}`, `${k} candles ${d > 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause, reversal candle closed ${d > 0 ? 'above' : 'below'}`)), { noFlip: true });
+    return Object.assign(sig(d, 75, L(`${k} свечей ${d > 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), пауза, разворотная свеча закрылась ${d > 0 ? 'выше' : 'ниже'}`, `${k} Kerzen ${d > 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pause, Umkehrkerze schließt ${d > 0 ? 'darüber' : 'darunter'}`, `${k} candles ${d > 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause, reversal candle closed ${d > 0 ? 'above' : 'below'}`)), { noFlip: true, m5: m5Mini(x) });
   },
   n_impulse(x, p) {
     if (p.im_no_otc && x.otc) return null;

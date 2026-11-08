@@ -141,3 +141,4 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 08.11.2026: new `n_serrev` (reversal after series: >= sr_min candles, move >= sr_move ATR, pause body < sr_pause x avg, reversal close beyond pause + fast EMA). raw_pb M1: 48–50 % in all 27 variants; added on the user's explicit wish.
 - 08.11.2026: `n_serrev` option `sr_early`: signal at the close of the pause candle itself (no reversal candle). raw_pb M1 last 5000/pair: 1443 signals, 52.7 % at 1 min (normal mode 48.5 %).
+- 08.11.2026: `n_serrev` signals carry `m5` (last 24 M5 candles [o,h,l,c], resampled by time; `m5Mini` in strategies.js), card draws it (`m5Chart` in ui/app.js, .m5chart). Note: `x.tfMin` is wrong for S… timeframes (parseInt('15')), m5Mini uses candle spacing.

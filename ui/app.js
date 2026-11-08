@@ -221,6 +221,22 @@ function zoneStats(list) {
   };
   return `<div class="zones"><h3>${t('zone_title')}</h3>${['green', 'yellow', 'red'].map(row).join('')}<p class="hint">${t('zone_hint')}</p></div>`;
 }
+// Small M5 candle chart at signal time (s.m5 = [[o,h,l,c],…], last candle may be unfinished), EMA 9 line, dot = price at signal.
+function m5Chart(s) {
+  const k = Array.isArray(s.m5) ? s.m5 : null; if (!k || k.length < 6) return '';
+  const W = 240, H = 56, P = 3, n = k.length, cw = (W - 2 * P) / n;
+  let lo = Infinity, hi = -Infinity; for (const q of k) { lo = Math.min(lo, q[2]); hi = Math.max(hi, q[1]); }
+  const sp = hi - lo || 1, y = v => (P + (hi - v) / sp * (H - 2 * P)).toFixed(1);
+  let body = '', e = k[0][3], pts = [];
+  k.forEach((q, i) => {
+    const [o, h, l, c] = q, x = P + i * cw + cw / 2, up = c >= o, col = up ? '#22c55e' : '#ef4444';
+    const top = y(Math.max(o, c)), bh = Math.max(1, y(Math.min(o, c)) - top);
+    body += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(h)}" y2="${y(l)}" stroke="${col}" stroke-width="1"/><rect x="${(x - cw * 0.35).toFixed(1)}" y="${top}" width="${(cw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}"/>`;
+    e = i ? c * 0.2 + e * 0.8 : c; pts.push(`${x.toFixed(1)},${y(e)}`);
+  });
+  const last = k[n - 1], lx = P + (n - 1) * cw + cw / 2;
+  return `<div class="m5chart"><span>M5</span><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}<polyline points="${pts.join(' ')}" fill="none" stroke="#facc15" stroke-width="1.2"/><circle cx="${lx.toFixed(1)}" cy="${y(last[3])}" r="2.5" fill="#fff"/></svg></div>`;
+}
 function card(s) {
   const fresh = !seen.has(s.id); seen.add(s.id);
   const created = Math.floor((s.created || Date.now()) / 1000), tp = timeProgress(s.entryTime, s.expiry, created);
@@ -235,6 +251,7 @@ function card(s) {
     </div>
     <div class="sig-now"><div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
       <span>${fmtExp(s.expiry)} · ${s.payout}%</span></div>
+    ${m5Chart(s)}
     ${done ? '' : `<div class="pricehint" data-zone-id="${esc(s.id)}">${priceHint(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="btns">

@@ -376,3 +376,8 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .btns .quick.PUT { background: #dc2626; }
 .btns .quick.armed { outline: 2px solid #facc15; animation: quickPulse .6s ease-in-out infinite alternate; }
 @keyframes quickPulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+
+/* Mini M5 chart on the signal card (n_serrev) */
+.m5chart { position: relative; margin: 6px 0 2px; background: rgba(127,127,127,.08); border-radius: 6px; padding: 2px; }
+.m5chart svg { display: block; width: 100%; height: 56px; }
+.m5chart span { position: absolute; left: 6px; top: 2px; font-size: 10px; opacity: .6; }
