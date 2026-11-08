@@ -438,10 +438,11 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'] };
+const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'] };
+const CHOICE_TEXT = { ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down' };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
-  if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : o === 'ANY' ? t('trig_any') : o}</option>`).join('')}</select>`;
+  if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : CHOICE_TEXT[o] ? t(CHOICE_TEXT[o]) : o}</option>`).join('')}</select>`;
   if (typeof v === 'boolean') return `<input type="checkbox" class="sw" ${id} ${v ? 'checked' : ''}>`;
   if (typeof v === 'number') return `<input type="number" step="any" ${id} value="${v}">`;
   return `<input type="text" ${id} value="${esc(v)}">`;

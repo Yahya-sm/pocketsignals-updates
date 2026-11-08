@@ -75,8 +75,9 @@ const DEFAULTS = {
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
   // Mean reversion (07.11.2026, chosen from the raw_pb tests): close beyond Bollinger, RSI 2 at an extreme, flat market (ADX).
   // Live (user, 07.11.2026): a sharp move at the start of the forming candle, entry now in its direction. Untested (no tick history).
-  // Experiment (user, 07.11.2026): ADX alone. ADX crosses ax_level upwards on the closed candle, direction = DI+ vs DI−.
-  n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14 },
+  // Experiment (user, 07.11.2026): ADX alone. ax_dir UP: ADX crosses ax_level upwards, entry with the upper DI;
+  // DOWN: crosses it downwards, entry against the upper DI (the fading move); BOTH = either.
+  n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14, ax_dir: 'BOTH' },
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
@@ -285,7 +286,7 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
   n_adxonly: [
-    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX поднимается через уровень снизу вверх. CALL, если DI+ выше DI−, PUT — наоборот. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle von unten nach oben kreuzt. CALL, wenn DI+ über DI− liegt, sonst PUT. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level upwards. CALL if DI+ is above DI−, otherwise PUT. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period'] },
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX пересекает уровень. Снизу вверх: вход по верхней линии DI (DI+ сверху — CALL). Сверху вниз: тренд слабеет, вход против верхней DI (DI+ сверху — PUT). Можно выбрать одно направление или оба. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle kreuzt. Nach oben: Einstieg mit der oberen DI-Linie (DI+ oben = CALL). Nach unten: Trend lässt nach, Einstieg gegen die obere DI (DI+ oben = PUT). Eine Richtung oder beide wählbar. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level. Upwards: entry with the upper DI line (DI+ on top = CALL). Downwards: the trend fades, entry against the upper DI (DI+ on top = PUT). One direction or both. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period', 'ax_dir'] },
   ],
   n_impulse: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал внутри текущей свечи: за первые … секунд цена ушла от открытия минимум на … ATR (средний размер свечи) и откатила от своего края не больше … %. Вход сразу, по направлению движения. Один сигнал на свечу. Работает только при сканировании чаще раза в минуту (Настройки → интервал сканирования, лучше 5–10 с).', 'Signal in der laufenden Kerze: in den ersten … Sekunden hat sich der Preis mindestens … ATR (durchschnittliche Kerzengröße) von der Eröffnung entfernt und höchstens … % vom Extrem zurückgesetzt. Einstieg sofort in Bewegungsrichtung. Ein Signal je Kerze. Funktioniert nur bei Scan öfter als einmal pro Minute (Einstellungen → Scan-Intervall, besser 5–10 s).', 'Signal inside the forming candle: within the first … seconds price moved at least … ATR (average candle size) from the open and pulled back at most … % from its extreme. Entry now, in the direction of the move. One signal per candle. Works only when scanning more often than once a minute (Settings → scan interval, 5–10 s is best).'), keys: ['expiry', 'im_atr', 'im_sec', 'im_back', 'im_no_otc'] },
@@ -888,9 +889,12 @@ const S = {
   n_adxonly(x, p) {
     const i = x.last, n = Number(p.ax_period) || 14, lv = Number(p.ax_level) || 25;
     const a = n === 14 ? x.adx : I.adx(x.c, n), b = a[i], b0 = a[i - 1];
-    if (!b || !b0 || !(b0.adx < lv && b.adx >= lv) || b.pdi === b.mdi) return null;
-    const d = b.pdi > b.mdi ? 1 : -1;
-    return Object.assign(sig(d, 75, L(`ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} пересёк ${lv}, DI${d > 0 ? '+' : '−'} сверху`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} kreuzt ${lv}, DI${d > 0 ? '+' : '−'} oben`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} crossed ${lv}, DI${d > 0 ? '+' : '−'} on top`)), { noFlip: true });
+    if (!b || !b0 || b.pdi === b.mdi) return null;
+    const mode = p.ax_dir || 'BOTH', up = b0.adx < lv && b.adx >= lv, down = b0.adx >= lv && b.adx < lv;
+    if (!(up && mode !== 'DOWN') && !(down && mode !== 'UP')) return null;
+    const top = b.pdi > b.mdi ? 1 : -1, d = up ? top : -top, dt = top > 0 ? '+' : '−';
+    const why = up ? L(`вверх, вход по DI${dt}`, `nach oben, Einstieg mit DI${dt}`, `upwards, entry with DI${dt}`) : L(`вниз, вход против DI${dt}`, `nach unten, Einstieg gegen DI${dt}`, `downwards, entry against DI${dt}`);
+    return Object.assign(sig(d, 75, L(`ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} пересёк ${lv} ${why.ru}`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} kreuzt ${lv} ${why.de}`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} crossed ${lv} ${why.en}`)), { noFlip: true });
   },
   n_impulse(x, p) {
     if (p.im_no_otc && x.otc) return null;

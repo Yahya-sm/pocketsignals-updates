@@ -73,7 +73,7 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 07.11.2026: `n_impulse` (live, off by default): forming M1 candle, within `im_sec` s of its open price moved ≥ `im_atr` × ATR (closed candles), pullback from the extreme ≤ `im_back` %; entry now in the move direction, one per candle (`bar`). Needs scan interval < 60 s. Untested (no tick history; tick recording declined by the user because of phone storage). Closed-candle continuation on raw_pb was 49–50 %.
 
-- 07.11.2026: `n_adxonly` (experiment, off by default): closed candle, ADX 14 crosses `ax_level` (25) upwards, direction = whichever DI is on top (no DI cross needed), expiry 60. Test raw_pb 4 months M1: 20/25/30/35 → 48.0/49.1/49.2/49.4 % at 1 min, below 50 in both halves.
+- 07.11.2026: `n_adxonly` (experiment, off by default): closed candle, ADX 14 crosses `ax_level` (25) upwards, direction = whichever DI is on top (no DI cross needed), expiry 60. `ax_dir` BOTH (default)/UP/DOWN: DOWN = ADX crosses below the level, entry against the upper DI (raw_pb: ~51 % at 25/30). Test raw_pb 4 months M1: 20/25/30/35 → 48.0/49.1/49.2/49.4 % at 1 min, below 50 in both halves.
 
 ## Releases (how updates are made)
 - **Push to `main` = new version.** `.github/workflows/release.yml` sets version = package.json patch + run number, builds
