@@ -139,3 +139,4 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
   was not tested. Don't guess causes – look at logs (Settings → Verbindungsprotokoll) and test hypotheses.
 - Don't install/update the user's apps unless asked; give them the update (push → online update).
 
+- 08.11.2026: new `n_serrev` (reversal after series: >= sr_min candles, move >= sr_move ATR, pause body < sr_pause x avg, reversal close beyond pause + fast EMA). raw_pb M1: 48–50 % in all 27 variants; added on the user's explicit wish.

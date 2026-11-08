@@ -22,6 +22,7 @@ const META = {
   n_impulse: [L('Ранний импульс (живой)', 'Früher Impuls (live)', 'Early impulse (live)'), 'trend'],
   n_bbrsi: [L('Bollinger + RSI 2 (возврат к средней)', 'Bollinger + RSI 2 (Rückkehr zur Mitte)', 'Bollinger + RSI 2 (mean reversion)'), 'rev'],
   n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
+  n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
   n_levelstoch: [L('Уровень M15 + пин-бар M5 + Stochastic', 'Level M15 + Pinbar M5 + Stochastic', 'M15 level + M5 pin bar + Stochastic'), 'rev'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
@@ -78,6 +79,9 @@ const DEFAULTS = {
   // Experiment (user, 07.11.2026): ADX alone. ax_dir UP: ADX crosses ax_level upwards, entry with the upper DI;
   // DOWN: crosses it downwards, entry against the upper DI (the fading move); BOTH = either.
   n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14, ax_dir: 'BOTH' },
+  // User picture (08.11.2026): series one way, small pause candle, reversal candle closing beyond the pause and the fast EMA.
+  // raw_pb M1 test: 48–50 % in every variant (break-even ~54 %); added on the user's explicit wish.
+  n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true },
   // im_dir AGAINST (user, 08.11.2026): entry against the move – scaled history test (M3 as M1) gave 56–57 % at 2 min from 1.5 ATR.
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
@@ -287,6 +291,9 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
     'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
+  n_serrev: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал при закрытии свечи. Сначала не меньше … свечей подряд в одну сторону, общее движение не меньше … ATR. Потом маленькая свеча-пауза (тело меньше … от среднего тела 20 свечей). Потом свеча в обратную сторону закрылась за паузой (выше её максимума для CALL, ниже минимума для PUT) и, если включено, за быстрой EMA. Вход против серии. Проверка на истории M1: 48–50 % — только демо.', 'Signal beim Kerzenschluss. Zuerst mindestens … Kerzen in Folge in eine Richtung, Bewegung mindestens … ATR. Dann eine kleine Pausenkerze (Körper kleiner als … des Durchschnittskörpers von 20 Kerzen). Dann schließt eine Gegenkerze jenseits der Pause (über ihrem Hoch für CALL, unter ihrem Tief für PUT) und, falls an, jenseits der schnellen EMA. Einstieg gegen die Serie. Historientest M1: 48–50 % – nur Demo.', 'Signal at candle close. First at least … candles in a row one way, total move at least … ATR. Then a small pause candle (body below … of the 20-candle average body). Then an opposite candle closes beyond the pause (above its high for CALL, below its low for PUT) and, if on, beyond the fast EMA. Entry against the series. M1 history test: 48–50 % – demo only.'), keys: ['expiry', 'sr_min', 'sr_move', 'sr_pause', 'sr_ema_on', 'sr_ema'] },
+  ],
   n_adxonly: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX пересекает уровень. Снизу вверх: вход по верхней линии DI (DI+ сверху — CALL). Сверху вниз: тренд слабеет, вход против верхней DI (DI+ сверху — PUT). Можно выбрать одно направление или оба. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle kreuzt. Nach oben: Einstieg mit der oberen DI-Linie (DI+ oben = CALL). Nach unten: Trend lässt nach, Einstieg gegen die obere DI (DI+ oben = PUT). Eine Richtung oder beide wählbar. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level. Upwards: entry with the upper DI line (DI+ on top = CALL). Downwards: the trend fades, entry against the upper DI (DI+ on top = PUT). One direction or both. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period', 'ax_dir'] },
   ],
@@ -469,7 +476,7 @@ function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
   if (name === 'n_impulse') return 'live';
-  if (name === 'n_adxonly') return 'closed';
+  if (name === 'n_adxonly' || name === 'n_serrev') return 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
   if (name === 'n_sharp' && p.bot) return 'both';
@@ -898,6 +905,20 @@ const S = {
     const why = up ? L(`вверх, вход по DI${dt}`, `nach oben, Einstieg mit DI${dt}`, `upwards, entry with DI${dt}`) : L(`вниз, вход против DI${dt}`, `nach unten, Einstieg gegen DI${dt}`, `downwards, entry against DI${dt}`);
     return Object.assign(sig(d, 75, L(`ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} пересёк ${lv} ${why.ru}`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} kreuzt ${lv} ${why.de}`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} crossed ${lv} ${why.en}`)), { noFlip: true });
   },
+  n_serrev(x, p) {
+    const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
+    const r = c[i], pz = c[i - 1], d = Math.sign(r.close - r.open); if (!d) return null;
+    const body = k => Math.abs(k.close - k.open);
+    let ab = 0; for (let j = i - 21; j < i - 1; j++) ab += body(c[j]); ab /= 20; if (!(ab > 0)) return null;
+    let k = 0; for (let j = i - 2; j > i - 15 && j >= 0; j--) { if (Math.sign(c[j].close - c[j].open) === -d) k++; else break; }
+    if (k < (Number(p.sr_min) || 3)) return null;
+    const seg = c.slice(i - 1 - k, i), ext = d > 0 ? Math.min(...seg.map(q => q.low)) : Math.max(...seg.map(q => q.high));
+    const mv = Math.abs(c[i - 1 - k].open - ext) / atr; if (mv < (Number(p.sr_move) || 1.5)) return null;
+    const pr = body(pz) / ab; if (pr >= (Number(p.sr_pause) || 0.3)) return null;
+    if (d > 0 ? r.close <= pz.high : r.close >= pz.low) return null;
+    if (p.sr_ema_on !== false) { const e = x.ema(Number(p.sr_ema) || 9)[i]; if (e == null || (r.close - e) * d <= 0) return null; }
+    return Object.assign(sig(d, 75, L(`${k} свечей ${d > 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), пауза, разворотная свеча закрылась ${d > 0 ? 'выше' : 'ниже'}`, `${k} Kerzen ${d > 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pause, Umkehrkerze schließt ${d > 0 ? 'darüber' : 'darunter'}`, `${k} candles ${d > 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause, reversal candle closed ${d > 0 ? 'above' : 'below'}`)), { noFlip: true });
+  },
   n_impulse(x, p) {
     if (p.im_no_otc && x.otc) return null;
     const c = x.c, i = x.last, k = c[i], tf = (x.tfMin || 1) * 60, age = Date.now() / 1000 - k.time;
@@ -1200,6 +1221,6 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev'];
 
 module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
