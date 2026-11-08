@@ -41,6 +41,8 @@ const SHARP_BOT = { bot: false, preclose_sec: 8, sharp_series: true, sharp_move:
 const FIVE_BOT = { five_bot: false, candle_ma: 5, five_er_min: 0.3, five_trend: true, five_adx_min: 20, five_sar: 4, five_confirm: true, five_room: 0.7 };
 // Market rules for the reversal setups (see marketOk): volatile market only, no entry straight into a level.
 const MARKET = { mk_vol: 1, mk_big: 1.8, mk_room: 1 };
+// General market strictness (settings.mkt_level): 0 off, 1 soft, 2 medium, 3 strict. atr = ATR now / average ATR of the window.
+const MKT_LEVELS = [null, { atr: 0.8, adx: 15, big: 0 }, { atr: 1, adx: 20, big: 1.5 }, { atr: 1.2, adx: 25, big: 2 }];
 const DEFAULTS = {
   // 04.11.2026 (user): the series of candles is only the setup; the signal is the Stochastic turning out of its zone
   // (%K crosses 20 upwards after a fall / 80 downwards after a rise) within sharp_wait candles after the series.
@@ -1116,6 +1118,19 @@ function evaluate(candlesByTf, enabled, settings) {
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
       if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) continue;
+      // General market strictness for all strategies and pairs (mkt_level 0–3, user 08.11.2026): weak markets are skipped.
+      // ATR now / the pair's average ATR in the window, ADX, and a big candle among the last 10 (× average range).
+      const ML = MKT_LEVELS[Number(settings.mkt_level) || 0];
+      if (ML) {
+        if (x.mkt === undefined) {
+          const n = c.length - 1, a = x.atr, ad = x.adx[n];
+          let sum = 0, cnt = 0; for (let j = 14; j < n; j++) if (a[j] > 0) { sum += a[j]; cnt++; }
+          let rg = 0, big = 0; for (let j = n - 99 < 0 ? 0 : n - 99; j <= n; j++) rg += c[j].high - c[j].low; rg /= Math.min(100, n + 1);
+          for (let j = n - 9; j <= n; j++) big = Math.max(big, c[j].high - c[j].low);
+          x.mkt = { atr: cnt && a[n] > 0 ? a[n] / (sum / cnt) : 0, adx: ad ? ad.adx : 0, big: rg > 0 ? big / rg : 0 };
+        }
+        const m = x.mkt; if (m.atr < ML.atr || m.adx < ML.adx || m.big < ML.big) continue;
+      }
       // Small candles (rg_vol, 0 = off): average size of the last 5 candles / average of the pair's other candles on this timeframe.
       const minVol = Number(settings.rg_vol ?? 0.7);
       if (minVol > 0) {
