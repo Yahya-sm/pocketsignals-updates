@@ -465,6 +465,7 @@ const PARAM_NAMES = {
   sr_move: ['Bewegung der Serie mindestens … ATR', 'Движение серии минимум … ATR', 'Series move at least … ATR'],
   sr_pause: ['Pausenkerze: Körper kleiner als … × Durchschnitt', 'Свеча-пауза: тело меньше … × среднего', 'Pause candle: body below … × average'],
   sr_ema_on: ['Schluss jenseits der schnellen EMA', 'Закрытие за быстрой EMA', 'Close beyond the fast EMA'],
+  sr_early: ['Früh: Signal schon beim Schluss der Pausenkerze', 'Рано: сигнал при закрытии свечи-паузы', 'Early: signal at the close of the pause candle'],
   sr_ema: ['Periode der schnellen EMA', 'Период быстрой EMA', 'Fast EMA period'],
   im_atr: ['Bewegung mindestens … ATR', 'Движение минимум … ATR', 'Move at least … ATR'],
   im_sec: ['In den ersten … Sekunden der Kerze', 'В первые … секунд свечи', 'Within the first … seconds of the candle'],

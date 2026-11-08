@@ -81,7 +81,7 @@ const DEFAULTS = {
   n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14, ax_dir: 'BOTH' },
   // User picture (08.11.2026): series one way, small pause candle, reversal candle closing beyond the pause and the fast EMA.
   // raw_pb M1 test: 48–50 % in every variant (break-even ~54 %); added on the user's explicit wish.
-  n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true },
+  n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true, sr_early: false },
   // im_dir AGAINST (user, 08.11.2026): entry against the move – scaled history test (M3 as M1) gave 56–57 % at 2 min from 1.5 ATR.
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
@@ -292,7 +292,7 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
   n_serrev: [
-    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал при закрытии свечи. Сначала не меньше … свечей подряд в одну сторону, общее движение не меньше … ATR. Потом маленькая свеча-пауза (тело меньше … от среднего тела 20 свечей). Потом свеча в обратную сторону закрылась за паузой (выше её максимума для CALL, ниже минимума для PUT) и, если включено, за быстрой EMA. Вход против серии. Проверка на истории M1: 48–50 % — только демо.', 'Signal beim Kerzenschluss. Zuerst mindestens … Kerzen in Folge in eine Richtung, Bewegung mindestens … ATR. Dann eine kleine Pausenkerze (Körper kleiner als … des Durchschnittskörpers von 20 Kerzen). Dann schließt eine Gegenkerze jenseits der Pause (über ihrem Hoch für CALL, unter ihrem Tief für PUT) und, falls an, jenseits der schnellen EMA. Einstieg gegen die Serie. Historientest M1: 48–50 % – nur Demo.', 'Signal at candle close. First at least … candles in a row one way, total move at least … ATR. Then a small pause candle (body below … of the 20-candle average body). Then an opposite candle closes beyond the pause (above its high for CALL, below its low for PUT) and, if on, beyond the fast EMA. Entry against the series. M1 history test: 48–50 % – demo only.'), keys: ['expiry', 'sr_min', 'sr_move', 'sr_pause', 'sr_ema_on', 'sr_ema'] },
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал при закрытии свечи. Сначала не меньше … свечей подряд в одну сторону, общее движение не меньше … ATR. Потом маленькая свеча-пауза (тело меньше … от среднего тела 20 свечей). Потом свеча в обратную сторону закрылась за паузой (выше её максимума для CALL, ниже минимума для PUT) и, если включено, за быстрой EMA. Вход против серии. Проверка на истории M1: 48–50 % — только демо.', 'Signal beim Kerzenschluss. Zuerst mindestens … Kerzen in Folge in eine Richtung, Bewegung mindestens … ATR. Dann eine kleine Pausenkerze (Körper kleiner als … des Durchschnittskörpers von 20 Kerzen). Dann schließt eine Gegenkerze jenseits der Pause (über ihrem Hoch für CALL, unter ihrem Tief für PUT) und, falls an, jenseits der schnellen EMA. Einstieg gegen die Serie. Historientest M1: 48–50 % – nur Demo.', 'Signal at candle close. First at least … candles in a row one way, total move at least … ATR. Then a small pause candle (body below … of the 20-candle average body). Then an opposite candle closes beyond the pause (above its high for CALL, below its low for PUT) and, if on, beyond the fast EMA. Entry against the series. M1 history test: 48–50 % – demo only.'), keys: ['expiry', 'sr_early', 'sr_min', 'sr_move', 'sr_pause', 'sr_ema_on', 'sr_ema'] },
   ],
   n_adxonly: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX пересекает уровень. Снизу вверх: вход по верхней линии DI (DI+ сверху — CALL). Сверху вниз: тренд слабеет, вход против верхней DI (DI+ сверху — PUT). Можно выбрать одно направление или оба. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle kreuzt. Nach oben: Einstieg mit der oberen DI-Linie (DI+ oben = CALL). Nach unten: Trend lässt nach, Einstieg gegen die obere DI (DI+ oben = PUT). Eine Richtung oder beide wählbar. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level. Upwards: entry with the upper DI line (DI+ on top = CALL). Downwards: the trend fades, entry against the upper DI (DI+ on top = PUT). One direction or both. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period', 'ax_dir'] },
@@ -907,8 +907,19 @@ const S = {
   },
   n_serrev(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
-    const r = c[i], pz = c[i - 1], d = Math.sign(r.close - r.open); if (!d) return null;
     const body = k => Math.abs(k.close - k.open);
+    if (p.sr_early) { // user 08.11.2026: signal already at the close of the pause candle (doji), no reversal candle
+      let ab = 0; for (let j = i - 20; j < i; j++) ab += body(c[j]); ab /= 20; if (!(ab > 0)) return null;
+      if (body(c[i]) / ab >= (Number(p.sr_pause) || 0.3)) return null;
+      const s = Math.sign(c[i - 1].close - c[i - 1].open); if (!s) return null;
+      let k = 0; for (let j = i - 1; j > i - 14 && j >= 0; j--) { if (Math.sign(c[j].close - c[j].open) === s) k++; else break; }
+      if (k < (Number(p.sr_min) || 3)) return null;
+      const seg = c.slice(i - k, i + 1), ext = s < 0 ? Math.min(...seg.map(q => q.low)) : Math.max(...seg.map(q => q.high));
+      const mv = Math.abs(c[i - k].open - ext) / atr; if (mv < (Number(p.sr_move) || 1.5)) return null;
+      const d = -s;
+      return Object.assign(sig(d, 75, L(`${k} свечей ${s < 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), закрылась свеча-пауза`, `${k} Kerzen ${s < 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pausenkerze geschlossen`, `${k} candles ${s < 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause candle closed`)), { noFlip: true });
+    }
+    const r = c[i], pz = c[i - 1], d = Math.sign(r.close - r.open); if (!d) return null;
     let ab = 0; for (let j = i - 21; j < i - 1; j++) ab += body(c[j]); ab /= 20; if (!(ab > 0)) return null;
     let k = 0; for (let j = i - 2; j > i - 15 && j >= 0; j--) { if (Math.sign(c[j].close - c[j].open) === -d) k++; else break; }
     if (k < (Number(p.sr_min) || 3)) return null;
