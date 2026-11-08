@@ -143,3 +143,5 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 08.11.2026: `n_serrev` option `sr_early`: signal at the close of the pause candle itself (no reversal candle). raw_pb M1 last 5000/pair: 1443 signals, 52.7 % at 1 min (normal mode 48.5 %).
 - 08.11.2026: `n_serrev` signals carry `m5` (last 24 M5 candles [o,h,l,c], resampled by time; `m5Mini` in strategies.js), card draws it (`m5Chart` in ui/app.js, .m5chart). Note: `x.tfMin` is wrong for S… timeframes (parseInt('15')), m5Mini uses candle spacing.
 - 08.11.2026: mini chart now on every signal card: `engine._miniChart` (M1 history resampled to `mini_tf` M1/M2/M3/M5/M15, 'off'), stored as `sig.m5` + `sig.miniTf`; setting row `#sMiniTf`. Strategy-side `m5Mini` in n_serrev is no longer used by the engine.
+- 08.11.2026: Android notification title now starts with the pair (`EUR/USD OTC ▲ CALL`), no emojis; Java still finds CALL/PUT in the title for color/icon.
+- 08.11.2026: signals also carry `m1` {t0, k:[[min offset,o,h,l,c]]} (last 120 M1); card tabs M1/M3/M5/M15 (`cardTf`, `miniCandles` in ui/app.js) switch the mini chart per card. M15 = 8 candles only.

@@ -568,7 +568,10 @@ class Engine extends EventEmitter {
     const m = parseInt(tf.slice(1), 10) || 5, c = hist.slice();
     if (s.candle && s.candle.time > c[c.length - 1].time && !(s.candle.time % 60)) c.push(s.candle);
     const out = (m === 1 ? c : I.resample(c, m, true)).slice(-24);
-    return out.length >= 6 ? out.map(k => [k.open, k.high, k.low, k.close]) : null;
+    if (out.length < 6) return null;
+    // Last 120 M1 candles too, so the card can switch M1/M2/M3/M5/M15 itself (user 08.11.2026). [minute offset, o, h, l, c].
+    const r = v => +v.toPrecision(7), m1 = c.slice(-120), t0 = m1[0].time;
+    return { m5: out.map(k => [k.open, k.high, k.low, k.close]), m1: { t0, k: m1.map(k => [(k.time - t0) / 60, r(k.open), r(k.high), r(k.low), r(k.close)]) } };
   }
 
   _emitSignal(s) {
@@ -583,7 +586,7 @@ class Engine extends EventEmitter {
     };
     const hist0 = this.candles.get(s.asset), atr0 = hist0 && hist0.length > 15 ? I.atr(hist0, 14)[hist0.length - 1] : null;
     if (atr0 > 0) sig.atr0 = atr0;
-    try { const mc = this._miniChart(hist0, s); if (mc) { sig.m5 = mc; sig.miniTf = this.settings.mini_tf || 'M5'; } } catch {}
+    try { const mc = this._miniChart(hist0, s); if (mc) { sig.m5 = mc.m5; sig.m1 = mc.m1; sig.miniTf = this.settings.mini_tf || 'M5'; } } catch {}
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
     try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; sig.recShort = re.short; } } catch {}
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;

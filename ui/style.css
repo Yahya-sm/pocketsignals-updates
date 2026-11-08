@@ -381,3 +381,7 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .m5chart { position: relative; margin: 6px 0 2px; background: rgba(127,127,127,.08); border-radius: 6px; padding: 2px; }
 .m5chart svg { display: block; width: 100%; height: 56px; }
 .m5chart span { position: absolute; left: 6px; top: 2px; font-size: 10px; opacity: .6; }
+.m5tabs { position: absolute; left: 4px; top: 2px; display: flex; gap: 2px; z-index: 1; }
+.m5tabs button { font-size: 10px; padding: 1px 5px; border: 0; border-radius: 4px; background: rgba(127,127,127,.18); color: inherit; opacity: .7; cursor: pointer; }
+.m5tabs button.on { background: #4c8dff; color: #fff; opacity: 1; }
+.m5chart svg { margin-top: 16px; }

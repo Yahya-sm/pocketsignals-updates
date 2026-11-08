@@ -222,8 +222,22 @@ function zoneStats(list) {
   return `<div class="zones"><h3>${t('zone_title')}</h3>${['green', 'yellow', 'red'].map(row).join('')}<p class="hint">${t('zone_hint')}</p></div>`;
 }
 // Small M5 candle chart at signal time (s.m5 = [[o,h,l,c],…], last candle may be unfinished), EMA 9 line, dot = price at signal.
+// Per-card timeframe (tabs on the chart), built from s.m1 = { t0, k: [[minute offset, o, h, l, c], …] }.
+const cardTf = new Map(), MINI_TFS = ['M1', 'M3', 'M5', 'M15'];
+function miniCandles(s, tf) {
+  const m = parseInt(tf.slice(1), 10) || 5, sec = m * 60, out = [];
+  for (const [dt, o, h, l, c] of s.m1.k) {
+    const t = Math.floor((s.m1.t0 + dt * 60) / sec), last = out[out.length - 1];
+    if (last && last.t === t) { last.q[1] = Math.max(last.q[1], h); last.q[2] = Math.min(last.q[2], l); last.q[3] = c; }
+    else out.push({ t, q: [o, h, l, c] });
+  }
+  return out.slice(-24).map(x => x.q);
+}
 function m5Chart(s) {
-  const k = Array.isArray(s.m5) ? s.m5 : null; if (!k || k.length < 6) return '';
+  const tf = cardTf.get(s.id), canSwitch = !!(s.m1 && Array.isArray(s.m1.k) && s.m1.k.length > 10);
+  const k = tf && canSwitch ? miniCandles(s, tf) : Array.isArray(s.m5) ? s.m5 : null; if (!k || k.length < 3) return '';
+  const cur = tf && canSwitch ? tf : (s.miniTf || 'M5');
+  const tabs = canSwitch ? `<div class="m5tabs">${MINI_TFS.map(x => `<button data-ctf="${x}" data-cid="${esc(s.id)}" class="${x === cur ? 'on' : ''}">${x}</button>`).join('')}</div>` : '';
   const W = 240, H = 56, P = 3, n = k.length, cw = (W - 2 * P) / n;
   let lo = Infinity, hi = -Infinity; for (const q of k) { lo = Math.min(lo, q[2]); hi = Math.max(hi, q[1]); }
   const sp = hi - lo || 1, y = v => (P + (hi - v) / sp * (H - 2 * P)).toFixed(1);
@@ -235,7 +249,7 @@ function m5Chart(s) {
     e = i ? c * 0.2 + e * 0.8 : c; pts.push(`${x.toFixed(1)},${y(e)}`);
   });
   const last = k[n - 1], lx = P + (n - 1) * cw + cw / 2;
-  return `<div class="m5chart"><span>${esc(s.miniTf || 'M5')}</span><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}<polyline points="${pts.join(' ')}" fill="none" stroke="#facc15" stroke-width="1.2"/><circle cx="${lx.toFixed(1)}" cy="${y(last[3])}" r="2.5" fill="#fff"/></svg></div>`;
+  return `<div class="m5chart">${tabs || `<span>${esc(cur)}</span>`}<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}<polyline points="${pts.join(' ')}" fill="none" stroke="#facc15" stroke-width="1.2"/><circle cx="${lx.toFixed(1)}" cy="${y(last[3])}" r="2.5" fill="#fff"/></svg></div>`;
 }
 function card(s) {
   const fresh = !seen.has(s.id); seen.add(s.id);
@@ -584,6 +598,7 @@ document.addEventListener('click', e => {
     if (s) { s.mine = !s.mine; call({ action: 'mine', id: s.id, on: s.mine }); render(); }
     return;
   }
+  if (el.dataset.ctf) { cardTf.set(el.dataset.cid, el.dataset.ctf); $('#live').dataset.key = ''; renderLive(); return; }
   if (el.dataset.more) { const k = el.dataset.more; openCards.has(k) ? openCards.delete(k) : openCards.add(k); $('#live').dataset.key = ''; renderLive(); return; }
   if (el.dataset.pin) togglePin(el.dataset.pin);
   if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf, false, +el.dataset.poexp || 0);
@@ -774,7 +789,8 @@ function onSignal(s) {
   if (state && state.settings.sound && !isAndroid) beep(snd);
   if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
   const body = `${tr(s.strategyName)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}`;
-  const title = `${s.dir === 'CALL' ? '🟢⬆️' : '🔴⬇️'} ${s.dir} · ${s.name}`;
+  // Pair first (user 08.11.2026: the collapsed phone notification showed only the emojis and two letters of the pair).
+  const title = isAndroid ? `${s.name} ${s.dir === 'CALL' ? '▲' : '▼'} ${s.dir}` : `${s.dir === 'CALL' ? '🟢⬆️' : '🔴⬇️'} ${s.dir} · ${s.name}`;
   if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, s.name, s.symbol, s.tv, state.settings.sound ? snd : 'none');
   else if (isAndroid) window.AndroidApp.notify(title, body, s.name, s.symbol, s.tv);
   else if (window.Notification && Notification.permission === 'granted' && document.hidden)
