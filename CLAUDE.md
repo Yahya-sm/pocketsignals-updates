@@ -145,3 +145,4 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 08.11.2026: mini chart now on every signal card: `engine._miniChart` (M1 history resampled to `mini_tf` M1/M2/M3/M5/M15, 'off'), stored as `sig.m5` + `sig.miniTf`; setting row `#sMiniTf`. Strategy-side `m5Mini` in n_serrev is no longer used by the engine.
 - 08.11.2026: Android notification title now starts with the pair (`EUR/USD OTC ▲ CALL`), no emojis; Java still finds CALL/PUT in the title for color/icon.
 - 08.11.2026: signals also carry `m1` {t0, k:[[min offset,o,h,l,c]]} (last 120 M1); card tabs M1/M3/M5/M15 (`cardTf`, `miniCandles` in ui/app.js) switch the mini chart per card. M15 = 8 candles only.
+- 08.11.2026: `n_serrev` flat filters `sr_adx`, `sr_vol` (10 vs 100 candle range), `sr_big` + 4 strictness presets. Early mode raw_pb 28 days: off 50.9/50.9/51.4, L2 50.5/51.2/52.3, L4 74 signals 44–51 (1/2/3 min). Short 5-day sample had shown 57–61 % – noise.

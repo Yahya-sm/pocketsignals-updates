@@ -81,7 +81,7 @@ const DEFAULTS = {
   n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14, ax_dir: 'BOTH' },
   // User picture (08.11.2026): series one way, small pause candle, reversal candle closing beyond the pause and the fast EMA.
   // raw_pb M1 test: 48–50 % in every variant (break-even ~54 %); added on the user's explicit wish.
-  n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true, sr_early: false },
+  n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true, sr_early: false, sr_adx: 0, sr_vol: 0, sr_big: 0 },
   // im_dir AGAINST (user, 08.11.2026): entry against the move – scaled history test (M3 as M1) gave 56–57 % at 2 min from 1.5 ATR.
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
@@ -97,6 +97,13 @@ const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st
 // Ready-made setting combinations (one tap in the app).
 const NM1 = L('Очень часто', 'Sehr oft', 'Very often'), NM2 = L('Часто', 'Oft', 'Often'), NM3 = L('Средне', 'Mittel', 'Medium'), NM4 = L('Строже', 'Strenger', 'Stricter'), NM5 = L('Строго', 'Streng', 'Strict');
 const PRESETS = {
+  // Strictness against flat signals (user 08.11.2026). raw_pb M1 ~28 days, early mode: all levels 49–52 % – they remove flat signals, not losses.
+  n_serrev: [
+    { name: L('1 Мягко', '1 Locker', '1 Loose'), values: { sr_adx: 20, sr_vol: 0.8, sr_big: 0, sr_move: 1.5, sr_min: 3 } },
+    { name: L('2 Средне', '2 Mittel', '2 Medium'), values: { sr_adx: 25, sr_vol: 1, sr_big: 1.5, sr_move: 2, sr_min: 3 } },
+    { name: L('3 Строже', '3 Strenger', '3 Stricter'), values: { sr_adx: 30, sr_vol: 1.2, sr_big: 2, sr_move: 2.5, sr_min: 3 } },
+    { name: L('4 Строго', '4 Streng', '4 Strict'), values: { sr_adx: 35, sr_vol: 1.5, sr_big: 2.5, sr_move: 3, sr_min: 4 } },
+  ],
   n_impulse: [
     { name: L('Чаще', 'Öfter', 'More often'), values: { im_atr: 0.7, im_sec: 40, im_back: 35 } },
     { name: L('Средне', 'Mittel', 'Medium'), values: { im_atr: 1, im_sec: 30, im_back: 25 } },
@@ -293,6 +300,7 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
 const GROUPS = {
   n_serrev: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал при закрытии свечи. Сначала не меньше … свечей подряд в одну сторону, общее движение не меньше … ATR. Потом маленькая свеча-пауза (тело меньше … от среднего тела 20 свечей). Потом свеча в обратную сторону закрылась за паузой (выше её максимума для CALL, ниже минимума для PUT) и, если включено, за быстрой EMA. Вход против серии. Проверка на истории M1: 48–50 % — только демо.', 'Signal beim Kerzenschluss. Zuerst mindestens … Kerzen in Folge in eine Richtung, Bewegung mindestens … ATR. Dann eine kleine Pausenkerze (Körper kleiner als … des Durchschnittskörpers von 20 Kerzen). Dann schließt eine Gegenkerze jenseits der Pause (über ihrem Hoch für CALL, unter ihrem Tief für PUT) und, falls an, jenseits der schnellen EMA. Einstieg gegen die Serie. Historientest M1: 48–50 % – nur Demo.', 'Signal at candle close. First at least … candles in a row one way, total move at least … ATR. Then a small pause candle (body below … of the 20-candle average body). Then an opposite candle closes beyond the pause (above its high for CALL, below its low for PUT) and, if on, beyond the fast EMA. Entry against the series. M1 history test: 48–50 % – demo only.'), keys: ['expiry', 'sr_early', 'sr_min', 'sr_move', 'sr_pause', 'sr_ema_on', 'sr_ema'] },
+    { title: L('Против флэта', 'Gegen Seitwärts', 'Against flat'), desc: L('Не давать сигнал во флэте: ADX не меньше …; последние 10 свечей в среднем не меньше … × размера свечей за 100; в серии есть большая свеча (тело от … × среднего). 0 = выкл. Уровни строгости 1–4 вверху ставят эти значения. Проверка на истории M1 (28 дней): все уровни 49–52 % — фильтр убирает флэт, но выигрыш не повышает.', 'Kein Signal im Seitwärtsmarkt: ADX mindestens …; die letzten 10 Kerzen im Schnitt mindestens … × der Kerzengröße über 100; die Serie hat eine große Kerze (Körper ab … × Durchschnitt). 0 = aus. Die Stufen 1–4 oben setzen diese Werte. Historientest M1 (28 Tage): alle Stufen 49–52 % – der Filter entfernt Seitwärtsphasen, erhöht die Trefferquote aber nicht.', 'No signal in a flat market: ADX at least …; the last 10 candles average at least … × the candle size over 100; the series has a big candle (body from … × average). 0 = off. Levels 1–4 above set these values. M1 history test (28 days): all levels 49–52 % – the filter removes flat signals but does not raise the win rate.'), keys: ['sr_adx', 'sr_vol', 'sr_big'] },
   ],
   n_adxonly: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX пересекает уровень. Снизу вверх: вход по верхней линии DI (DI+ сверху — CALL). Сверху вниз: тренд слабеет, вход против верхней DI (DI+ сверху — PUT). Можно выбрать одно направление или оба. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle kreuzt. Nach oben: Einstieg mit der oberen DI-Linie (DI+ oben = CALL). Nach unten: Trend lässt nach, Einstieg gegen die obere DI (DI+ oben = PUT). Eine Richtung oder beide wählbar. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level. Upwards: entry with the upper DI line (DI+ on top = CALL). Downwards: the trend fades, entry against the upper DI (DI+ on top = PUT). One direction or both. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period', 'ax_dir'] },
@@ -915,6 +923,12 @@ const S = {
   n_serrev(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
     const body = k => Math.abs(k.close - k.open);
+    // Flat filters (user 08.11.2026: signals in a flat are no reversals): ADX at least sr_adx; the last 10 candles average at
+    // least sr_vol x the range of the last 100; the series has a candle with a body of at least sr_big x the average. 0 = off.
+    const amin = Number(p.sr_adx) || 0, a = x.adx[i]; if (amin && (!a || a.adx < amin)) return null;
+    const vmin = Number(p.sr_vol) || 0;
+    if (vmin && i > 100) { const rg = (f, t) => { let s = 0; for (let j = f; j <= t; j++) s += c[j].high - c[j].low; return s / (t - f + 1); }; if (rg(i - 9, i) < vmin * rg(i - 99, i)) return null; }
+    const bigOk = (seg, ab) => !(Number(p.sr_big) > 0) || seg.some(q => body(q) >= Number(p.sr_big) * ab);
     if (p.sr_early) { // user 08.11.2026: signal already at the close of the pause candle (doji), no reversal candle
       let ab = 0; for (let j = i - 20; j < i; j++) ab += body(c[j]); ab /= 20; if (!(ab > 0)) return null;
       if (body(c[i]) / ab >= (Number(p.sr_pause) || 0.3)) return null;
@@ -923,6 +937,7 @@ const S = {
       if (k < (Number(p.sr_min) || 3)) return null;
       const seg = c.slice(i - k, i + 1), ext = s < 0 ? Math.min(...seg.map(q => q.low)) : Math.max(...seg.map(q => q.high));
       const mv = Math.abs(c[i - k].open - ext) / atr; if (mv < (Number(p.sr_move) || 1.5)) return null;
+      if (!bigOk(seg, ab)) return null;
       const d = -s;
       return Object.assign(sig(d, 75, L(`${k} свечей ${s < 0 ? 'вниз' : 'вверх'} (${mv.toFixed(1)} ATR), закрылась свеча-пауза`, `${k} Kerzen ${s < 0 ? 'nach unten' : 'nach oben'} (${mv.toFixed(1)} ATR), Pausenkerze geschlossen`, `${k} candles ${s < 0 ? 'down' : 'up'} (${mv.toFixed(1)} ATR), pause candle closed`)), { noFlip: true, m5: m5Mini(x) });
     }
@@ -932,6 +947,7 @@ const S = {
     if (k < (Number(p.sr_min) || 3)) return null;
     const seg = c.slice(i - 1 - k, i), ext = d > 0 ? Math.min(...seg.map(q => q.low)) : Math.max(...seg.map(q => q.high));
     const mv = Math.abs(c[i - 1 - k].open - ext) / atr; if (mv < (Number(p.sr_move) || 1.5)) return null;
+    if (!bigOk(seg, ab)) return null;
     const pr = body(pz) / ab; if (pr >= (Number(p.sr_pause) || 0.3)) return null;
     if (d > 0 ? r.close <= pz.high : r.close >= pz.low) return null;
     if (p.sr_ema_on !== false) { const e = x.ema(Number(p.sr_ema) || 9)[i]; if (e == null || (r.close - e) * d <= 0) return null; }
