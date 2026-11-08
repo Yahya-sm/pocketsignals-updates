@@ -76,6 +76,9 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
   PocketOption's own `.btn-call` / `.btn-put` (amount as set in PO). Never sent through po-client (that session is often
   the real account). Desktop: no trade if the PO window must load first or after a reload; phone: trade only within 5 s.
   Button selectors unverified against the live page – a hint "press it yourself" shows if not found.
+- 08.11.2026: `po_click_toggle` = double click only: PC – a double click in the PO window hides PocketSignals, the next shows
+  it (single click does nothing). Phone (new APK): AUTH_HOOK detects a double tap in the PO tab → `onDoubleTap` → signals;
+  a double tap on an empty spot of the signal page → `AndroidApp.showPo`; setting sent via `setDblToggle`.
 
 - 07.11.2026: `n_big` (pullback after big candle, incl. `bs_*` mode, `bigLog`) removed at the user's request ("unstable"). Last test raw_pb M1: 5895 signals 50.5 % at 3 min; trend-continuation variant 2899 / 49.9 %. `BP.bigFade` in bot_ports.js stays unused.
 

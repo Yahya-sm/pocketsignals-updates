@@ -78,19 +78,21 @@ function openPocketOption(symbol, name, withTimeframe = false, exp = 0, lang = '
   poWin.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
 }
 
-// po_click_toggle: one click in the PocketOption window hides PocketSignals, only a double click brings it back.
+// po_click_toggle: a double click in the PocketOption window hides PocketSignals, the next double click brings it back.
 // The page only reports clicks through the console; the clicks themselves reach PocketOption as usual.
-// A double click starts with a click that hides the window, so a double click right after hiding (700 ms) does not show it again.
 function watchPoClicks(w) {
   let hiddenAt = 0;
   // Only real mouse clicks (isTrusted): buttons in PocketSignals drive the page with scripted clicks (asset, expiry), which must not hide the app.
-  const report = "if(!window.__psClicks){window.__psClicks=1;addEventListener('click',e=>{if(e.isTrusted)console.log('__ps_click__')},true);addEventListener('dblclick',e=>{if(e.isTrusted)console.log('__ps_dbl__')},true);}";
+  const report = "if(!window.__psClicks){window.__psClicks=1;addEventListener('dblclick',e=>{if(e.isTrusted)console.log('__ps_dbl__')},true);}";
   w.webContents.on('did-finish-load', () => { w.webContents.executeJavaScript(report).catch(() => {}); });
+  // 08.11.2026 (user): a single click does nothing; a double click hides PocketSignals, the next double click shows it.
   w.webContents.on('console-message', (e, _level, message) => {
     const m = message ?? e.message;
-    if ((m !== '__ps_click__' && m !== '__ps_dbl__') || !win || engine.settings.po_click_toggle === false) return;
-    if (m === '__ps_click__') { if (win.isVisible()) { win.hide(); hiddenAt = Date.now(); } return; }
-    if (!win.isVisible() && Date.now() - hiddenAt > 700) { win.showInactive(); w.focus(); }
+    if (m !== '__ps_dbl__' || !win || engine.settings.po_click_toggle === false) return;
+    if (Date.now() - hiddenAt < 400) return; // one double click = one toggle
+    hiddenAt = Date.now();
+    if (win.isVisible()) win.hide();
+    else { win.showInactive(); w.focus(); }
   });
 }
 

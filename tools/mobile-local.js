@@ -61,6 +61,14 @@ const sendTvMode = () => {
 };
 engine.on('state', sendTvMode);
 sendTvMode();
+// Double tap PocketOption ↔ signals (po_click_toggle, user 08.11.2026).
+let lastDbl = null;
+const sendDbl = () => {
+  const on = engine.settings.po_click_toggle !== false;
+  if (on !== lastDbl && window.AndroidApp && window.AndroidApp.setDblToggle) { lastDbl = on; window.AndroidApp.setDblToggle(on); }
+};
+engine.on('state', sendDbl);
+sendDbl();
 setInterval(() => push({ type: 'state', state: engine.state() }), 15000);
 // Called by the Android app every 30 s: a hidden or backgrounded WebView may skip timers for many minutes, so the
 // reconnect after a drop never came (phone log 28.10.2026: 28 minutes without a new attempt). Reconnect if needed.

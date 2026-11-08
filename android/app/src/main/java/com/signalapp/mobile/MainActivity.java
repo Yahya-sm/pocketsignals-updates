@@ -303,6 +303,19 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean getBackground() { return bgOn(); }
 
+        // Double-tap switching (user, 08.11.2026): the setting, and the way back from the signals page to PocketOption.
+        @JavascriptInterface
+        public void setDblToggle(boolean on) { dblToggle = on; }
+
+        @JavascriptInterface
+        public void showPo() {
+            runOnUiThread(() -> {
+                if (!dblToggle) return;
+                show(po);
+                if (po.getUrl() == null) po.loadUrl(poStart != null ? poStart : PO_URL);
+            });
+        }
+
         @JavascriptInterface
         public void setBackground(boolean on) { runOnUiThread(() -> setBg(on)); }
 
@@ -544,11 +557,24 @@ public class MainActivity extends Activity {
         + "if(!pend)return;var ev=pend;pend=null;if(d instanceof ArrayBuffer)T(ev,new TextDecoder().decode(d));else if(d&&d.text)d.text().then(function(t){T(ev,t);});}catch(x){}});}return s;};"
         + "window.WebSocket.prototype=W.prototype;['CONNECTING','OPEN','CLOSING','CLOSED'].forEach(function(k){window.WebSocket[k]=W[k];});"
         + "window.addEventListener('error',function(e){L('PO-Seite Fehler: '+(e.message||'?'));});"
+        // Double tap on the page (two real taps within 350 ms, close together) → back to the signals (user, 08.11.2026).
+        + "var lt=0,lx=0,ly=0;window.addEventListener('touchend',function(e){try{if(!e.isTrusted||e.changedTouches.length!==1)return;var t=e.changedTouches[0],n=Date.now();"
+        + "if(n-lt<350&&Math.abs(t.clientX-lx)<40&&Math.abs(t.clientY-ly)<40){lt=0;if(window.SignalAppAuth&&SignalAppAuth.onDoubleTap)SignalAppAuth.onDoubleTap();}"
+        + "else{lt=n;lx=t.clientX;ly=t.clientY;}}catch(x){}},true);"
         + "})();";
 
     String lastAuth = null;
 
+    boolean dblToggle = true; // po_click_toggle, sent by the signal page (setDblToggle)
+
     class AuthBridge {
+        // Double tap in the PocketOption tab → the signals page.
+        @JavascriptInterface
+        public void onDoubleTap() {
+            if (!dblToggle) return;
+            runOnUiThread(() -> { if (po.getVisibility() == View.VISIBLE) show(signals); });
+        }
+
         // Diagnosis line from the PocketOption page (its connections, errors) → the app's connection log.
         @JavascriptInterface
         public void onPoLog(String line) {

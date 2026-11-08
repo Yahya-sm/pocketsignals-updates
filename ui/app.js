@@ -765,6 +765,17 @@ function onSignal(s) {
   if (state && state.settings.auto_po && (isDesktop || isAndroid) && Date.now() - lastAuto > 10000) { lastAuto = Date.now(); setTimeout(() => openPO(s.id, undefined, true), 300); }
 }
 document.addEventListener('click', () => { if (!isAndroid && window.Notification && Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
+// Phone: a double tap on an empty spot of the signals page goes back to PocketOption (user, 08.11.2026; the PocketOption tab
+// does the reverse). Not on buttons, fields, links or the settings, so quick taps on controls never switch.
+if (isAndroid && window.AndroidApp.showPo) {
+  let lt = 0, lx = 0, ly = 0;
+  document.addEventListener('touchend', e => {
+    if (e.changedTouches.length !== 1 || e.target.closest('button,input,select,textarea,a,label,[data-po],[data-quick],[data-more],[data-tab],#settings,.modal')) { lt = 0; return; }
+    const t = e.changedTouches[0], n = Date.now();
+    if (n - lt < 350 && Math.abs(t.clientX - lx) < 40 && Math.abs(t.clientY - ly) < 40) { lt = 0; window.AndroidApp.showPo(); }
+    else { lt = n; lx = t.clientX; ly = t.clientY; }
+  }, true);
+}
 
 // Phone: newest release with an .apk on GitHub (the API allows browser requests).
 async function checkGithubApk(current) {
@@ -823,6 +834,7 @@ if (updater) {
   setTimeout(() => check(true), 8000);           // on start
   setInterval(() => check(true), 3 * 3600 * 1000); // and every 3 hours
 }
+if (isAndroid && window.AndroidApp.showPo) { $('#poClickRow').hidden = false; $('#poClickRow').style.display = ''; } // double tap switching
 if (isDesktop && window.desktop.onCompact) {
   $('#miniRow').hidden = false;
   $('#poClickRow').hidden = false; $('#poClickRow').style.display = '';
