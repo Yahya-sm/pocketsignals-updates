@@ -2,9 +2,13 @@
 // (PocketOption finds nothing when " OTC" is part of the query) and click the exact match.
 // Resolves to 'ok', 'already', 'not-found', 'no-ui' or 'no-search'. Used by the desktop and Android app.
 // expSec > 0: afterwards set the trade expiry (time field of the trading panel) to that many seconds.
-function switchScript(name, expSec = 0, lang = 'ru') {
+// trade 'CALL' / 'PUT' (card button ⚡, user 08.11.2026): after the pair and the expiry are set, press PocketOption's own
+// Buy/Sell button – the page sends the order itself, on the account it shows, with its own amount. Only when the expiry
+// was confirmed and (unless real is allowed) the page is the demo account; otherwise a hint and no trade.
+function switchScript(name, expSec = 0, lang = 'ru', trade = null, allowReal = false) {
   const q = JSON.stringify(name.replace(/\s*OTC$/i, '')), n = JSON.stringify(name);
   const exp = Math.max(0, Math.round(+expSec || 0));
+  if (trade === 'CALL' || trade === 'PUT') return tradeScript(switchScript(name, exp, lang), trade, !!allowReal, lang);
   return `(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   for (let i = 0; i < 40 && !document.querySelector('.pair-number-wrap'); i++) await wait(500);
@@ -81,6 +85,33 @@ const EXP_FN = `async (target, T) => {
   if (read() === target) { hint('⏱ ' + fmt(target) + ' ✓', true); return 'ok'; }
   return fail('fail:' + (val() ? val().textContent.trim() : '?'));
 }`;
+
+const TRADE_TXT = {
+  ru: { real: 'Реальный счёт — сделка не открыта (включите «⚡ и на реальном счёте»)', pair: 'Пара не найдена — сделка не открыта', exp: 'Экспирация не выставлена — сделка не открыта', btn: 'Кнопка Купить/Продать не найдена — нажмите сами', ok: 'Сделка открыта' },
+  de: { real: 'Echtgeld-Konto – kein Trade (⚡ auch auf Echtgeld einschalten)', pair: 'Paar nicht gefunden – kein Trade', exp: 'Ablaufzeit nicht gesetzt – kein Trade', btn: 'Kaufen/Verkaufen-Knopf nicht gefunden – selbst drücken', ok: 'Trade geöffnet' },
+  en: { real: 'Real account – no trade (turn on "⚡ also on the real account")', pair: 'Pair not found – no trade', exp: 'Expiry not set – no trade', btn: 'Buy/Sell button not found – press it yourself', ok: 'Trade opened' },
+};
+function tradeScript(sw, dir, allowReal, lang) {
+  const T = JSON.stringify(TRADE_TXT[lang] || TRADE_TXT.en);
+  return `(async () => {
+  const T = ${T}, wait = ms => new Promise(r => setTimeout(r, ms));
+  const hint = (txt, ok) => { let h = document.getElementById('__psTradeHint'); if (!h) { h = document.createElement('div'); h.id = '__psTradeHint'; document.body.appendChild(h); }
+    h.style.cssText = 'position:fixed;left:50%;top:120px;transform:translateX(-50%);z-index:2147483647;padding:12px 18px;border-radius:12px;font:700 16px sans-serif;color:#fff;box-shadow:0 4px 18px #0008;background:' + (ok ? '#16a34a' : '#dc2626');
+    h.textContent = txt; clearTimeout(h._t); h._t = setTimeout(() => h.remove(), ok ? 3000 : 8000); };
+  ${allowReal ? '' : `if (!/\\/cabinet\\/demo-/.test(location.pathname)) { hint('⚡ ' + T.real, false); return 'trade-real'; }`}
+  const r = String(await ${sw});
+  if (!/^(ok|already)/.test(r)) { hint('⚡ ' + T.pair, false); return r + '|trade-pair'; }
+  if (!/exp-ok$/.test(r)) { hint('⚡ ' + T.exp, false); return r + '|trade-exp'; }
+  ${allowReal ? '' : `if (!/\\/cabinet\\/demo-/.test(location.pathname)) { hint('⚡ ' + T.real, false); return r + '|trade-real'; }`}
+  await wait(300);
+  const sel = ${JSON.stringify(dir === 'CALL' ? ['.btn-call', '.action-high-low .btn-call', 'a.btn-call', '[class*="btn-call"]'] : ['.btn-put', '.action-high-low .btn-put', 'a.btn-put', '[class*="btn-put"]'])};
+  let b = null; for (const s of sel) { b = [...document.querySelectorAll(s)].find(x => x.offsetParent !== null); if (b) break; }
+  if (!b) { hint('⚡ ' + T.btn, false); return r + '|trade-nobtn'; }
+  b.click();
+  hint('⚡ ${dir} — ' + T.ok, true);
+  return r + '|trade-ok';
+})()`;
+}
 
 // PocketOption trading page for demo or real account. Setting po_start_mode: 'last' (default), 'demo' or 'real';
 // po_last_mode is remembered from the page the user was on last.

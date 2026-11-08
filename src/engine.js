@@ -136,7 +136,7 @@ class Engine extends EventEmitter {
   _logImpulse(s) {
     try {
       const day = new Date(s.entryTime * 1000).toISOString().slice(0, 10), dir = path.join(DATA, 'otc');
-      const row = [new Date(s.entryTime * 1000).toISOString().slice(0, 19), s.symbol, s.otc ? 1 : 0, s.dir, s.im.sec, s.im.atr, s.im.back,
+      const row = [new Date(s.entryTime * 1000).toISOString().slice(0, 19), s.symbol, s.otc ? 1 : 0, s.dir + (s.im.fade ? '-fade' : ''), s.im.sec, s.im.atr, s.im.back,
         s.expiry, s.adx0 != null ? s.adx0.toFixed(1) : '', s.payout ?? '', s.result];
       fs.mkdirSync(dir, { recursive: true });
       fs.appendFileSync(path.join(dir, `imp-${day}.csv`), row.join(',') + '\n');
@@ -808,7 +808,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

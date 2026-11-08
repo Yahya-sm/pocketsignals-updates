@@ -78,7 +78,8 @@ const DEFAULTS = {
   // Experiment (user, 07.11.2026): ADX alone. ax_dir UP: ADX crosses ax_level upwards, entry with the upper DI;
   // DOWN: crosses it downwards, entry against the upper DI (the fading move); BOTH = either.
   n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14, ax_dir: 'BOTH' },
-  n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false },
+  // im_dir AGAINST (user, 08.11.2026): entry against the move – scaled history test (M3 as M1) gave 56–57 % at 2 min from 1.5 ATR.
+  n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
   n_levelstoch: { expiry: 300, ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
@@ -96,6 +97,7 @@ const PRESETS = {
     { name: L('Чаще', 'Öfter', 'More often'), values: { im_atr: 0.7, im_sec: 40, im_back: 35 } },
     { name: L('Средне', 'Mittel', 'Medium'), values: { im_atr: 1, im_sec: 30, im_back: 25 } },
     { name: L('Строго', 'Streng', 'Strict'), values: { im_atr: 1.5, im_sec: 20, im_back: 15 } },
+    { name: L('Против рывка, 2 мин', 'Gegen den Schub, 2 Min', 'Against the move, 2 min'), values: { im_atr: 1.5, im_sec: 20, im_back: 15, im_dir: 'AGAINST', expiry: 120 } },
   ],
   n_bbrsi: [
     { name: L('Чаще', 'Öfter', 'More often'), values: { bb_mult: 2.5, bb_rsi: 5, bb_adx: 20, expiry: 180 } },
@@ -289,7 +291,7 @@ const GROUPS = {
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал на закрытой свече, когда ADX пересекает уровень. Снизу вверх: вход по верхней линии DI (DI+ сверху — CALL). Сверху вниз: тренд слабеет, вход против верхней DI (DI+ сверху — PUT). Можно выбрать одно направление или оба. Больше ничего не проверяется.', 'Signal auf der geschlossenen Kerze, wenn der ADX die Schwelle kreuzt. Nach oben: Einstieg mit der oberen DI-Linie (DI+ oben = CALL). Nach unten: Trend lässt nach, Einstieg gegen die obere DI (DI+ oben = PUT). Eine Richtung oder beide wählbar. Sonst wird nichts geprüft.', 'Signal on the closed candle when ADX crosses the level. Upwards: entry with the upper DI line (DI+ on top = CALL). Downwards: the trend fades, entry against the upper DI (DI+ on top = PUT). One direction or both. Nothing else is checked.'), keys: ['expiry', 'ax_level', 'ax_period', 'ax_dir'] },
   ],
   n_impulse: [
-    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал внутри текущей свечи: за первые … секунд цена ушла от открытия минимум на … ATR (средний размер свечи) и откатила от своего края не больше … %. Вход сразу, по направлению движения. Один сигнал на свечу. Работает только при сканировании чаще раза в минуту (Настройки → интервал сканирования, лучше 5–10 с).', 'Signal in der laufenden Kerze: in den ersten … Sekunden hat sich der Preis mindestens … ATR (durchschnittliche Kerzengröße) von der Eröffnung entfernt und höchstens … % vom Extrem zurückgesetzt. Einstieg sofort in Bewegungsrichtung. Ein Signal je Kerze. Funktioniert nur bei Scan öfter als einmal pro Minute (Einstellungen → Scan-Intervall, besser 5–10 s).', 'Signal inside the forming candle: within the first … seconds price moved at least … ATR (average candle size) from the open and pulled back at most … % from its extreme. Entry now, in the direction of the move. One signal per candle. Works only when scanning more often than once a minute (Settings → scan interval, 5–10 s is best).'), keys: ['expiry', 'im_atr', 'im_sec', 'im_back', 'im_no_otc'] },
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал внутри текущей свечи: за первые … секунд цена ушла от открытия минимум на … ATR (средний размер свечи) и откатила от своего края не больше … %. Вход сразу: по направлению движения или против него (на откат). Один сигнал на свечу. Работает только при сканировании чаще раза в минуту (Настройки → интервал сканирования, лучше 5–10 с).', 'Signal in der laufenden Kerze: in den ersten … Sekunden hat sich der Preis mindestens … ATR (durchschnittliche Kerzengröße) von der Eröffnung entfernt und höchstens … % vom Extrem zurückgesetzt. Einstieg sofort: in Bewegungsrichtung oder dagegen (auf den Rücksetzer). Ein Signal je Kerze. Funktioniert nur bei Scan öfter als einmal pro Minute (Einstellungen → Scan-Intervall, besser 5–10 s).', 'Signal inside the forming candle: within the first … seconds price moved at least … ATR (average candle size) from the open and pulled back at most … % from its extreme. Entry now: with the move or against it (the pullback). One signal per candle. Works only when scanning more often than once a minute (Settings → scan interval, 5–10 s is best).'), keys: ['expiry', 'im_dir', 'im_atr', 'im_sec', 'im_back', 'im_no_otc'] },
   ],
   n_bbrsi: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('CALL: свеча закрылась ниже нижней линии Bollinger и RSI 2 ниже порога. PUT — зеркально (выше верхней, RSI 2 выше 100 − порог). Только когда ADX ниже предела (флэт); 0 = без ADX. Больше отклонение и меньше порог — строже.', 'CALL: Kerze schließt unter dem unteren Bollinger-Band und RSI 2 unter der Schwelle. PUT gespiegelt (über dem oberen, RSI 2 über 100 − Schwelle). Nur wenn ADX unter der Grenze (Seitwärts); 0 = ohne ADX. Größere Abweichung, kleinere Schwelle = strenger.', 'CALL: candle closes below the lower Bollinger band and RSI 2 is below the threshold. PUT mirrored (above the upper band, RSI 2 above 100 − threshold). Only when ADX is below the limit (flat); 0 = no ADX. Bigger deviation, smaller threshold = stricter.'), keys: ['expiry', 'bb_period', 'bb_mult', 'bb_rsi', 'bb_adx'] },
@@ -904,9 +906,10 @@ const S = {
     const mv = k.close - k.open, d = Math.sign(mv); if (!d || Math.abs(mv) < (Number(p.im_atr) || 1) * atr) return null;
     const ext = d > 0 ? k.high : k.low, run = Math.abs(ext - k.open), back = Math.abs(ext - k.close);
     if (run > 0 && back / run * 100 > (Number(p.im_back) || 25)) return null;
-    const r = Math.abs(mv) / atr;
-    return Object.assign(sig(d, 75, L(`⏰ вход сейчас — за ${Math.round(age)} с цена прошла ${r.toFixed(1)} ATR ${d > 0 ? 'вверх' : 'вниз'}`, `⏰ Einstieg jetzt – in ${Math.round(age)} s ${r.toFixed(1)} ATR ${d > 0 ? 'nach oben' : 'nach unten'}`, `⏰ enter now – ${r.toFixed(1)} ATR ${d > 0 ? 'up' : 'down'} in ${Math.round(age)} s`)), { entry: Math.floor(Date.now() / 1000), bar: k.time, noFlip: true,
-      im: { sec: Math.round(age), atr: +r.toFixed(2), back: run > 0 ? Math.round(back / run * 100) : 0 } }); // journal (engine._logImpulse)
+    const r = Math.abs(mv) / atr, fade = p.im_dir === 'AGAINST';
+    const tail = fade ? L(', вход против рывка', ', Einstieg gegen den Schub', ', entry against the move') : L('', '', '');
+    return Object.assign(sig(fade ? -d : d, 75, L(`⏰ вход сейчас — за ${Math.round(age)} с цена прошла ${r.toFixed(1)} ATR ${d > 0 ? 'вверх' : 'вниз'}${tail.ru}`, `⏰ Einstieg jetzt – in ${Math.round(age)} s ${r.toFixed(1)} ATR ${d > 0 ? 'nach oben' : 'nach unten'}${tail.de}`, `⏰ enter now – ${r.toFixed(1)} ATR ${d > 0 ? 'up' : 'down'} in ${Math.round(age)} s${tail.en}`)), { entry: Math.floor(Date.now() / 1000), bar: k.time, noFlip: true,
+      im: { sec: Math.round(age), atr: +r.toFixed(2), back: run > 0 ? Math.round(back / run * 100) : 0, fade: fade ? 1 : 0 } }); // journal (engine._logImpulse)
   },
   n_bbrsi(x, p) {
     const i = x.last, close = x.close[i], b = I.bollinger(x.close, Number(p.bb_period) || 20, Number(p.bb_mult) || 3)[i], r = x.rsi(2)[i];
@@ -1101,6 +1104,7 @@ const HELP = {
     body: [
       L('Ловит резкое движение в начале свечи и даёт вход сразу, по направлению движения. Таймфрейм M1, интервал сканирования 5–10 с. Экспирация по умолчанию 1 мин.', 'Fängt eine scharfe Bewegung am Anfang der Kerze und gibt den Einstieg sofort, in Bewegungsrichtung. Zeitrahmen M1, Scan-Intervall 5–10 s. Ablauf standardmäßig 1 Min.', 'Catches a sharp move at the start of the candle and gives the entry at once, in the move direction. Timeframe M1, scan interval 5–10 s. Default expiry 1 min.'),
       L('Не проверена на истории: в минутных свечах не видно, что было в первые секунды, а приложение не хранит тики. На истории вход после закрытия резкой свечи по её направлению давал 49–50 %. Только демо, смотрите результат в Истории → Статистика.', 'Nicht auf der Historie geprüft: Minutenkerzen zeigen nicht die ersten Sekunden, und die App speichert keine Ticks. Auf der Historie brachte ein Einstieg nach Schluss einer scharfen Kerze in ihre Richtung 49–50 %. Nur Demo, Ergebnis unter Verlauf → Statistik.', 'Not tested on history: minute candles do not show the first seconds and the app stores no ticks. On history, entering after a sharp candle closed, in its direction, gave 49–50 %. Demo only; see History → Statistics.'),
+      L('«Против рывка»: та же проверка, но вход в обратную сторону — на откат после рывка. Проверка-приближение (свеча M3 как M1, 12 обычных пар): по рывку 43–46 %, против рывка от 1,5 ATR на 2 мин 56–57 %. Уровень «Против рывка, 2 мин» уже настроен так.', '„Gegen den Schub“: dieselbe Prüfung, Einstieg aber in die Gegenrichtung – auf den Rücksetzer. Näherungstest (M3-Kerze als M1, 12 normale Paare): mit dem Schub 43–46 %, dagegen ab 1,5 ATR bei 2 Min 56–57 %. Stufe „Gegen den Schub, 2 Min“ ist so eingestellt.', '"Against the move": the same check, entry the other way – on the pullback. Approximate test (M3 candle as M1, 12 regular pairs): with the move 43–46 %, against it from 1.5 ATR at 2 min 56–57 %. The level "Against the move, 2 min" is set up that way.'),
     ],
   }],
   n_bbrsi: [{

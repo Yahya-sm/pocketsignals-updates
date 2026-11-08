@@ -109,7 +109,7 @@ function render() {
 
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
-    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
+    $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sQuick').checked = !!s.quick_trade; $('#sQuickReal').checked = !!s.quick_real; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
     $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
     { const r = state.otcRec || {}; let extra = ''; if (isAndroid && window.AndroidApp.recInfo) { try { const a = JSON.parse(window.AndroidApp.recInfo()); extra = ' · ' + t('otc_rec_store', { d: a.days, mb: (a.bytes / 1048576).toFixed(1) }); } catch {} } else if (isDesktop && r.dir) extra = ' · ' + r.dir;
       $('#otcRecInfo').textContent = (r.error ? r.error + ' · ' : '') + t('otc_rec_info', { n: r.rows || 0, p: r.pairs || 0 }) + extra; $('#otcExportBtn').hidden = !(isAndroid && window.AndroidApp.recExport); }
@@ -239,6 +239,7 @@ function card(s) {
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="btns">
       <div class="posplit"><button class="po" data-po="${esc(s.id)}" data-poexp="${s.expiry}" title="${t('po_set_hint')}"><small>PocketOption ↗</small><b>⏱ ${fmtExp(s.expiry)}</b></button><button class="po keep" data-po="${esc(s.id)}" title="${t('po_keep_hint')}"><small>PocketOption ↗</small><b>${t('po_keep')}</b></button></div>
+      ${!done && state.settings.quick_trade && (isDesktop || isAndroid) ? `<button class="po quick ${s.dir}${quickArmed(s.id) ? ' armed' : ''}" data-quick="${esc(s.id)}"><small>⚡ ${quickArmed(s.id) ? t('quick_sure') : s.dir}</small><b>${fmtExp(s.expiry)}</b></button>` : ''}
       <button class="morebtn" data-more="${esc(s.id)}" aria-expanded="${more}" title="${t('card_more')}">${more ? '▴' : '▾'}</button>
     </div>
     ${more ? `<div class="sig-more"><div class="why">${esc(tr(s.reason))}</div>
@@ -438,8 +439,8 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'] };
-const CHOICE_TEXT = { ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down' };
+const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'] };
+const CHOICE_TEXT = { ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against' };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
   if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : CHOICE_TEXT[o] ? t(CHOICE_TEXT[o]) : o}</option>`).join('')}</select>`;
@@ -501,9 +502,28 @@ function openUrl(url) {
 
 // tf: also open the chart with this timeframe (click on the timeframe tag of a signal).
 // exp: expiry in seconds to set in the trading panel (PO button = 1 min default, recommendation button = its value).
-async function openPO(id, tf, auto, exp) {
+// Card button ⚡ (user, 08.11.2026): first tap arms it ("Sure?") for 4 s, the second opens the trade in PocketOption
+// (pair, expiry, then its own Buy/Sell button). A signal whose entry is more than 20 s ago is not traded.
+let quickArm = { id: null, until: 0 }; // kept outside the card: cards are redrawn on every scan
+const quickArmed = id => quickArm.id === id && Date.now() < quickArm.until;
+function quickTrade(el) {
+  const s = state.signals.find(x => x.id === el.dataset.quick); if (!s) return;
+  if (!quickArmed(s.id)) {
+    quickArm = { id: s.id, until: Date.now() + 4000 };
+    el.classList.add('armed'); el.querySelector('small').textContent = '⚡ ' + t('quick_sure');
+    setTimeout(() => { const b = document.querySelector(`[data-quick="${CSS.escape(s.id)}"]`); if (b && !quickArmed(s.id)) { b.classList.remove('armed'); b.querySelector('small').textContent = '⚡ ' + s.dir; } }, 4050);
+    return;
+  }
+  quickArm = { id: null, until: 0 };
+  el.classList.remove('armed');
+  if (Date.now() / 1000 - s.entryTime > 20) { toast(t('quick_late')); return; }
+  toast(t('quick_on'));
+  openPO(s.id, undefined, false, s.expiry, s.dir);
+}
+
+async function openPO(id, tf, auto, exp, trade) {
   const sig = state.signals.find(s => s.id === id);
-  const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG });
+  const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG, ...(trade ? { trade } : {}) });
   const name = r.name || (sig && sig.name) || '';
   if (isDesktop) { toast(t('toast_po', { name }) + (tf ? ' · ' + tf : '')); return; }
   if (isAndroid) {
@@ -550,6 +570,7 @@ document.addEventListener('click', e => {
   if (el.dataset.more) { const k = el.dataset.more; openCards.has(k) ? openCards.delete(k) : openCards.add(k); $('#live').dataset.key = ''; renderLive(); return; }
   if (el.dataset.pin) togglePin(el.dataset.pin);
   if (el.dataset.po) openPO(el.dataset.po, el.dataset.potf, false, +el.dataset.poexp || 0);
+  if (el.dataset.quick) quickTrade(el);
   if (el.dataset.tv) { const s = state.signals.find(x => x.id === el.dataset.tv); if (s) openUrl(s.tv); }
   if (el.dataset.tab) {
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b === el));
@@ -591,6 +612,8 @@ document.addEventListener('change', e => {
   if (el.id === 'sOn') patch.signals_on = el.checked;
   if (el.id === 'sSound') patch.sound = el.checked;
   if (el.id === 'sAuto') patch.auto_po = el.checked;
+  if (el.id === 'sQuick') patch.quick_trade = el.checked;
+  if (el.id === 'sQuickReal') patch.quick_real = el.checked;
   if (el.id === 'sRegimeMode') patch.regime_mode = el.value;
   if (el.dataset.rg && el.value !== '' && Number.isFinite(+el.value)) patch[el.dataset.rg] = +el.value;
   if (el.id === 'sChaos') patch.chaos_skip = el.checked;

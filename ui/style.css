@@ -368,3 +368,11 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .posplit small { font-size: 10px; font-weight: 600; opacity: .8; }
 .posplit b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .btns .posplit .keep { background: var(--card2); color: inherit; }
+/* Card trade button ⚡: green CALL / red PUT; armed (first tap) pulses until the second tap or 4 s. */
+.btns .quick { flex: 0 0 72px; display: flex; flex-direction: column; gap: 1px; padding: 6px 4px; border-radius: 11px; line-height: 1.15; color: #fff; }
+.btns .quick small { font-size: 10px; font-weight: 700; }
+.btns .quick b { font-size: 13px; }
+.btns .quick.CALL { background: #16a34a; }
+.btns .quick.PUT { background: #dc2626; }
+.btns .quick.armed { outline: 2px solid #facc15; animation: quickPulse .6s ease-in-out infinite alternate; }
+@keyframes quickPulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }

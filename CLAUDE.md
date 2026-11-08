@@ -69,6 +69,13 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 08.11.2026: "Early impulse" journal `_logImpulse`: n_impulse signals carry `im {sec, atr, back}`; on settle one line goes to
   `data/otc/imp-<UTC day>.csv` (time,symbol,otc,dir,sec,atr,back,expiry,adx0,payout,result). Phone: `recAppend` accepts
   `imp-<day>.csv` too (60 days per kind), lands in the same OTC export zip. Needs the new APK on the phone.
+- 08.11.2026: n_impulse `im_dir` WITH/AGAINST (+ preset "Против рывка, 2 мин": 1.5 ATR, 20 s, 15 %, 120 s; journal dir gets "-fade").
+- 08.11.2026: card trade button ⚡ (`quick_trade`, off by default; `quick_real` off = demo only). Two taps (armed 4 s,
+  state in `quickArm` because cards redraw each scan); entry > 20 s ago → no trade. `switchScript(name, exp, lang, trade,
+  allowReal)` wraps the switch in `tradeScript`: demo check (URL /cabinet/demo-), pair + expiry must be ok, then clicks
+  PocketOption's own `.btn-call` / `.btn-put` (amount as set in PO). Never sent through po-client (that session is often
+  the real account). Desktop: no trade if the PO window must load first or after a reload; phone: trade only within 5 s.
+  Button selectors unverified against the live page – a hint "press it yourself" shows if not found.
 
 - 07.11.2026: `n_big` (pullback after big candle, incl. `bs_*` mode, `bigLog`) removed at the user's request ("unstable"). Last test raw_pb M1: 5895 signals 50.5 % at 3 min; trend-continuation variant 2899 / 49.9 %. `BP.bigFade` in bot_ports.js stays unused.
 

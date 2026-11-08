@@ -37,23 +37,31 @@ function rememberPoMode(url) {
 
 // withTimeframe: the chart timeframe was saved into the account too; the page picks it up by reloading.
 // exp: expiry in seconds to set in the trading panel after the switch (0 = leave it); used once.
-let poExp = 0, poLang = 'ru';
-function openPocketOption(symbol, name, withTimeframe = false, exp = 0, lang = 'ru') {
+// trade: 'CALL' / 'PUT' from the card button ⚡ – used once, never after a reload (the moment would be gone).
+let poExp = 0, poLang = 'ru', poTradeDir = null;
+function openPocketOption(symbol, name, withTimeframe = false, exp = 0, lang = 'ru', trade = null) {
   // If the list has no exact match, reload: the asset was already saved into the account chart.
   // Only a direct switch may reload, so a fresh page load never ends up in a reload loop.
   poTarget = name; // null: just open PocketOption (e.g. to log in)
-  if (name) { poExp = exp; poLang = lang; }
-  const run = (allowReload = false) => !poTarget ? Promise.resolve() : poWin.webContents.executeJavaScript(switchScript(poTarget, poExp, poLang))
+  if (name) { poExp = exp; poLang = lang; poTradeDir = trade; }
+  const run = (allowReload = false) => {
+    if (!poTarget) return Promise.resolve();
+    const tr = poTradeDir; poTradeDir = null;
+    return poWin.webContents.executeJavaScript(switchScript(poTarget, poExp, poLang, tr, engine.settings.quick_real === true))
     .then(r => {
-      if (String(r).startsWith('not-found') && allowReload) { poWin.webContents.reload(); return; }
+      if (tr) engine.po._log && engine.po._log(`PO ⚡ ${tr}: ${r}`);
+      if (String(r).startsWith('not-found') && allowReload && !tr) { poWin.webContents.reload(); return; }
       if (poExp) { engine.po._log && engine.po._log(`PO Ablaufzeit ${poExp}s: ${r}`); poExp = 0; }
     }).catch(() => {});
+  };
   if (poWin && !poWin.isDestroyed()) {
     poWin.show(); poWin.focus();
     if (withTimeframe) { setTimeout(() => poWin.webContents.reload(), 700); return; } // give the server time to store it
     if (/pocketoption\.com\/.+\/cabinet/.test(poWin.webContents.getURL()) && !poWin.webContents.isLoading()) run(true);
+    else poTradeDir = null; // page not ready: no trade seconds later
     return; // otherwise the did-finish-load listener below switches once the page is ready
   }
+  poTradeDir = null; // a new window loads for seconds: no trade
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   poWin = new BrowserWindow({
     width: Math.min(1400, width - 420), height: Math.min(900, height), x: 0, y: 0, title: 'PocketOption',
