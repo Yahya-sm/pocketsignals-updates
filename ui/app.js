@@ -110,7 +110,7 @@ function render() {
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sQuick').checked = !!s.quick_trade; $('#sQuickReal').checked = !!s.quick_real; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
-    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
+    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
     { const r = state.otcRec || {}; let extra = ''; if (isAndroid && window.AndroidApp.recInfo) { try { const a = JSON.parse(window.AndroidApp.recInfo()); extra = ' · ' + t('otc_rec_store', { d: a.days, mb: (a.bytes / 1048576).toFixed(1) }); } catch {} } else if (isDesktop && r.dir) extra = ' · ' + r.dir;
       $('#otcRecInfo').textContent = (r.error ? r.error + ' · ' : '') + t('otc_rec_info', { n: r.rows || 0, p: r.pairs || 0 }) + extra; $('#otcExportBtn').hidden = !(isAndroid && window.AndroidApp.recExport); }
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
@@ -235,7 +235,7 @@ function m5Chart(s) {
     e = i ? c * 0.2 + e * 0.8 : c; pts.push(`${x.toFixed(1)},${y(e)}`);
   });
   const last = k[n - 1], lx = P + (n - 1) * cw + cw / 2;
-  return `<div class="m5chart"><span>M5</span><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}<polyline points="${pts.join(' ')}" fill="none" stroke="#facc15" stroke-width="1.2"/><circle cx="${lx.toFixed(1)}" cy="${y(last[3])}" r="2.5" fill="#fff"/></svg></div>`;
+  return `<div class="m5chart"><span>${esc(s.miniTf || 'M5')}</span><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}<polyline points="${pts.join(' ')}" fill="none" stroke="#facc15" stroke-width="1.2"/><circle cx="${lx.toFixed(1)}" cy="${y(last[3])}" r="2.5" fill="#fff"/></svg></div>`;
 }
 function card(s) {
   const fresh = !seen.has(s.id); seen.add(s.id);
@@ -639,6 +639,7 @@ document.addEventListener('change', e => {
   if (el.id === 'sM5') patch.show_m5 = el.checked;
   if (el.id === 'sPoStart') patch.po_start_mode = el.value;
   if (el.id === 'sTvOpen') patch.tv_open = el.value;
+  if (el.id === 'sMiniTf') patch.mini_tf = el.value;
   if (el.id === 'sOtcRec') patch.otc_record = el.checked;
   if (el.dataset.trendtf !== undefined) { // at least one timeframe stays on
     const tfs = [...document.querySelectorAll('[data-trendtf]:checked')].map(x => x.value);

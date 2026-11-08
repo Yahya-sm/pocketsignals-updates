@@ -561,6 +561,16 @@ class Engine extends EventEmitter {
     this.emit('state');
   }
 
+  // Mini chart for every signal card (user 08.11.2026): last 24 candles of the chosen timeframe (mini_tf, 'off' = none),
+  // built from the M1 history (300 candles) plus the signal candle. The strategy's own m5 is replaced so all cards match the setting.
+  _miniChart(hist, s) {
+    const tf = this.settings.mini_tf || 'M5'; if (tf === 'off' || !hist || hist.length < 10) return null;
+    const m = parseInt(tf.slice(1), 10) || 5, c = hist.slice();
+    if (s.candle && s.candle.time > c[c.length - 1].time && !(s.candle.time % 60)) c.push(s.candle);
+    const out = (m === 1 ? c : I.resample(c, m, true)).slice(-24);
+    return out.length >= 6 ? out.map(k => [k.open, k.high, k.low, k.close]) : null;
+  }
+
   _emitSignal(s) {
     const a = this.assets.get(s.asset) || { name: s.asset, type: '' };
     const entryTime = s.entry || s.candle.time + 60; // next candle start (S-timeframes set their own)
@@ -568,12 +578,12 @@ class Engine extends EventEmitter {
     if (this.signals.some(x => x.id === id)) return;
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',
-      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}), ...(s.im ? { im: s.im } : {}), ...(s.m5 ? { m5: s.m5 } : {}),
-      strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
+      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}), ...(s.im ? { im: s.im } : {}),      strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
     const hist0 = this.candles.get(s.asset), atr0 = hist0 && hist0.length > 15 ? I.atr(hist0, 14)[hist0.length - 1] : null;
     if (atr0 > 0) sig.atr0 = atr0;
+    try { const mc = this._miniChart(hist0, s); if (mc) { sig.m5 = mc; sig.miniTf = this.settings.mini_tf || 'M5'; } } catch {}
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
     try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; sig.recShort = re.short; } } catch {}
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
@@ -808,7 +818,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },
