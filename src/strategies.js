@@ -905,7 +905,8 @@ const S = {
     const ext = d > 0 ? k.high : k.low, run = Math.abs(ext - k.open), back = Math.abs(ext - k.close);
     if (run > 0 && back / run * 100 > (Number(p.im_back) || 25)) return null;
     const r = Math.abs(mv) / atr;
-    return Object.assign(sig(d, 75, L(`⏰ вход сейчас — за ${Math.round(age)} с цена прошла ${r.toFixed(1)} ATR ${d > 0 ? 'вверх' : 'вниз'}`, `⏰ Einstieg jetzt – in ${Math.round(age)} s ${r.toFixed(1)} ATR ${d > 0 ? 'nach oben' : 'nach unten'}`, `⏰ enter now – ${r.toFixed(1)} ATR ${d > 0 ? 'up' : 'down'} in ${Math.round(age)} s`)), { entry: Math.floor(Date.now() / 1000), bar: k.time, noFlip: true });
+    return Object.assign(sig(d, 75, L(`⏰ вход сейчас — за ${Math.round(age)} с цена прошла ${r.toFixed(1)} ATR ${d > 0 ? 'вверх' : 'вниз'}`, `⏰ Einstieg jetzt – in ${Math.round(age)} s ${r.toFixed(1)} ATR ${d > 0 ? 'nach oben' : 'nach unten'}`, `⏰ enter now – ${r.toFixed(1)} ATR ${d > 0 ? 'up' : 'down'} in ${Math.round(age)} s`)), { entry: Math.floor(Date.now() / 1000), bar: k.time, noFlip: true,
+      im: { sec: Math.round(age), atr: +r.toFixed(2), back: run > 0 ? Math.round(back / run * 100) : 0 } }); // journal (engine._logImpulse)
   },
   n_bbrsi(x, p) {
     const i = x.last, close = x.close[i], b = I.bollinger(x.close, Number(p.bb_period) || 20, Number(p.bb_mult) || 3)[i], r = x.rsi(2)[i];

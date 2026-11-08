@@ -66,6 +66,9 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 07.11.2026: `n_sharp` option rising ADX (`sharp_ax_*`, off by default; was strong, weakened, rises; expiry 300); `sharp_trig` STOCH/RSI/ANY; `sharp_exp_adapt` = `adaptiveExpiry` (ATR ratio and room to the level ahead, 1–5 candles, guesses). Test raw_pb profile 3: off 51.4 % at 5 min (n 1153), option 47.0 % at 5 min, 60.5 % at 2 min but n 88. Not proof.
 
 - 07.11.2026: OTC recording `_recordOtc` (`otc_record`, default on): `data/otc/<UTC day>.csv` on the PC; phone via `AndroidApp.recAppend` into files/otc (newest 60 days), `recExport` = zip in Download. Prices only; never commit `data/`.
+- 08.11.2026: "Early impulse" journal `_logImpulse`: n_impulse signals carry `im {sec, atr, back}`; on settle one line goes to
+  `data/otc/imp-<UTC day>.csv` (time,symbol,otc,dir,sec,atr,back,expiry,adx0,payout,result). Phone: `recAppend` accepts
+  `imp-<day>.csv` too (60 days per kind), lands in the same OTC export zip. Needs the new APK on the phone.
 
 - 07.11.2026: `n_big` (pullback after big candle, incl. `bs_*` mode, `bigLog`) removed at the user's request ("unstable"). Last test raw_pb M1: 5895 signals 50.5 % at 3 min; trend-continuation variant 2899 / 49.9 %. `BP.bigFade` in bot_ports.js stays unused.
 

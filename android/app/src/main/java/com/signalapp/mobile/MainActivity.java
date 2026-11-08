@@ -380,15 +380,20 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void recAppend(String name, String text) {
-            if (name == null || text == null || !name.matches("\\d{4}-\\d{2}-\\d{2}\\.csv")) return;
+            if (name == null || text == null || !name.matches("(imp-)?\\d{4}-\\d{2}-\\d{2}\\.csv")) return;
             java.io.File dir = otcDir();
             try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(dir, name), true)) {
                 out.write(text.getBytes("UTF-8"));
             } catch (Exception e) { return; }
+            // The newest 60 days of each kind (OTC candles "<day>.csv", impulse journal "imp-<day>.csv").
+            String prefix = name.startsWith("imp-") ? "imp-" : "";
+            java.util.List<String> same = new java.util.ArrayList<>();
             String[] all = dir.list();
-            if (all == null || all.length <= 60) return;
-            java.util.Arrays.sort(all);
-            for (int i = 0; i < all.length - 60; i++) new java.io.File(dir, all[i]).delete();
+            if (all == null) return;
+            for (String f : all) if (prefix.isEmpty() ? !f.startsWith("imp-") : f.startsWith(prefix)) same.add(f);
+            if (same.size() <= 60) return;
+            java.util.Collections.sort(same);
+            for (int i = 0; i < same.size() - 60; i++) new java.io.File(dir, same.get(i)).delete();
         }
 
         @JavascriptInterface

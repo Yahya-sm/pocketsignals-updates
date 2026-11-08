@@ -131,6 +131,18 @@ class Engine extends EventEmitter {
     } catch (e) { this.otcRec.error = String(e.message || e).slice(0, 120); }
   }
 
+  // "Early impulse" journal (user, 08.11.2026): one line per settled signal, to find which second / size / pullback wins.
+  // data/otc/imp-<UTC day>.csv (phone: same folder via recAppend, exported in the OTC zip). Prices only, no account data.
+  _logImpulse(s) {
+    try {
+      const day = new Date(s.entryTime * 1000).toISOString().slice(0, 10), dir = path.join(DATA, 'otc');
+      const row = [new Date(s.entryTime * 1000).toISOString().slice(0, 19), s.symbol, s.otc ? 1 : 0, s.dir, s.im.sec, s.im.atr, s.im.back,
+        s.expiry, s.adx0 != null ? s.adx0.toFixed(1) : '', s.payout ?? '', s.result];
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, `imp-${day}.csv`), row.join(',') + '\n');
+    } catch {}
+  }
+
   // Reversal setups trade against the move by design: the general trend filter would drop nearly all of them.
   // They decide by their own structure (level side, vertical move), so the filter does not apply to them.
   _ownTrendLogic(sig) {
@@ -556,7 +568,7 @@ class Engine extends EventEmitter {
     if (this.signals.some(x => x.id === id)) return;
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',
-      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}),
+      strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}), ...(s.im ? { im: s.im } : {}),
       strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
     };
@@ -584,6 +596,7 @@ class Engine extends EventEmitter {
       const diff = k.close - s.entryPrice;
       s.result = diff === 0 ? 'DRAW' : (diff > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS';
       s.exitPrice = k.close; changed = true;
+      if (s.im) this._logImpulse(s);
       if (s.entryLive != null) { const dz = k.close - s.entryLive; s.zoneResult = dz === 0 ? 'DRAW' : (dz > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS'; }
     }
     if (changed) { writeJson(this.signalsFile, this.signals); this.emit('state'); }
