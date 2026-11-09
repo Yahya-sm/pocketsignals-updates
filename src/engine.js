@@ -100,7 +100,10 @@ class Engine extends EventEmitter {
     // log "PO-Seite: getrennt … 1005" right after "Verbinde"). With a known real login the data goes over that one.
     // 09.11.2026: the demo server answers again (tested: login, candles, live prices, two connections at once) – quotes now go
     // over the demo session when there is one (user: not over the real account); the real login is only the fallback (demoDead).
-    this.po = new POClient(loadSsid(this.config), this.config.poUrl);
+    // Same evening (user screenshot): with our connection on the demo session the user's demo chart showed no candles, so the
+    // real login is the default again; quotes over the demo session only with the setting quotes_demo.
+    const rg = this.config.realGood, startDemo = /"isDemo"\s*:\s*1/.test(loadSsid(this.config) || '');
+    this.po = startDemo && !this.settings.quotes_demo && rg && rg.ssid ? new POClient(rg.ssid, rg.url) : new POClient(loadSsid(this.config), this.config.poUrl);
     this.po.on('status', s => { this.status = s; this.emit('state'); });
     // Demo server fails or keeps dropping: back to the last working real login (same prices), until the app restarts.
     this.po.on('demoDead', () => {
@@ -676,6 +679,11 @@ class Engine extends EventEmitter {
     Object.assign(this.settings, patch);
     writeJson(this.settingsFile, this.settings);
     if ('scan_interval' in patch) this.restartTimer();
+    // Quotes back to the real login right away when the demo option is switched off (the demo chart gets its candles back).
+    if ('quotes_demo' in patch && !patch.quotes_demo && /"isDemo"\s*:\s*1/.test(this.po.ssid || '')) {
+      const lg = this.config.lastGood, real = this.config.realGood || (lg && lg.ssid && !/"isDemo"\s*:\s*1/.test(lg.ssid) ? lg : null);
+      if (real && real.ssid) { this.po._log('Kurse über das Real-Konto (Demo-Chart bleibt frei)'); this.config.ssid = real.ssid; this.config.poUrl = real.url || null; writeJson(this.configFile, this.config); this.po.setSsid(real.ssid, real.url); }
+    }
     this.emit('state');
   }
 
@@ -731,7 +739,13 @@ class Engine extends EventEmitter {
     const demo = x => /"isDemo"\s*:\s*1/.test(x || ''), lg = this.config.lastGood;
     const real = this.config.realGood || (lg && lg.ssid && !demo(lg.ssid) ? lg : null);
     // Demo logins are used directly again (09.11.2026). Only if the demo server failed in this run, stay on the real login.
-    if (auto && demo(ssid) && this.demoDead && real && real.ssid) { this.po._log('Demo-Login erkannt – Demo-Server fiel aus, Kurse weiter über das Real-Konto'); return; }
+    if (auto && demo(ssid) && (this.demoDead || !this.settings.quotes_demo) && real && real.ssid) {
+      // Our connection on the demo session empties the user's demo chart: the demo login stays with the PO window only.
+      if (this.po.authed && !demo(this.po.ssid)) { this.po._log('Demo-Login erkannt – Kurse weiter über das Real-Konto (Demo-Chart bleibt frei)'); return; }
+      this.po._log('Demo-Login erkannt – Kurse über das Real-Konto (Demo-Chart bleibt frei)');
+      ssid = real.ssid; url = real.url;
+      if (ssid === this.po.ssid && this.po.authed) return;
+    }
     this.po._log(auto ? 'Login aus PocketOption übernommen' : 'Neue Sitzung eingetragen');
     if (auto && this.po.authed) this._rememberGood();
     this.config.ssid = ssid; this.config.poUrl = url || null; this.config.ssidAuto = auto;
@@ -831,7 +845,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', mkt_level: Number(this.settings.mkt_level) || 0, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', mkt_level: Number(this.settings.mkt_level) || 0, quotes_demo: this.settings.quotes_demo === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

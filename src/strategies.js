@@ -1013,6 +1013,9 @@ const S = {
       const str = Math.min(99, Math.round(60 + ad.adx * 0.6 + slope * 10));
       return Object.assign(sig(d, str, L(`тренд M5 ${d > 0 ? 'вверх' : 'вниз'}, ADX ${ad.adx.toFixed(0)} — ищите откат для входа`, `M5-Trend ${d > 0 ? 'aufwärts' : 'abwärts'}, ADX ${ad.adx.toFixed(0)} – Rücklauf für den Einstieg suchen`, `M5 trend ${d > 0 ? 'up' : 'down'}, ADX ${ad.adx.toFixed(0)} – look for a pullback to enter`)), { noFlip: true, bar: m5[n].time });
     }
+    // The basic pullback entry runs only when no mode switch is on (user 09.11.2026: only "cross" was on, yet a pullback
+    // signal came from this basic mode).
+    if (p.tr_cross || p.tr_turn || p.tr_nopull) return null;
     const ef = x.ema(Number(p.tr_ema) || 20), k = c[i], pv = c[i - 1];
     if (ef[i] == null || (k.close - k.open) * d <= 0) return null;
     if ((k.close - ef[i]) * d <= 0 || (k.close - (d > 0 ? pv.high : pv.low)) * d <= 0) return null;

@@ -110,7 +110,7 @@ function render() {
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sQuick').checked = !!s.quick_trade; $('#sQuickReal').checked = !!s.quick_real; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
-    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; $('#sMktLevel').value = String(s.mkt_level || 0); document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
+    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; $('#sMktLevel').value = String(s.mkt_level || 0); $('#sQuotesDemo').checked = !!s.quotes_demo; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
     { const r = state.otcRec || {}; let extra = ''; if (isAndroid && window.AndroidApp.recInfo) { try { const a = JSON.parse(window.AndroidApp.recInfo()); extra = ' · ' + t('otc_rec_store', { d: a.days, mb: (a.bytes / 1048576).toFixed(1) }); } catch {} } else if (isDesktop && r.dir) extra = ' · ' + r.dir;
       $('#otcRecInfo').textContent = (r.error ? r.error + ' · ' : '') + t('otc_rec_info', { n: r.rows || 0, p: r.pairs || 0 }) + extra; $('#otcExportBtn').hidden = !(isAndroid && window.AndroidApp.recExport); }
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
@@ -667,6 +667,7 @@ document.addEventListener('change', e => {
   if (el.id === 'sTvOpen') patch.tv_open = el.value;
   if (el.id === 'sMiniTf') patch.mini_tf = el.value;
   if (el.id === 'sMktLevel') patch.mkt_level = Number(el.value) || 0;
+  if (el.id === 'sQuotesDemo') patch.quotes_demo = el.checked;
   if (el.id === 'sOtcRec') patch.otc_record = el.checked;
   if (el.dataset.trendtf !== undefined) { // at least one timeframe stays on
     const tfs = [...document.querySelectorAll('[data-trendtf]:checked')].map(x => x.value);
