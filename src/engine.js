@@ -7,7 +7,7 @@ const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
-const HIDDEN = ['n_levelrev']; // code stays, not offered in the app
+const HIDDEN = ['n_levelrev', 'n_trendpull']; // n_trendpull: replaced by n_trend15 (user 09.11.2026) // code stays, not offered in the app
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
 
@@ -58,6 +58,8 @@ class Engine extends EventEmitter {
     }
     // Strategies removed from the program (29.10.2026) drop out of the enabled list.
     if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n] && !HIDDEN.includes(n));
+    // 09.11.2026: the new trend strategy runs on S15 by default (user: entry on 15-second candles, expiry 1 min).
+    if (!this.settings.strat_tfs?.n_trend15) { this.settings.strat_tfs = { ...this.settings.strat_tfs, n_trend15: ['S15'] }; writeJson(this.settingsFile, this.settings); }
     // 05.11.2026: "Trend pullback" is switched on once, on M1 (the user asked for it); switching it off later stays off.
     if (!this.settings.trendpull_on_1105) {
       const s = this.settings;
@@ -421,7 +423,7 @@ class Engine extends EventEmitter {
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
     const st = strategies.paramsFor('n_strongtrend', this.settings), en = this.enabledStrategies();
-    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
+    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || en.includes('n_trend15') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
       list.forEach((a, i) => {
         const have = this.ctxCandles.get(a.symbol);
         if (have && Date.now() - have.at < 55000) return;
@@ -458,7 +460,10 @@ class Engine extends EventEmitter {
     const entry = Math.ceil(now / sec) * sec; // next full 10/15/30-second mark
     this.lastEval.set(key, last);
     const tf = 'S' + sec;
-    for (const sig of strategies.evaluate({ [tf]: closed }, this.enabledStrategies(), this.settings)) {
+    // ctx: M5/M15 history (n_trend15 takes its trend from M5) plus the M1 history as a fallback.
+    const cx = { ...(this.ctxCandles.get(h.asset) || {}), M1: this.candles.get(h.asset) };
+    const a = this.assets.get(h.asset);
+    for (const sig of strategies.evaluate({ [tf]: closed, ctx: cx, otc: !!(a && a.otc) }, this.enabledStrategies(), this.settings)) {
       if (sig.strength < (this.settings.min_strength || 0)) continue;
       if (!this._ownTrendLogic(sig) && this._againstTrend(h.asset, sig.dir)) continue;
       this.scanSignals.push({ ...sig, asset: h.asset, candle: closed[closed.length - 1], entry });

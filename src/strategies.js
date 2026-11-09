@@ -22,6 +22,7 @@ const META = {
   n_impulse: [L('Ранний импульс (живой)', 'Früher Impuls (live)', 'Early impulse (live)'), 'trend'],
   n_bbrsi: [L('Bollinger + RSI 2 (возврат к средней)', 'Bollinger + RSI 2 (Rückkehr zur Mitte)', 'Bollinger + RSI 2 (mean reversion)'), 'rev'],
   n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
+  n_trend15: [L('Тренд M5 + вход на S15', 'M5-Trend + Einstieg auf S15', 'M5 trend + entry on S15'), 'trend'],
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
   n_levelstoch: [L('Уровень M15 + пин-бар M5 + Stochastic', 'Level M15 + Pinbar M5 + Stochastic', 'M15 level + M5 pin bar + Stochastic'), 'rev'],
 };
@@ -83,6 +84,8 @@ const DEFAULTS = {
   n_adxonly: { expiry: 60, ax_level: 25, ax_period: 14, ax_dir: 'BOTH' },
   // User picture (08.11.2026): series one way, small pause candle, reversal candle closing beyond the pause and the fast EMA.
   // raw_pb M1 test: 48–50 % in every variant (break-even ~54 %); added on the user's explicit wish.
+  // User 09.11.2026: trend from M5, entry on S15 candles, expiry 1 min. Run on S15 (strat_tfs), M1 works too.
+  n_trend15: { expiry: 60, tr_m5_ema: 50, tr_adx: 20, tr_ema: 20, tr_pull: 6, tr_ext: 1.5, tr_buy: true, tr_sell: true, tr_side: 0, tr_steps: 0 },
   n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true, sr_early: false, sr_adx: 0, sr_vol: 0, sr_big: 0 },
   // im_dir AGAINST (user, 08.11.2026): entry against the move – scaled history test (M3 as M1) gave 56–57 % at 2 min from 1.5 ATR.
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
@@ -99,6 +102,13 @@ const ST_OFF = { st_use_vortex: false, st_use_macd: false, st_use_rsi: false, st
 // Ready-made setting combinations (one tap in the app).
 const NM1 = L('Очень часто', 'Sehr oft', 'Very often'), NM2 = L('Часто', 'Oft', 'Often'), NM3 = L('Средне', 'Mittel', 'Medium'), NM4 = L('Строже', 'Strenger', 'Stricter'), NM5 = L('Строго', 'Streng', 'Strict');
 const PRESETS = {
+  // Clean-trend strictness (user 09.11.2026).
+  n_trend15: [
+    { name: L('1 Мягко', '1 Locker', '1 Loose'), values: { tr_adx: 20, tr_side: 70, tr_steps: 0, tr_ext: 1.5 } },
+    { name: L('2 Средне', '2 Mittel', '2 Medium'), values: { tr_adx: 25, tr_side: 80, tr_steps: 2, tr_ext: 1.5 } },
+    { name: L('3 Строже', '3 Strenger', '3 Stricter'), values: { tr_adx: 25, tr_side: 90, tr_steps: 3, tr_ext: 1.2 } },
+    { name: L('4 Строго', '4 Streng', '4 Strict'), values: { tr_adx: 30, tr_side: 100, tr_steps: 3, tr_ext: 1 } },
+  ],
   // Strictness against flat signals (user 08.11.2026). raw_pb M1 ~28 days, early mode: all levels 49–52 % – they remove flat signals, not losses.
   n_serrev: [
     { name: L('1 Мягко', '1 Locker', '1 Loose'), values: { sr_adx: 20, sr_vol: 0.8, sr_big: 0, sr_move: 1.5, sr_min: 3 } },
@@ -300,6 +310,10 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
     'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
+  n_trend15: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Тренд берётся с M5: EMA растёт (или падает) последние 3 свечи M5, цена по ту же сторону, ADX не меньше … и DI по направлению. Вход на таймфрейме стратегии (лучше S15): за последние … свечей цена откатила к быстрой EMA, в откате была свеча против тренда, и теперь первая свеча по тренду закрылась за EMA и за прошлой свечой, но не дальше … ATR от EMA. Экспирация 1 мин = 4 свечи S15. Секундной истории нет — проверка только на демо.', 'Trend vom M5: EMA steigt (oder fällt) über die letzten 3 M5-Kerzen, Preis auf derselben Seite, ADX mindestens … und DI in Richtung. Einstieg im Zeitrahmen der Strategie (am besten S15): in den letzten … Kerzen ist der Preis zur schnellen EMA zurückgelaufen, im Rücklauf gab es eine Gegenkerze, und jetzt schließt die erste Trendkerze jenseits der EMA und der Vorkerze, aber höchstens … ATR von der EMA. Ablauf 1 Min = 4 S15-Kerzen. Keine Sekunden-Historie – nur auf Demo prüfbar.', 'Trend from M5: the EMA rises (or falls) over the last 3 M5 candles, price on the same side, ADX at least … and DI in line. Entry on the strategy timeframe (S15 is best): within the last … candles price pulled back to the fast EMA, the pullback had a counter candle, and now the first trend candle closes beyond the EMA and the previous candle, but at most … ATR from the EMA. Expiry 1 min = 4 S15 candles. No second history – demo testing only.'), keys: ['expiry', 'tr_m5_ema', 'tr_adx', 'tr_ema', 'tr_pull', 'tr_ext', 'tr_buy', 'tr_sell'] },
+    { title: L('Ровный тренд', 'Sauberer Trend', 'Clean trend'), desc: L('Чтобы тренд был ровным, а не хаотичным: из последних 12 свечей M5 не меньше … % закрылись по сторону тренда от EMA; и последние … отрезка по 4 свечи M5 (по 20 минут) каждый раз делают более высокий минимум (вверх) или более низкий максимум (вниз) — откат, выше, откат, выше. 0 = выкл. Уровни строгости 1–4 вверху ставят эти значения.', 'Damit der Trend sauber statt chaotisch ist: von den letzten 12 M5-Kerzen schließen mindestens … % auf der Trendseite der EMA; und die letzten … Abschnitte zu je 4 M5-Kerzen (20 Minuten) machen jedes Mal ein höheres Tief (aufwärts) bzw. tieferes Hoch (abwärts) – Rücklauf, höher, Rücklauf, höher. 0 = aus. Die Stufen 1–4 oben setzen diese Werte.', 'So the trend is clean rather than chaotic: of the last 12 M5 candles at least … % close on the trend side of the EMA; and the last … blocks of 4 M5 candles (20 minutes) each make a higher low (up) or lower high (down) – pullback, higher, pullback, higher. 0 = off. Levels 1–4 above set these values.'), keys: ['tr_side', 'tr_steps'] },
+  ],
   n_serrev: [
     { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал при закрытии свечи. Сначала не меньше … свечей подряд в одну сторону, общее движение не меньше … ATR. Потом маленькая свеча-пауза (тело меньше … от среднего тела 20 свечей). Потом свеча в обратную сторону закрылась за паузой (выше её максимума для CALL, ниже минимума для PUT) и, если включено, за быстрой EMA. Вход против серии. Проверка на истории M1: 48–50 % — только демо.', 'Signal beim Kerzenschluss. Zuerst mindestens … Kerzen in Folge in eine Richtung, Bewegung mindestens … ATR. Dann eine kleine Pausenkerze (Körper kleiner als … des Durchschnittskörpers von 20 Kerzen). Dann schließt eine Gegenkerze jenseits der Pause (über ihrem Hoch für CALL, unter ihrem Tief für PUT) und, falls an, jenseits der schnellen EMA. Einstieg gegen die Serie. Historientest M1: 48–50 % – nur Demo.', 'Signal at candle close. First at least … candles in a row one way, total move at least … ATR. Then a small pause candle (body below … of the 20-candle average body). Then an opposite candle closes beyond the pause (above its high for CALL, below its low for PUT) and, if on, beyond the fast EMA. Entry against the series. M1 history test: 48–50 % – demo only.'), keys: ['expiry', 'sr_early', 'sr_min', 'sr_move', 'sr_pause', 'sr_ema_on', 'sr_ema'] },
     { title: L('Против флэта', 'Gegen Seitwärts', 'Against flat'), desc: L('Не давать сигнал во флэте: ADX не меньше …; последние 10 свечей в среднем не меньше … × размера свечей за 100; в серии есть большая свеча (тело от … × среднего). 0 = выкл. Уровни строгости 1–4 вверху ставят эти значения. Проверка на истории M1 (28 дней): все уровни 49–52 % — фильтр убирает флэт, но выигрыш не повышает.', 'Kein Signal im Seitwärtsmarkt: ADX mindestens …; die letzten 10 Kerzen im Schnitt mindestens … × der Kerzengröße über 100; die Serie hat eine große Kerze (Körper ab … × Durchschnitt). 0 = aus. Die Stufen 1–4 oben setzen diese Werte. Historientest M1 (28 Tage): alle Stufen 49–52 % – der Filter entfernt Seitwärtsphasen, erhöht die Trefferquote aber nicht.', 'No signal in a flat market: ADX at least …; the last 10 candles average at least … × the candle size over 100; the series has a big candle (body from … × average). 0 = off. Levels 1–4 above set these values. M1 history test (28 days): all levels 49–52 % – the filter removes flat signals but does not raise the win rate.'), keys: ['sr_adx', 'sr_vol', 'sr_big'] },
@@ -493,7 +507,7 @@ function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
   if (name === 'n_impulse') return 'live';
-  if (name === 'n_adxonly' || name === 'n_serrev') return 'closed';
+  if (name === 'n_adxonly' || name === 'n_serrev' || name === 'n_trend15') return 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
   if (name === 'n_sharp' && p.bot) return 'both';
@@ -922,6 +936,43 @@ const S = {
     const why = up ? L(`вверх, вход по DI${dt}`, `nach oben, Einstieg mit DI${dt}`, `upwards, entry with DI${dt}`) : L(`вниз, вход против DI${dt}`, `nach unten, Einstieg gegen DI${dt}`, `downwards, entry against DI${dt}`);
     return Object.assign(sig(d, 75, L(`ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} пересёк ${lv} ${why.ru}`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} kreuzt ${lv} ${why.de}`, `ADX ${b0.adx.toFixed(1)} → ${b.adx.toFixed(1)} crossed ${lv} ${why.en}`)), { noFlip: true });
   },
+  // Trend M5 + entry on a small timeframe (user 09.11.2026: S15 candles, expiry 1 min, trend from M5).
+  // Trend: M5 EMA (tr_m5_ema) rising/falling over 3 candles, last M5 close on that side, ADX ≥ tr_adx with the DI in line.
+  // Entry on the strategy's own timeframe: within the last tr_pull candles price pulled back to the fast EMA (low ≤ EMA for up),
+  // the pullback had at least one candle against the trend, now the first candle with the trend closes above the fast EMA and
+  // the previous candle's high, not more than tr_ext ATR away from the EMA. Down = mirror.
+  n_trend15(x, p) {
+    const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 30) return null;
+    let m5 = x.ctx && x.ctx.M5; if ((!m5 || m5.length < 60) && x.ctx && x.ctx.M1) m5 = I.resample(x.ctx.M1, 5);
+    if (!m5 || m5.length < 30) return null;
+    const n = m5.length - 1, ep = Number(p.tr_m5_ema) || 50, e5 = I.ema(m5.map(k => k.close), ep), ad = I.adx(m5, 14)[n];
+    if (e5[n] == null || e5[n - 3] == null || !ad) return null;
+    const d = e5[n] > e5[n - 3] ? 1 : e5[n] < e5[n - 3] ? -1 : 0; if (!d) return null;
+    if ((m5[n].close - e5[n]) * d <= 0) return null;
+    if (ad.adx < (Number(p.tr_adx) || 0) || (ad.pdi - ad.mdi) * d <= 0) return null;
+    if (d > 0 ? p.tr_buy === false : p.tr_sell === false) return null;
+    // Clean trend (user 09.11.2026: "pullback up, pullback up", not a chaotic trend):
+    // tr_side = % of the last 12 M5 closes on the trend side of the EMA; tr_steps = the last N blocks of 4 M5 candles each make
+    // a higher low (up) / lower high (down) – every pullback ends higher than the one before. 0 = off.
+    const side = Number(p.tr_side) || 0;
+    if (side) { let ok = 0; for (let j = n - 11; j <= n; j++) if (e5[j] != null && (m5[j].close - e5[j]) * d > 0) ok++; if (ok / 12 * 100 < side) return null; }
+    const steps = Number(p.tr_steps) || 0;
+    if (steps >= 2) {
+      const ext = b => { const s = m5.slice(n - 4 * (b + 1) + 1, n - 4 * b + 1); return d > 0 ? Math.min(...s.map(q => q.low)) : Math.max(...s.map(q => q.high)); };
+      if (n < 4 * steps) return null;
+      for (let b = 0; b < steps - 1; b++) if ((ext(b) - ext(b + 1)) * d <= 0) return null;
+    }
+    const ef = x.ema(Number(p.tr_ema) || 20), k = c[i], pv = c[i - 1];
+    if (ef[i] == null || (k.close - k.open) * d <= 0) return null;
+    if ((k.close - ef[i]) * d <= 0 || (k.close - (d > 0 ? pv.high : pv.low)) * d <= 0) return null;
+    if ((k.close - ef[i]) * d > (Number(p.tr_ext) || 1.5) * atr) return null;
+    const W = Math.max(2, Number(p.tr_pull) || 6);
+    let touch = -1; for (let j = i - 1; j >= i - W; j--) if ((d > 0 ? c[j].low <= ef[j] : c[j].high >= ef[j])) { touch = j; break; }
+    if (touch < 0) return null;
+    let against = false; for (let j = touch; j < i; j++) { const dj = I.dirOf(c[j]); if (dj === -d) against = true; if (j > touch && dj === d) return null; } // first candle with the trend after the touch
+    if (!against) return null;
+    return Object.assign(sig(d, 75, L(`тренд M5 ${d > 0 ? 'вверх' : 'вниз'} (ADX ${ad.adx.toFixed(0)}), откат к EMA ${Number(p.tr_ema) || 20} закончился`, `M5-Trend ${d > 0 ? 'aufwärts' : 'abwärts'} (ADX ${ad.adx.toFixed(0)}), Rücklauf zur EMA ${Number(p.tr_ema) || 20} beendet`, `M5 trend ${d > 0 ? 'up' : 'down'} (ADX ${ad.adx.toFixed(0)}), pullback to EMA ${Number(p.tr_ema) || 20} over`)), { noFlip: true });
+  },
   n_serrev(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
     const body = k => Math.abs(k.close - k.open);
@@ -1270,6 +1321,6 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15'];
 
 module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
