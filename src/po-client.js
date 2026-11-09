@@ -194,6 +194,10 @@ class POClient extends EventEmitter {
   // Saves the symbol (and optionally the timeframe in seconds) into the account's main chart, so PocketOption
   // (app or web) opens on that asset. chartPeriod is an index into PocketOption's timeframe list.
   openOnAccount(symbol, periodSec) {
+    // 09.11.2026: without a timeframe nothing is saved. Now that quotes run over the demo session (the same account as the
+    // user's demo tab), saving our cached chart settings put the old chartPeriod (M1) back over the user's S15 chart.
+    // The pair itself is switched inside the PocketOption page (po-switch.js).
+    if (!periodSec) return true;
     const c = this.charts.find(x => x.chart_id === 'chart-1') || this.charts[0];
     if (!c) return false;
     let st = c.settings; while (typeof st === 'string') st = JSON.parse(st);
