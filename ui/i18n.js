@@ -461,6 +461,7 @@ const PARAM_NAMES = {
   ax_level: ['ADX-Schwelle (Kreuzung nach oben)', 'Уровень ADX (пересечение снизу вверх)', 'ADX level (crossing upwards)'],
   ax_dir: ['Richtung der ADX-Kreuzung', 'Направление пересечения ADX', 'Direction of the ADX cross'],
   ax_period: ['ADX-Periode', 'Период ADX', 'ADX period'],
+  tr_turn: ['Signal bei Wende der EMA auf M5 (früh, ohne weitere Regeln; Periode = EMA-Periode auf M5)', 'Сигнал при повороте EMA на M5 (рано, без других правил; период = период EMA на M5)', 'Signal when the M5 EMA turns (early, no other rules; period = M5 EMA period)'],
   tr_nopull: ['Nur Trend, ohne Rücklauf (Signal, sobald der M5-Trend steht; höchstens 1 pro Paar und M5-Kerze)', 'Только тренд, без отката (сигнал, как только есть тренд на M5; не чаще 1 на пару за свечу M5)', 'Trend only, no pullback (signal as soon as the M5 trend holds; at most 1 per pair per M5 candle)'],
   tr_m5_ema: ['EMA-Periode auf M5 (Trend)', 'Период EMA на M5 (тренд)', 'EMA period on M5 (trend)'],
   tr_adx: ['ADX auf M5 mindestens', 'ADX на M5 не меньше', 'ADX on M5 at least'],
