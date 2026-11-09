@@ -7,7 +7,7 @@ const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
-const HIDDEN = ['n_levelrev', 'n_trendpull']; // n_trendpull: replaced by n_trend15 (user 09.11.2026) // code stays, not offered in the app
+const HIDDEN = ['n_levelrev', 'n_trendpull', 'n_strongtrend', 'n_deeprev', 'n_stochenv', 'n_adxonly']; // 09.11.2026 user: remove strongtrend, deeprev, stochenv, adxonly; // n_trendpull: replaced by n_trend15 (user 09.11.2026) // code stays, not offered in the app
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
 
@@ -96,9 +96,16 @@ class Engine extends EventEmitter {
     this.status = 'start';
     // A demo session allows only one connection: ours kicked the PocketOption tab off (empty demo chart on the phone,
     // log "PO-Seite: getrennt … 1005" right after "Verbinde"). With a known real login the data goes over that one.
-    const rg = this.config.realGood, startDemo = /"isDemo"\s*:\s*1/.test(loadSsid(this.config) || '');
-    this.po = startDemo && rg && rg.ssid ? new POClient(rg.ssid, rg.url) : new POClient(loadSsid(this.config), this.config.poUrl);
+    // 09.11.2026: the demo server answers again (tested: login, candles, live prices, two connections at once) – quotes now go
+    // over the demo session when there is one (user: not over the real account); the real login is only the fallback (demoDead).
+    this.po = new POClient(loadSsid(this.config), this.config.poUrl);
     this.po.on('status', s => { this.status = s; this.emit('state'); });
+    // Demo server fails or keeps dropping: back to the last working real login (same prices), until the app restarts.
+    this.po.on('demoDead', () => {
+      const lg = this.config.lastGood, real = this.config.realGood || (lg && lg.ssid && !/"isDemo"\s*:\s*1/.test(lg.ssid) ? lg : null);
+      this.demoDead = true;
+      if (real && real.ssid && real.ssid !== this.po.ssid) { this.po._log('Kurse jetzt über das Real-Konto (Demo-Server unzuverlässig)'); this.po.setSsid(real.ssid, real.url); }
+    });
     this.po.on('assets', a => this._onAssets(a));
     this.po.on('history', h => this._onHistory(h));
     // Another PocketOption server worked than the stored one: remember it for the next start.
@@ -721,12 +728,8 @@ class Engine extends EventEmitter {
     // known working real-account login the signals keep coming over that one; trading in the PO tab stays on demo.
     const demo = x => /"isDemo"\s*:\s*1/.test(x || ''), lg = this.config.lastGood;
     const real = this.config.realGood || (lg && lg.ssid && !demo(lg.ssid) ? lg : null);
-    if (auto && demo(ssid) && real && real.ssid) {
-      if (this.po.authed && !demo(this.po.ssid)) { this.po._log('Demo-Login erkannt – Signale weiter über das Real-Konto (gleiche Kurse)'); return; }
-      this.po._log('Demo-Login erkannt – Signale über das Real-Konto (gleiche Kurse)');
-      ssid = real.ssid; url = real.url;
-      if (ssid === this.po.ssid && this.po.authed) return;
-    }
+    // Demo logins are used directly again (09.11.2026). Only if the demo server failed in this run, stay on the real login.
+    if (auto && demo(ssid) && this.demoDead && real && real.ssid) { this.po._log('Demo-Login erkannt – Demo-Server fiel aus, Kurse weiter über das Real-Konto'); return; }
     this.po._log(auto ? 'Login aus PocketOption übernommen' : 'Neue Sitzung eingetragen');
     if (auto && this.po.authed) this._rememberGood();
     this.config.ssid = ssid; this.config.poUrl = url || null; this.config.ssidAuto = auto;
@@ -814,7 +817,7 @@ class Engine extends EventEmitter {
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],
-        allStrategies: strategies.list.filter(k => !['n_levelrev'].includes(k)).map(k => ({
+        allStrategies: strategies.list.filter(k => !HIDDEN.includes(k)).map(k => ({
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
           presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null, labels: strategies.LABELS[k] || null,
