@@ -40,6 +40,8 @@ class Engine extends EventEmitter {
       || readJson(path.join(ROOT, 'defaults', 'settings.json'), {});
     this.config = readJson(this.configFile, {});
     // Until 1.0.57 a session without connection (no internet yet) was also marked "rejected" and then ignored for good.
+    // 09.11.2026: demo logins rejected while the demo server was dead (since 27.10) would be ignored forever – forget them once.
+    if (!this.config.demoUnreject1109) { this.config.rejected = (this.config.rejected || []).filter(x => !/"isDemo"\s*:\s*1/.test(x || '')); this.config.demoUnreject1109 = true; writeJson(this.configFile, this.config); }
     if (!this.config.rejectedReset) { this.config.rejected = []; this.config.rejectedReset = true; writeJson(this.configFile, this.config); }
     // 28.10.2026, the user's choice for every device: only "reversal at a level", medium values, corridor/beyond bans off,
     // impulse move 2 SD (measured: ~15–20 signals per 1.5 h on 14 pairs instead of 1); GBP/NZD pairs off (not tradable in PO).
