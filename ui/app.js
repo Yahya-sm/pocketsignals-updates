@@ -233,6 +233,17 @@ function miniCandles(s, tf) {
   }
   return out.slice(-24).map(x => x.q);
 }
+// Trend badge next to the pair (user 09.11.2026): follows the chart's timeframe tab, direction = slope of the chart's
+// yellow EMA line over the last 3 candles. Falls back to the old trend badge when the signal has no chart data.
+function miniTrendBadge(s) {
+  const tf = cardTf.get(s.id), canSwitch = !!(s.m1 && Array.isArray(s.m1.k) && s.m1.k.length > 10);
+  const k = tf && canSwitch ? miniCandles(s, tf) : Array.isArray(s.m5) ? s.m5 : null;
+  if (!k || k.length < 6) return m5Badge(s, true);
+  let e = k[0][3]; const ema = k.map((q, i) => (e = i ? q[3] * 0.2 + e * 0.8 : q[3]));
+  const n = ema.length - 1, dir = ema[n] > ema[n - 3] ? 'CALL' : ema[n] < ema[n - 3] ? 'PUT' : 'flat';
+  const cur = tf && canSwitch ? tf : (s.miniTf || 'M5');
+  return `<span class="m5 ${dir}">${esc(cur)} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</span>`;
+}
 function m5Chart(s) {
   const tf = cardTf.get(s.id), canSwitch = !!(s.m1 && Array.isArray(s.m1.k) && s.m1.k.length > 10);
   const k = tf && canSwitch ? miniCandles(s, tf) : Array.isArray(s.m5) ? s.m5 : null; if (!k || k.length < 3) return '';
@@ -260,7 +271,7 @@ function card(s) {
     <div class="sig-top">
       <button class="star${pinned ? ' on' : ''}" data-pin="${esc(s.id)}" title="${t('pin')}">${pinned ? '★' : '☆'}</button>
       <div class="pairbox"><div class="pair">${esc(s.name)}</div>
-        <div class="pairmeta">${esc(tr(s.strategyName))} · ${s.tf || 'M1'} ${m5Badge(s, true)}</div></div>
+        <div class="pairmeta">${esc(tr(s.strategyName))} · ${s.tf || 'M1'} ${miniTrendBadge(s)}</div></div>
       ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}"><span class="arrow">${s.dir === 'CALL' ? '▲' : '▼'}</span>${s.dir}</div>`}
     </div>
     <div class="sig-now"><div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
