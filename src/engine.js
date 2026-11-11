@@ -7,7 +7,7 @@ const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
-const HIDDEN = ['n_levelrev', 'n_trendpull', 'n_strongtrend', 'n_deeprev', 'n_stochenv', 'n_adxonly']; // 09.11.2026 user: remove strongtrend, deeprev, stochenv, adxonly; // n_trendpull: replaced by n_trend15 (user 09.11.2026) // code stays, not offered in the app
+const HIDDEN = ['n_levelrev', 'n_trendpull', 'n_strongtrend', 'n_deeprev', 'n_stochenv', 'n_adxonly', 'n_bbrsi', 'n_ma25', 'n_sharp']; // 09.11.2026 user: remove strongtrend, deeprev, stochenv, adxonly; // n_trendpull: replaced by n_trend15 (user 09.11.2026) // code stays, not offered in the app
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
 
