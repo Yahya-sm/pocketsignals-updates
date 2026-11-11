@@ -385,3 +385,10 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .m5tabs button { font-size: 10px; padding: 1px 5px; border: 0; border-radius: 4px; background: rgba(127,127,127,.18); color: inherit; opacity: .7; cursor: pointer; }
 .m5tabs button.on { background: #4c8dff; color: #fff; opacity: 1; }
 .m5chart svg { margin-top: 16px; }
+
+/* Why (last hour) + strategy lab (11.11.2026) */
+.whyrow { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid rgba(127,127,127,.15); }
+.whyrow span { font-size: 13px; } .whyrow small { opacity: .65; }
+table.lab { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+table.lab th, table.lab td { text-align: left; padding: 4px 3px; border-bottom: 1px solid rgba(127,127,127,.15); }
+table.lab td.good { color: var(--call); } table.lab td.bad { color: var(--put); }

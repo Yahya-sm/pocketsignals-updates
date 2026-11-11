@@ -475,7 +475,7 @@ class Engine extends EventEmitter {
     // ctx: M5/M15 history (n_trend15 takes its trend from M5) plus the M1 history as a fallback.
     const cx = { ...(this.ctxCandles.get(h.asset) || {}), M1: this.candles.get(h.asset) };
     const a = this.assets.get(h.asset);
-    for (const sig of strategies.evaluate({ [tf]: closed, ctx: cx, otc: !!(a && a.otc) }, this.enabledStrategies(), this.settings)) {
+    for (const sig of strategies.evaluate({ [tf]: closed, ctx: cx, otc: !!(a && a.otc), asset: h.asset }, this.enabledStrategies(), this.settings)) {
       if (sig.strength < (this.settings.min_strength || 0)) continue;
       if (!this._ownTrendLogic(sig) && this._againstTrend(h.asset, sig.dir)) continue;
       this.scanSignals.push({ ...sig, asset: h.asset, candle: closed[closed.length - 1], entry });
@@ -539,7 +539,7 @@ class Engine extends EventEmitter {
         if (c.length && (live ? c[c.length - 1].time + m * 60 > last : c[c.length - 1].time + m * 60 === last + 60)) byTf[tf] = c;
       }
       byTf.ctx = this.ctxCandles.get(h.asset);
-      byTf.otc = /_otc$/i.test(h.asset);
+      byTf.otc = /_otc$/i.test(h.asset); byTf.asset = h.asset;
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
         if (!this._ownTrendLogic(sig) && sig.strength < (this.settings.min_strength || 0)) continue;
@@ -596,6 +596,7 @@ class Engine extends EventEmitter {
     const entryTime = s.entry || s.candle.time + 60; // next candle start (S-timeframes set their own)
     const id = `${s.asset}-${s.strategy}-${s.tf}-${s.bar ?? entryTime}`; // entry "now" inside a candle: one signal per candle
     if (this.signals.some(x => x.id === id)) return;
+    strategies.whyAdd(s.strategy, s.whyKey || id, 'delivered');
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',
       strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}), ...(s.im ? { im: s.im } : {}),      strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
@@ -606,6 +607,8 @@ class Engine extends EventEmitter {
     try { const mc = this._miniChart(hist0, s); if (mc) { sig.m5 = mc.m5; sig.m1 = mc.m1; sig.miniTf = this.settings.mini_tf || 'M5'; } } catch {}
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
     try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; sig.recShort = re.short; } } catch {}
+    // Smart expiry (11.11.2026): the recommended expiry becomes the card's expiry (results are settled on it too).
+    if (this.settings.smart_exp && sig.recExp && !sig.recWeak) { sig.expBase = sig.expiry; sig.expiry = sig.recExp; }
     this.signals.unshift(sig); this.signalsLogged = (this.signalsLogged || 0) + 1;
     // The newest 300, plus the user's own trades (marked "taken") that are older – their statistics stay.
     this.signals = this.signals.slice(0, 300).concat(this.signals.slice(300).filter(x => x.mine).slice(0, 1000));
@@ -831,6 +834,7 @@ class Engine extends EventEmitter {
       // Running signals carry the pair's current M5 trend (recomputed from the latest candles).
       signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, trends: this.trendMinutes.map(m => ({ tf: 'M' + m, dir: this.m5Trend(s.symbol, m) })).filter(x => x.dir) } : s)),
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
+      why: strategies.whyHour(), // "Why (last hour)": found / filtered / delivered per strategy
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],
         allStrategies: strategies.list.filter(k => !HIDDEN.includes(k)).map(k => ({
@@ -845,7 +849,7 @@ class Engine extends EventEmitter {
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
         min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
-        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', mkt_level: Number(this.settings.mkt_level) || 0, quotes_demo: this.settings.quotes_demo === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
+        ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', mkt_level: Number(this.settings.mkt_level) || 0, smart_exp: this.settings.smart_exp === true, quotes_demo: this.settings.quotes_demo === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         po_start_mode: this.settings.po_start_mode || 'last', tv_open: this.settings.tv_open === 'app' ? 'app' : 'external', po_last_mode: this.settings.po_last_mode || null,
         mini_count: Math.min(5, Math.max(1, Number(this.settings.mini_count) || 2)), mini_pos: this.settings.mini_pos || 'tr',
       },

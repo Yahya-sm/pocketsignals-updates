@@ -76,7 +76,34 @@ function renderBg() {
   b.hidden = false; b.className = 'bgbtn ' + (on ? 'on' : 'off');
   b.textContent = on ? t('bg_on') : t('bg_off'); b.title = t('bg_hint');
 }
+// "Why (last hour)" and the strategy lab (11.11.2026, user's 1.0.199 list).
+function renderWhy() {
+  const box = document.getElementById('whyBox'); if (!box || !state) return;
+  const why = state.why || {}, names = Object.fromEntries((state.settings.allStrategies || []).map(x => [x.key, tr(x.names)]));
+  const on = state.settings.strategies || [];
+  const rows = on.filter(k => names[k]).map(k => { const w = why[k] || {}, f = w.found || 0, dl = w.delivered || 0;
+    const rej = ['filters', 'chaos', 'mkt', 'small', 'regime'].filter(r => w[r]).map(r => t('why_' + r) + ' ' + w[r]);
+    const engineDrop = Math.max(0, (w.passed || 0) - dl);
+    if (engineDrop) rej.push(t('why_engine') + ' ' + engineDrop);
+    return `<div class="whyrow"><b>${esc(names[k] || k)}</b><span>${t('why_line', { n: f, p: dl })}</span>${rej.length ? `<small>${t('why_dropped')}: ${esc(rej.join(' · '))}</small>` : ''}</div>`; });
+  box.innerHTML = rows.join('') || `<small>${t('why_none')}</small>`;
+}
+function renderLab() {
+  const box = document.getElementById('labBox'); if (!box || !state) return;
+  const names = Object.fromEntries((state.settings.allStrategies || []).map(x => [x.key, tr(x.names)]));
+  const agg = {};
+  for (const s of state.signals || []) {
+    if (s.manual || (s.result !== 'win' && s.result !== 'loss')) continue;
+    const k = s.strategy + '|' + s.expiry, g = (agg[k] = agg[k] || { st: s.strategy, exp: s.expiry, w: 0, n: 0, mw: 0, mn: 0 });
+    g.n++; if (s.result === 'win') g.w++; if (s.mine) { g.mn++; if (s.result === 'win') g.mw++; }
+  }
+  const list = Object.values(agg).sort((x, y) => y.n - x.n);
+  if (!list.length) { box.innerHTML = `<small>${t('lab_empty')}</small>`; return; }
+  const pc = (w, n) => (n ? Math.round(100 * w / n) + ' %' : '–');
+  box.innerHTML = `<table class="lab"><tr><th>${t('lab_strat')}</th><th>${t('lab_exp')}</th><th>${t('lab_all')}</th><th>${t('lab_mine')}</th></tr>${list.map(g => `<tr><td>${esc(names[g.st] || g.st)}</td><td>${fmtExp(g.exp)}</td><td class="${g.w / g.n >= 0.55 ? 'good' : g.w / g.n < 0.5 ? 'bad' : ''}">${pc(g.w, g.n)} <small>(${g.n})</small></td><td>${pc(g.mw, g.mn)} <small>(${g.mn})</small></td></tr>`).join('')}</table><small>${t('lab_hint')}</small>`;
+}
 function render() {
+  try { renderWhy(); renderLab(); } catch {}
   if (!state) return;
   renderBg();
   $('#dot').className = 'dot' + (state.connected ? ' ok' : '');
@@ -110,7 +137,7 @@ function render() {
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sQuick').checked = !!s.quick_trade; $('#sQuickReal').checked = !!s.quick_real; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
-    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; $('#sMktLevel').value = String(s.mkt_level || 0); $('#sQuotesDemo').checked = !!s.quotes_demo; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
+    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; $('#sMktLevel').value = String(s.mkt_level || 0); $('#sQuotesDemo').checked = !!s.quotes_demo; $('#sSmartExp').checked = !!s.smart_exp; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
     { const r = state.otcRec || {}; let extra = ''; if (isAndroid && window.AndroidApp.recInfo) { try { const a = JSON.parse(window.AndroidApp.recInfo()); extra = ' · ' + t('otc_rec_store', { d: a.days, mb: (a.bytes / 1048576).toFixed(1) }); } catch {} } else if (isDesktop && r.dir) extra = ' · ' + r.dir;
       $('#otcRecInfo').textContent = (r.error ? r.error + ' · ' : '') + t('otc_rec_info', { n: r.rows || 0, p: r.pairs || 0 }) + extra; $('#otcExportBtn').hidden = !(isAndroid && window.AndroidApp.recExport); }
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
@@ -481,7 +508,7 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'] };
+const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'] };
 const CHOICE_TEXT = { ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry' };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
@@ -668,6 +695,7 @@ document.addEventListener('change', e => {
   if (el.id === 'sMiniTf') patch.mini_tf = el.value;
   if (el.id === 'sMktLevel') patch.mkt_level = Number(el.value) || 0;
   if (el.id === 'sQuotesDemo') patch.quotes_demo = el.checked;
+  if (el.id === 'sSmartExp') patch.smart_exp = el.checked;
   if (el.id === 'sOtcRec') patch.otc_record = el.checked;
   if (el.dataset.trendtf !== undefined) { // at least one timeframe stays on
     const tfs = [...document.querySelectorAll('[data-trendtf]:checked')].map(x => x.value);

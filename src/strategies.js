@@ -23,8 +23,11 @@ const META = {
   n_bbrsi: [L('Bollinger + RSI 2 (возврат к средней)', 'Bollinger + RSI 2 (Rückkehr zur Mitte)', 'Bollinger + RSI 2 (mean reversion)'), 'rev'],
   n_trendpull: [L('Откат по тренду', 'Rücklauf im Trend', 'Trend pullback'), 'trend'],
   n_trend15: [L('Тренд M5 + вход на S15', 'M5-Trend + Einstieg auf S15', 'M5 trend + entry on S15'), 'trend'],
+  n_preclose: [L('🧪 Импульс: за 5 с до закрытия свечи', '🧪 Impuls: 5 s vor Kerzenschluss', '🧪 Impulse: 5 s before the candle closes'), 'trend'],
+  n_fractal: [L('🧪 Пробой фрактала', '🧪 Fraktal-Ausbruch', '🧪 Fractal breakout'), 'trend'],
+  n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
-  n_levelstoch: [L('Уровень M15 + пин-бар M5 + Stochastic', 'Level M15 + Pinbar M5 + Stochastic', 'M15 level + M5 pin bar + Stochastic'), 'rev'],
+  n_levelstoch: [L('Пин-бар + Stochastic (уровень M15 — по желанию)', 'Pinbar + Stochastic (M15-Level optional)', 'Pin bar + Stochastic (M15 level optional)'), 'rev'],
 };
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
 
@@ -85,13 +88,17 @@ const DEFAULTS = {
   // User picture (08.11.2026): series one way, small pause candle, reversal candle closing beyond the pause and the fast EMA.
   // raw_pb M1 test: 48–50 % in every variant (break-even ~54 %); added on the user's explicit wish.
   // User 09.11.2026: trend from M5, entry on S15 candles, expiry 1 min. Run on S15 (strat_tfs), M1 works too.
-  n_trend15: { expiry: 60, tr_m5_ema: 50, tr_adx: 20, tr_ema: 20, tr_pull: 6, tr_ext: 1.5, tr_buy: true, tr_sell: true, tr_side: 0, tr_steps: 0, tr_nopull: false, tr_turn: false, tr_confirm: true, tr_cross: false, tr_cross_tf: 'ENTRY', tr_cross_vol: 1, tr_cross_flat: true },
+  n_trend15: { expiry: 60, tr_m5_ema: 50, tr_adx: 20, tr_ema: 20, tr_pull: 6, tr_ext: 1.5, tr_buy: true, tr_sell: true, tr_side: 0, tr_steps: 0, tr_nopull: false, tr_turn: false, tr_confirm: true, tr_cross: false, tr_cross_tf: 'ENTRY', tr_cross_vol: 1, tr_cross_flat: true, tr_tf: 'M5', tr_ma: 'EMA', tr_mode_adx: 0, tr_saw: 0, tr_fresh: 0 },
+  // 11.11.2026 (user's 1.0.199 list), experiments, untested live (no tick history):
+  n_preclose: { expiry: 60, pc_sec: 5, pc_atr: 0.8, pc_back: 30 },
+  n_fractal: { expiry: 120, fr_early: false, fr_far: 1.5, fr_lookback: 30 },
+  n_market: { expiry: 120, rk_ma: 'EMA', rk_period: 50, rk_slope: 3, rk_fresh: 1 },
   n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true, sr_early: false, sr_adx: 0, sr_vol: 0, sr_big: 0 },
   // im_dir AGAINST (user, 08.11.2026): entry against the move – scaled history test (M3 as M1) gave 56–57 % at 2 min from 1.5 ATR.
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
-  n_levelstoch: { expiry: 300, ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
+  n_levelstoch: { expiry: 300, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
     tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20, tp_first: true, tp_return_max: 50 },
@@ -310,8 +317,17 @@ const MARKET_GROUP = { title: L('0 · Рынок (когда вообще дав
     'Signal only on a lively market: the last 10 candles average at least X × normal, one of them big (≥ Y × normal). Never CALL right under resistance, never PUT right above support: at least Z average candles to the level in the trade direction. 0 = off.'),
   keys: ['mk_vol', 'mk_big', 'mk_room'] };
 const GROUPS = {
+  n_preclose: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Живой сигнал внутри свечи: за … секунд до её закрытия тело свечи уже не меньше … ATR, а откат от края не больше … %. Вход на следующую свечу по направлению. Нужен скан чаще раза в минуту (5 с). Эксперимент: секундной истории нет, проверка только на демо.', 'Live-Signal in der Kerze: … Sekunden vor dem Schluss ist der Körper schon mindestens … ATR und der Rücksetzer vom Extrem höchstens … %. Einstieg in die nächste Kerze in Bewegungsrichtung. Braucht Scan öfter als einmal pro Minute (5 s). Experiment: keine Sekunden-Historie, nur auf Demo prüfbar.', 'Live signal inside the candle: … seconds before it closes the body is already at least … ATR and the pullback from the extreme at most … %. Entry into the next candle in the move direction. Needs scanning more often than once a minute (5 s). Experiment: no second history, demo testing only.'), keys: ['expiry', 'pc_sec', 'pc_atr', 'pc_back'] },
+  ],
+  n_fractal: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Фрактал = максимум (минимум) выше (ниже) двух свечей слева и справа. Сигнал при закрытии свечи, которая первой закрылась за последним фракталом за … свечей: выше — CALL, ниже — PUT. «Рано» — сигнал уже внутри свечи, как только цена прошла фрактал. Фильтр: если закрытие ушло от фрактала дальше … ATR, сигнала нет (поздно).', 'Fraktal = Hoch (Tief) über (unter) je zwei Kerzen links und rechts. Signal beim Schluss der ersten Kerze jenseits des letzten Fraktals der letzten … Kerzen: darüber CALL, darunter PUT. „Früh“: Signal schon in der Kerze, sobald der Preis das Fraktal passiert. Filter: liegt der Schluss mehr als … ATR hinter dem Fraktal, kein Signal (zu spät).', 'Fractal = a high (low) above (below) two candles on each side. Signal at the close of the first candle beyond the latest fractal of the last … candles: above CALL, below PUT. "Early": signal inside the candle as soon as price passes the fractal. Filter: if the close is more than … ATR beyond the fractal, no signal (too late).'), keys: ['expiry', 'fr_early', 'fr_lookback', 'fr_far'] },
+  ],
+  n_market: [
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Сигнал при закрытии свечи, которая пересекла скользящую (тип и период выбираются): снизу вверх — CALL, сверху вниз — PUT, и сама скользящая последние … свечей идёт в ту же сторону. Свежесть: закрытие не дальше … ATR от линии, иначе движение уже прошло.', 'Signal beim Schluss der Kerze, die den gleitenden Durchschnitt kreuzt (Typ und Periode wählbar): nach oben CALL, nach unten PUT, und der Durchschnitt selbst läuft die letzten … Kerzen in dieselbe Richtung. Frische: Schluss höchstens … ATR von der Linie, sonst ist die Bewegung schon gelaufen.', 'Signal at the close of the candle that crosses the moving average (type and period selectable): upwards CALL, downwards PUT, and the average itself moved the same way over the last … candles. Freshness: the close at most … ATR from the line, otherwise the move has already run.'), keys: ['expiry', 'rk_ma', 'rk_period', 'rk_slope', 'rk_fresh'] },
+  ],
   n_trend15: [
-    { title: L('Правило', 'Regel', 'Rule'), desc: L('Тренд берётся с M5: EMA растёт (или падает) последние 3 свечи M5, цена по ту же сторону, ADX не меньше … и DI по направлению. Вход на таймфрейме стратегии (лучше S15): за последние … свечей цена откатила к быстрой EMA, в откате была свеча против тренда, и теперь первая свеча по тренду закрылась за EMA и за прошлой свечой, но не дальше … ATR от EMA. Экспирация 1 мин = 4 свечи S15. Секундной истории нет — проверка только на демо.', 'Trend vom M5: EMA steigt (oder fällt) über die letzten 3 M5-Kerzen, Preis auf derselben Seite, ADX mindestens … und DI in Richtung. Einstieg im Zeitrahmen der Strategie (am besten S15): in den letzten … Kerzen ist der Preis zur schnellen EMA zurückgelaufen, im Rücklauf gab es eine Gegenkerze, und jetzt schließt die erste Trendkerze jenseits der EMA und der Vorkerze, aber höchstens … ATR von der EMA. Ablauf 1 Min = 4 S15-Kerzen. Keine Sekunden-Historie – nur auf Demo prüfbar.', 'Trend from M5: the EMA rises (or falls) over the last 3 M5 candles, price on the same side, ADX at least … and DI in line. Entry on the strategy timeframe (S15 is best): within the last … candles price pulled back to the fast EMA, the pullback had a counter candle, and now the first trend candle closes beyond the EMA and the previous candle, but at most … ATR from the EMA. Expiry 1 min = 4 S15 candles. No second history – demo testing only.'), keys: ['expiry', 'tr_cross', 'tr_cross_tf', 'tr_cross_vol', 'tr_cross_flat', 'tr_confirm', 'tr_turn', 'tr_nopull', 'tr_m5_ema', 'tr_adx', 'tr_ema', 'tr_pull', 'tr_ext', 'tr_buy', 'tr_sell'] },
+    { title: L('Правило', 'Regel', 'Rule'), desc: L('Тренд берётся с M5: EMA растёт (или падает) последние 3 свечи M5, цена по ту же сторону, ADX не меньше … и DI по направлению. Вход на таймфрейме стратегии (лучше S15): за последние … свечей цена откатила к быстрой EMA, в откате была свеча против тренда, и теперь первая свеча по тренду закрылась за EMA и за прошлой свечой, но не дальше … ATR от EMA. Экспирация 1 мин = 4 свечи S15. Секундной истории нет — проверка только на демо.', 'Trend vom M5: EMA steigt (oder fällt) über die letzten 3 M5-Kerzen, Preis auf derselben Seite, ADX mindestens … und DI in Richtung. Einstieg im Zeitrahmen der Strategie (am besten S15): in den letzten … Kerzen ist der Preis zur schnellen EMA zurückgelaufen, im Rücklauf gab es eine Gegenkerze, und jetzt schließt die erste Trendkerze jenseits der EMA und der Vorkerze, aber höchstens … ATR von der EMA. Ablauf 1 Min = 4 S15-Kerzen. Keine Sekunden-Historie – nur auf Demo prüfbar.', 'Trend from M5: the EMA rises (or falls) over the last 3 M5 candles, price on the same side, ADX at least … and DI in line. Entry on the strategy timeframe (S15 is best): within the last … candles price pulled back to the fast EMA, the pullback had a counter candle, and now the first trend candle closes beyond the EMA and the previous candle, but at most … ATR from the EMA. Expiry 1 min = 4 S15 candles. No second history – demo testing only.'), keys: ['expiry', 'tr_tf', 'tr_ma', 'tr_cross', 'tr_cross_tf', 'tr_cross_vol', 'tr_cross_flat', 'tr_confirm', 'tr_turn', 'tr_nopull', 'tr_mode_adx', 'tr_saw', 'tr_fresh', 'tr_m5_ema', 'tr_adx', 'tr_ema', 'tr_pull', 'tr_ext', 'tr_buy', 'tr_sell'] },
     { title: L('Ровный тренд', 'Sauberer Trend', 'Clean trend'), desc: L('Чтобы тренд был ровным, а не хаотичным: из последних 12 свечей M5 не меньше … % закрылись по сторону тренда от EMA; и последние … отрезка по 4 свечи M5 (по 20 минут) каждый раз делают более высокий минимум (вверх) или более низкий максимум (вниз) — откат, выше, откат, выше. 0 = выкл. Уровни строгости 1–4 вверху ставят эти значения.', 'Damit der Trend sauber statt chaotisch ist: von den letzten 12 M5-Kerzen schließen mindestens … % auf der Trendseite der EMA; und die letzten … Abschnitte zu je 4 M5-Kerzen (20 Minuten) machen jedes Mal ein höheres Tief (aufwärts) bzw. tieferes Hoch (abwärts) – Rücklauf, höher, Rücklauf, höher. 0 = aus. Die Stufen 1–4 oben setzen diese Werte.', 'So the trend is clean rather than chaotic: of the last 12 M5 candles at least … % close on the trend side of the EMA; and the last … blocks of 4 M5 candles (20 minutes) each make a higher low (up) or lower high (down) – pullback, higher, pullback, higher. 0 = off. Levels 1–4 above set these values.'), keys: ['tr_side', 'tr_steps'] },
   ],
   n_serrev: [
@@ -507,7 +523,9 @@ function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
   if (name === 'n_impulse') return 'live';
-  if (name === 'n_adxonly' || name === 'n_serrev' || name === 'n_trend15') return 'closed';
+  if (name === 'n_adxonly' || name === 'n_serrev' || name === 'n_trend15' || name === 'n_market') return 'closed';
+  if (name === 'n_preclose') return 'live';
+  if (name === 'n_fractal') return p.fr_early ? 'both' : 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
   if (name === 'n_sharp' && p.bot) return 'both';
@@ -903,25 +921,30 @@ const S = {
   n_levelstoch(x, p) {
     if (p.ls_no_otc !== false && x.otc) return null;
     const lastT = x.c[x.last].time;
+    // 11.11.2026 (user's 1.0.199 list): pin-bar timeframe ls_tf M1–M5 (strategy runs on M1, once per closed candle of that TF);
+    // the M15 level is optional (ls_level, off by default).
+    const pm = parseInt(String(p.ls_tf || 'M5').slice(1), 10) || 5;
     let m5;
-    if (x.tfMin === 1) { if ((lastT + 60) % 300) return null; m5 = I.resample(x.c, 5); } else if (x.tfMin === 5) m5 = x.c; else return null;
-    const m15 = x.ctx?.M15; if (!m15 || m15.length < 30 || m5.length < 20) return null;
+    if (x.tfMin === 1) { if (pm > 1 && (lastT + 60) % (pm * 60)) return null; m5 = pm === 1 ? x.c : I.resample(x.c, pm); } else if (x.tfMin === pm) m5 = x.c; else return null;
+    const useLevel = p.ls_level === true, m15 = x.ctx?.M15;
+    if (m5.length < 20 || (useLevel && (!m15 || m15.length < 30))) return null;
     const h = new Date(lastT * 1000).getUTCHours(); if (h < Number(p.ls_hour_from) || h >= Number(p.ls_hour_to)) return null;
     const i = m5.length - 1, k = m5[i], atr = I.atr(m5, 14)[i]; if (!(atr > 0)) return null;
     const rr = k.high - k.low, body = Math.abs(k.close - k.open), lower = Math.min(k.open, k.close) - k.low, upper = k.high - Math.max(k.open, k.close);
     const d = lower >= 2 * body && lower >= 0.5 * rr && lower > upper ? 1 : upper >= 2 * body && upper >= 0.5 * rr && upper > lower ? -1 : 0;
     if (!d || !(rr > 0)) return null;
     const zw = (Number(p.ls_zone_atr) || 0.5) * atr, tip = d > 0 ? k.low : k.high;
-    const zone = swingZones(m15, d > 0 ? -1 : 1, zw, 0).filter(z => z.n >= (Number(p.ls_touches) || 2) && tip >= z.lo - zw && tip <= z.hi + zw && (d > 0 ? k.close >= z.lo : k.close <= z.hi))[0];
+    const zone = useLevel ? swingZones(m15, d > 0 ? -1 : 1, zw, 0).filter(z => z.n >= (Number(p.ls_touches) || 2) && tip >= z.lo - zw && tip <= z.hi + zw && (d > 0 ? k.close >= z.lo : k.close <= z.hi))[0] : { n: 0, lo: tip, hi: tip };
     if (!zone) return null;
     for (let j = i - 3; j < i; j++) if (Math.abs(m5[j].close - m5[j].open) >= (Number(p.ls_big_atr) || 1.5) * atr) return null;
     if ((m5[i - 1].close - m5[i - 4].close) * d >= 0) return null; // must come from the other side
-    const mid = (zone.lo + zone.hi) / 2; let saw = 0;
-    for (let j = Math.max(1, m15.length - 30); j < m15.length; j++) if ((m15[j].close - mid) * (m15[j - 1].close - mid) < 0) saw++;
-    if (saw > (Number(p.ls_saw) || 3)) return null;
+    if (useLevel) { const mid = (zone.lo + zone.hi) / 2; let saw = 0;
+      for (let j = Math.max(1, m15.length - 30); j < m15.length; j++) if ((m15[j].close - mid) * (m15[j - 1].close - mid) < 0) saw++;
+      if (saw > (Number(p.ls_saw) || 3)) return null; }
     const st = I.stoch(m5, 3, 1, 1).k, z = Number(p.ls_stoch_zone) || 20;
     if (st[i] == null || st[i - 1] == null || (st[i] - st[i - 1]) * d <= 0) return null;
     if (d > 0 ? Math.min(st[i], st[i - 1]) >= z : Math.max(st[i], st[i - 1]) <= 100 - z) return null;
+    if (!useLevel) return Object.assign(sig(d, 75, L(`пин-бар M${pm}, Stochastic разворачивается ${d > 0 ? 'вверх' : 'вниз'}`, `M${pm}-Pinbar, Stochastic dreht ${d > 0 ? 'nach oben' : 'nach unten'}`, `M${pm} pin bar, Stochastic turning ${d > 0 ? 'up' : 'down'}`)), { noFlip: true });
     return Object.assign(sig(d, 75, d > 0
       ? L(`пин-бар M5 от поддержки M15 (${zone.n} касания), Stochastic разворачивается вверх`, `M5-Pinbar an M15-Unterstützung (${zone.n} Berührungen), Stochastic dreht nach oben`, `M5 pin bar at M15 support (${zone.n} touches), Stochastic turning up`)
       : L(`пин-бар M5 от сопротивления M15 (${zone.n} касания), Stochastic разворачивается вниз`, `M5-Pinbar an M15-Widerstand (${zone.n} Berührungen), Stochastic dreht nach unten`, `M5 pin bar at M15 resistance (${zone.n} touches), Stochastic turning down`)), { noFlip: true });
@@ -943,14 +966,30 @@ const S = {
   // the previous candle's high, not more than tr_ext ATR away from the EMA. Down = mirror.
   n_trend15(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 30) return null;
-    let m5 = x.ctx && x.ctx.M5; if ((!m5 || m5.length < 60) && x.ctx && x.ctx.M1) m5 = I.resample(x.ctx.M1, 5);
+    // 11.11.2026 (user's 1.0.199 list): one trend MA – period tr_m5_ema, type tr_ma (EMA/SMA), timeframe tr_tf (M1–M5) – used
+    // by the turn, trend-only and cross modes and the trend of the basic mode. Variable names keep "m5" for the trend candles.
+    const tm = parseInt(String(p.tr_tf || 'M5').slice(1), 10) || 5, TF = 'M' + tm;
+    let m5 = tm === 5 ? x.ctx && x.ctx.M5 : null;
+    if ((!m5 || m5.length < 60) && x.ctx && x.ctx.M1) m5 = tm === 1 ? x.ctx.M1 : I.resample(x.ctx.M1, tm);
     if (!m5 || m5.length < 30) return null;
-    const n = m5.length - 1, ep = Number(p.tr_m5_ema) || 50, e5 = I.ema(m5.map(k => k.close), ep), ad = I.adx(m5, 14)[n];
+    const MA = (arr, per) => (p.tr_ma === 'SMA' ? I.sma(arr, per) : I.ema(arr, per));
+    const n = m5.length - 1, ep = Number(p.tr_m5_ema) || 50, e5 = MA(m5.map(k => k.close), ep), ad = I.adx(m5, 14)[n];
+    const MAN = (p.tr_ma === 'SMA' ? 'SMA' : 'EMA');
+    // Mode filters (11.11.2026): ADX on the trend TF at least tr_mode_adx for turn/cross; "saw" – at most tr_saw closes across the
+    // fast MA on the entry TF in the last 20 candles (price sawing around the line = no trend); freshness – the close at most
+    // tr_fresh ATR (trend TF) away from the trend MA, so the move has not already run. 0 = off.
+    const modeAdx = Number(p.tr_mode_adx) || 0, adxOk = () => !modeAdx || (ad && ad.adx >= modeAdx);
+    const efS = MA(c.map(k => k.close), Number(p.tr_ema) || 20);
+    const sawOk = () => { const mx = Number(p.tr_saw) || 0; if (!mx) return true; let k = 0;
+      for (let j = i - 19; j <= i; j++) if (j > 0 && efS[j] != null && efS[j - 1] != null && Math.sign(c[j].close - efS[j]) !== Math.sign(c[j - 1].close - efS[j - 1])) k++;
+      return k <= mx; };
+    const atr5 = I.atr(m5, 14)[n];
+    const freshOk = () => { const f = Number(p.tr_fresh) || 0; return !f || !(atr5 > 0) || e5[n] == null || Math.abs(m5[n].close - e5[n]) <= f * atr5; };
     // EMA turn (user 09.11.2026: "signal when EMA 50 turns up", early, no other rules): on the closed M5 candle the EMA moves
     // up (down) after it moved down (flat/up) on the candle before. One signal per pair per M5 candle.
     // Confirmation on the strategy's own timeframe (user 09.11.2026: CALL came when S15 had already turned down): close on the
     // trend side of the fast EMA, that EMA moving the same way over 2 candles, and not the last 2 candles both against the trend.
-    const ef0 = x.ema(Number(p.tr_ema) || 20);
+    const ef0 = efS;
     const conf = dd => { if (p.tr_confirm === false) return true; const e = ef0; if (e[i] == null || e[i - 2] == null) return false;
       if ((c[i].close - e[i]) * dd <= 0 || (e[i] - e[i - 2]) * dd <= 0) return false;
       return !(I.dirOf(c[i]) === -dd && I.dirOf(c[i - 1]) === -dd); };
@@ -959,7 +998,7 @@ const S = {
     // least tr_cross_vol × the range of the last 100 (0 = off). One signal per candle. No S15 confirmation needed (the cross is it).
     if (p.tr_cross) {
       const onM5 = p.tr_cross_tf === 'M5', src = onM5 ? m5 : c, j = onM5 ? n : i;
-      const cl = src.map(q => q.close), f = I.ema(cl, Number(p.tr_ema) || 20), s = I.ema(cl, ep);
+      const cl = src.map(q => q.close), f = MA(cl, Number(p.tr_ema) || 20), s = MA(cl, ep);
       if (f[j] != null && s[j] != null && f[j - 1] != null && s[j - 1] != null) {
         const dx = Math.sign(f[j] - s[j]), d0 = Math.sign(f[j - 1] - s[j - 1]);
         const vmin = Number(p.tr_cross_vol) || 0;
@@ -973,17 +1012,17 @@ const S = {
           let other = false; for (let q = j - 30; q < j - 1; q++) if (q > 0 && f[q] != null && s[q] != null && f[q - 1] != null && s[q - 1] != null && Math.sign(f[q] - s[q]) !== Math.sign(f[q - 1] - s[q - 1])) other = true;
           calm = touch <= 2 && !other;
         }
-        if (dx && d0 && dx !== d0 && lively && calm && (dx > 0 ? p.tr_buy !== false : p.tr_sell !== false)) {
-          const tfn = onM5 ? 'M5' : 'S15';
-          return Object.assign(sig(dx, 75, L(`EMA ${Number(p.tr_ema) || 20} пересекла EMA ${ep} ${dx > 0 ? 'снизу вверх' : 'сверху вниз'} на ${tfn}`, `EMA ${Number(p.tr_ema) || 20} kreuzt EMA ${ep} ${dx > 0 ? 'nach oben' : 'nach unten'} auf ${tfn}`, `EMA ${Number(p.tr_ema) || 20} crossed EMA ${ep} ${dx > 0 ? 'upwards' : 'downwards'} on ${tfn}`)), { noFlip: true, bar: src[j].time });
+        if (dx && d0 && dx !== d0 && lively && calm && adxOk() && sawOk() && (dx > 0 ? p.tr_buy !== false : p.tr_sell !== false)) {
+          const tfn = onM5 ? TF : 'S15'; // 'M5' choice = the trend timeframe (tr_tf)
+          return Object.assign(sig(dx, 75, L(`${MAN} ${Number(p.tr_ema) || 20} пересекла ${MAN} ${ep} ${dx > 0 ? 'снизу вверх' : 'сверху вниз'} на ${tfn}`, `${MAN} ${Number(p.tr_ema) || 20} kreuzt ${MAN} ${ep} ${dx > 0 ? 'nach oben' : 'nach unten'} auf ${tfn}`, `${MAN} ${Number(p.tr_ema) || 20} crossed ${MAN} ${ep} ${dx > 0 ? 'upwards' : 'downwards'} on ${tfn}`)), { noFlip: true, bar: src[j].time });
         }
       }
     }
     // With tr_turn and no turn on this M5 candle the other modes still run (before, tr_turn blocked tr_nopull).
     const s1t = e5[n] != null && e5[n - 2] != null ? Math.sign(e5[n] - e5[n - 1]) : 0, s0t = s1t ? Math.sign(e5[n - 1] - e5[n - 2]) : 0;
-    if (p.tr_turn && s1t && s1t !== s0t && (s1t > 0 ? p.tr_buy !== false : p.tr_sell !== false) && conf(s1t)) {
+    if (p.tr_turn && s1t && s1t !== s0t && (s1t > 0 ? p.tr_buy !== false : p.tr_sell !== false) && conf(s1t) && adxOk() && sawOk() && freshOk()) {
       const s1 = s1t;
-      return Object.assign(sig(s1, 75, L(`EMA ${ep} на M5 повернула ${s1 > 0 ? 'вверх' : 'вниз'} — возможное начало тренда`, `EMA ${ep} auf M5 dreht ${s1 > 0 ? 'nach oben' : 'nach unten'} – möglicher Trendbeginn`, `EMA ${ep} on M5 turned ${s1 > 0 ? 'up' : 'down'} – possible trend start`)), { noFlip: true, bar: m5[n].time });
+      return Object.assign(sig(s1, 75, L(`${MAN} ${ep} на ${TF} повернула ${s1 > 0 ? 'вверх' : 'вниз'} — возможное начало тренда`, `${MAN} ${ep} auf ${TF} dreht ${s1 > 0 ? 'nach oben' : 'nach unten'} – möglicher Trendbeginn`, `${MAN} ${ep} on ${TF} turned ${s1 > 0 ? 'up' : 'down'} – possible trend start`)), { noFlip: true, bar: m5[n].time });
     }
     if (e5[n] == null || e5[n - 3] == null || !ad) return null;
     const d = e5[n] > e5[n - 3] ? 1 : e5[n] < e5[n - 3] ? -1 : 0; if (!d) return null;
@@ -1008,15 +1047,16 @@ const S = {
       const ad5 = I.adx(m5, 14), base = j => e5[j] != null && e5[j - 3] != null && ad5[j] && Math.sign(e5[j] - e5[j - 3]) === d
         && (m5[j].close - e5[j]) * d > 0 && ad5[j].adx >= (Number(p.tr_adx) || 0) && (ad5[j].pdi - ad5[j].mdi) * d > 0;
       let run = 0; for (let j = n - 1; j >= 3 && base(j); j--) run++;
-      if (run % 6 !== 0 || !conf(d)) return null;
+      if (run % 6 !== 0 || !conf(d) || !sawOk() || !freshOk()) return null;
       const slope = Math.abs(e5[n] - e5[n - 3]) / (I.atr(m5, 14)[n] || 1);
       const str = Math.min(99, Math.round(60 + ad.adx * 0.6 + slope * 10));
-      return Object.assign(sig(d, str, L(`тренд M5 ${d > 0 ? 'вверх' : 'вниз'}, ADX ${ad.adx.toFixed(0)} — ищите откат для входа`, `M5-Trend ${d > 0 ? 'aufwärts' : 'abwärts'}, ADX ${ad.adx.toFixed(0)} – Rücklauf für den Einstieg suchen`, `M5 trend ${d > 0 ? 'up' : 'down'}, ADX ${ad.adx.toFixed(0)} – look for a pullback to enter`)), { noFlip: true, bar: m5[n].time });
+      return Object.assign(sig(d, str, L(`тренд ${TF} ${d > 0 ? 'вверх' : 'вниз'}, ADX ${ad.adx.toFixed(0)} — ищите откат для входа`, `${TF}-Trend ${d > 0 ? 'aufwärts' : 'abwärts'}, ADX ${ad.adx.toFixed(0)} – Rücklauf für den Einstieg suchen`, `${TF} trend ${d > 0 ? 'up' : 'down'}, ADX ${ad.adx.toFixed(0)} – look for a pullback to enter`)), { noFlip: true, bar: m5[n].time });
     }
     // The basic pullback entry runs only when no mode switch is on (user 09.11.2026: only "cross" was on, yet a pullback
     // signal came from this basic mode).
     if (p.tr_cross || p.tr_turn || p.tr_nopull) return null;
-    const ef = x.ema(Number(p.tr_ema) || 20), k = c[i], pv = c[i - 1];
+    if (!sawOk()) return null;
+    const ef = efS, k = c[i], pv = c[i - 1];
     if (ef[i] == null || (k.close - k.open) * d <= 0) return null;
     if ((k.close - ef[i]) * d <= 0 || (k.close - (d > 0 ? pv.high : pv.low)) * d <= 0) return null;
     if ((k.close - ef[i]) * d > (Number(p.tr_ext) || 1.5) * atr) return null;
@@ -1026,6 +1066,46 @@ const S = {
     let against = false; for (let j = touch; j < i; j++) { const dj = I.dirOf(c[j]); if (dj === -d) against = true; if (j > touch && dj === d) return null; } // first candle with the trend after the touch
     if (!against) return null;
     return Object.assign(sig(d, 75, L(`тренд M5 ${d > 0 ? 'вверх' : 'вниз'} (ADX ${ad.adx.toFixed(0)}), откат к EMA ${Number(p.tr_ema) || 20} закончился`, `M5-Trend ${d > 0 ? 'aufwärts' : 'abwärts'} (ADX ${ad.adx.toFixed(0)}), Rücklauf zur EMA ${Number(p.tr_ema) || 20} beendet`, `M5 trend ${d > 0 ? 'up' : 'down'} (ADX ${ad.adx.toFixed(0)}), pullback to EMA ${Number(p.tr_ema) || 20} over`)), { noFlip: true });
+  },
+  // 🧪 5 s before the close (11.11.2026): the forming candle already has a body of pc_atr × ATR with little pullback; entry = next candle.
+  n_preclose(x, p) {
+    const c = x.c, i = x.last, k = c[i], tf = (c[i].time - c[i - 1].time) || 60, now = Date.now() / 1000, left = k.time + tf - now;
+    if (left <= 0 || left > (Number(p.pc_sec) || 5)) return null;
+    const atr = x.atr[i - 1]; if (!(atr > 0)) return null;
+    const mv = k.close - k.open, d = Math.sign(mv); if (!d || Math.abs(mv) < (Number(p.pc_atr) || 0.8) * atr) return null;
+    const ext = d > 0 ? k.high : k.low, run = Math.abs(ext - k.open), back = Math.abs(ext - k.close);
+    if (run > 0 && back / run * 100 > (Number(p.pc_back) || 30)) return null;
+    return Object.assign(sig(d, 75, L(`⏰ за ${Math.round(left)} с до закрытия свеча прошла ${(Math.abs(mv) / atr).toFixed(1)} ATR ${d > 0 ? 'вверх' : 'вниз'} — вход на следующую`, `⏰ ${Math.round(left)} s vor Schluss ${(Math.abs(mv) / atr).toFixed(1)} ATR ${d > 0 ? 'nach oben' : 'nach unten'} – Einstieg in die nächste`, `⏰ ${Math.round(left)} s before the close the candle moved ${(Math.abs(mv) / atr).toFixed(1)} ATR ${d > 0 ? 'up' : 'down'} – entry into the next`)), { entry: k.time + tf, bar: k.time, noFlip: true });
+  },
+  // 🧪 Fractal breakout (11.11.2026): first close beyond the latest confirmed fractal; early = inside the forming candle.
+  n_fractal(x, p) {
+    const c = x.c, i = x.last, atr = x.atr[i] || x.atr[i - 1]; if (!(atr > 0) || i < 10) return null;
+    const tf = (c[i].time - c[i - 1].time) || 60, forming = c[i].time + tf > Date.now() / 1000;
+    if (forming && !p.fr_early) return null;
+    const look = Math.max(6, Number(p.fr_lookback) || 30), fr = I.fractals(c.slice(Math.max(0, i - look), i)), base = Math.max(0, i - look);
+    const hi = fr.filter(q => q.type === 'high').pop(), lo = fr.filter(q => q.type === 'low').pop();
+    const k = c[i], far = (Number(p.fr_far) || 0) * atr;
+    for (const [q, d] of [[hi, 1], [lo, -1]]) {
+      if (!q) continue;
+      const lvl = q.price, at = base + q.i;
+      let before = false; for (let j = at + 1; j < i; j++) if ((c[j].close - lvl) * d > 0) before = true; // already broken earlier
+      if (before || (k.close - lvl) * d <= 0) continue;
+      if (far && (k.close - lvl) * d > far) continue;
+      return Object.assign(sig(d, 75, L(`${forming ? '⏰ ' : ''}пробой фрактала ${d > 0 ? 'вверх' : 'вниз'}${forming ? ' (рано, внутри свечи)' : ''}`, `${forming ? '⏰ ' : ''}Fraktal-Ausbruch ${d > 0 ? 'nach oben' : 'nach unten'}${forming ? ' (früh, in der Kerze)' : ''}`, `${forming ? '⏰ ' : ''}fractal breakout ${d > 0 ? 'up' : 'down'}${forming ? ' (early, inside the candle)' : ''}`)), { noFlip: true, bar: k.time, ...(forming ? { entry: Math.floor(Date.now() / 1000) } : {}) });
+    }
+    return null;
+  },
+  // Market (11.11.2026): close crosses the chosen MA, the MA slope agrees, the close is still near the line (fresh).
+  n_market(x, p) {
+    const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0)) return null;
+    const per = Number(p.rk_period) || 50, cl = c.map(k => k.close), m = p.rk_ma === 'SMA' ? I.sma(cl, per) : I.ema(cl, per);
+    const sb = Math.max(1, Number(p.rk_slope) || 3);
+    if (m[i] == null || m[i - 1] == null || m[i - sb] == null) return null;
+    const d = Math.sign(c[i].close - m[i]); if (!d || Math.sign(c[i - 1].close - m[i - 1]) === d) return null;
+    if ((m[i] - m[i - sb]) * d <= 0) return null;
+    const fresh = Number(p.rk_fresh) || 0; if (fresh && Math.abs(c[i].close - m[i]) > fresh * atr) return null;
+    const nm = (p.rk_ma === 'SMA' ? 'SMA ' : 'EMA ') + per;
+    return Object.assign(sig(d, 75, L(`цена пересекла ${nm} ${d > 0 ? 'снизу вверх' : 'сверху вниз'}, линия идёт ${d > 0 ? 'вверх' : 'вниз'}`, `Preis kreuzt ${nm} ${d > 0 ? 'nach oben' : 'nach unten'}, Linie läuft ${d > 0 ? 'aufwärts' : 'abwärts'}`, `price crossed ${nm} ${d > 0 ? 'upwards' : 'downwards'}, line heading ${d > 0 ? 'up' : 'down'}`)), { noFlip: true });
   },
   n_serrev(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
@@ -1196,6 +1276,20 @@ const addText = (reason, extra) => (reason && typeof reason === 'object'
   ? { ru: (reason.ru || '') + extra.ru, de: (reason.de || '') + extra.de, en: (reason.en || '') + extra.en }
   : String(reason || '') + extra.de);
 
+// "Why (last hour)" (11.11.2026): per strategy how many signals were found and where the filters dropped them.
+const WHY = {}, WHY_SEEN = new Map();
+function whyAdd(name, key, field) {
+  if (key) { const k = name + '|' + key + '|' + field; if (WHY_SEEN.has(k)) return; WHY_SEEN.set(k, Date.now()); if (WHY_SEEN.size > 5000) { const lim = Date.now() - 3600e3; for (const [a, b] of WHY_SEEN) if (b < lim) WHY_SEEN.delete(a); } }
+  const m = Math.floor(Date.now() / 60000), list = (WHY[name] = WHY[name] || []);
+  let b = list[list.length - 1]; if (!b || b.m !== m) { b = { m, n: {} }; list.push(b); while (list.length && list[0].m < m - 60) list.shift(); }
+  b.n[field] = (b.n[field] || 0) + 1;
+}
+function whyHour() {
+  const m = Math.floor(Date.now() / 60000), out = {};
+  for (const [name, list] of Object.entries(WHY)) { const s = {}; for (const b of list) if (b.m >= m - 60) for (const [k, v] of Object.entries(b.n)) s[k] = (s[k] || 0) + v; out[name] = s; }
+  return out;
+}
+
 // candlesByTf: { M1: [...], M2: [...] }; tfs: per-strategy timeframe lists.
 function evaluate(candlesByTf, enabled, settings) {
   const out = [], ctxs = {};
@@ -1210,19 +1304,24 @@ function evaluate(candlesByTf, enabled, settings) {
       const c = candlesByTf[tf]; if (!c || c.length < 60) continue;
       const x = (ctxs[tf] ??= ctx(c)); x.tfMin = parseInt(tf.slice(1), 10) || 1;
       x.ctx = candlesByTf.ctx; x.otc = !!candlesByTf.otc; // higher timeframes from their own history (M5/M15), for multi-timeframe strategies
-      let s = null, p = base, pr = null;
+      let s = null, p = base, pr = null, wkey = '', wfound = false, wlast = '';
       for (const set of sets) {
         x.logOn = set === sets[0]; // with several profiles the log follows the first one
         let r; try { r = fn(x, set.p); } catch { r = null; }
-        if (r && r.dir && passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
+        if (r && r.dir) {
+          wkey = `${candlesByTf.asset || '?'}|${tf}|${c[c.length - 1].time}|${r.bar || ''}|${r.dir}`;
+          if (set === sets[0] || !wfound) { whyAdd(name, wkey, 'found'); wfound = true; }
+          if (passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
+          wlast = 'filters';
+        }
       }
-      if (!s) continue;
+      if (!s) { if (wlast) whyAdd(name, wkey, wlast); continue; }
       // Market regime (I.regime): shown on the card; with regime_filter trend strategies only in TREND,
       // reversal strategies only in RANGE, nothing in CHAOS.
       if (x.rg === undefined) x.rg = I.regime(c, c.length - 1, settings);
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
-      if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) continue;
+      if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
       // General market strictness for all strategies and pairs (mkt_level 0–3, user 08.11.2026): weak markets are skipped.
       // ATR now / the pair's average ATR in the window, ADX, and a big candle among the last 10 (× average range).
       const ML = MKT_LEVELS[Number(settings.mkt_level) || 0];
@@ -1234,7 +1333,7 @@ function evaluate(candlesByTf, enabled, settings) {
           for (let j = n - 9; j <= n; j++) big = Math.max(big, c[j].high - c[j].low);
           x.mkt = { atr: cnt && a[n] > 0 ? a[n] / (sum / cnt) : 0, adx: ad ? ad.adx : 0, big: rg > 0 ? big / rg : 0 };
         }
-        const m = x.mkt; if (m.atr < ML.atr || m.adx < ML.adx || m.big < ML.big) continue;
+        const m = x.mkt; if (m.atr < ML.atr || m.adx < ML.adx || m.big < ML.big) { whyAdd(name, wkey, 'mkt'); continue; }
       }
       // Small candles (rg_vol, 0 = off): average size of the last 5 candles / average of the pair's other candles on this timeframe.
       const minVol = Number(settings.rg_vol ?? 0.7);
@@ -1244,14 +1343,14 @@ function evaluate(candlesByTf, enabled, settings) {
           const a5 = c.slice(n5).reduce((t, k) => t + sz(k), 0) / 5, rest = c.slice(0, n5).reduce((t, k) => t + sz(k), 0) / n5;
           x.volRatio = rest > 0 ? a5 / rest : null;
         }
-        if (x.volRatio !== null && x.volRatio < minVol) continue;
+        if (x.volRatio !== null && x.volRatio < minVol) { whyAdd(name, wkey, 'small'); continue; }
       }
       // regime_mode: off | auto (by strategy type) | trend (only in TREND) | range (only in RANGE, ADX below rg_range_adx).
       const rm = settings.regime_mode || (settings.regime_filter ? 'auto' : 'off');
       if (x.rg && rm !== 'off') {
         const want = rm === 'auto' ? (META[name][1] === 'trend' ? 'TREND' : 'RANGE') : rm.toUpperCase();
-        if (x.rg.regime !== want) continue;
-        if (want === 'RANGE' && x.rg.adx >= (Number(settings.rg_range_adx) || 25)) continue;
+        if (x.rg.regime !== want) { whyAdd(name, wkey, 'regime'); continue; }
+        if (want === 'RANGE' && x.rg.adx >= (Number(settings.rg_range_adx) || 25)) { whyAdd(name, wkey, 'regime'); continue; }
       }
       if (x.rg) s.regime = x.rg.regime;
       if (pr && chosen.length > 1) { s.reason = addText(s.reason, L(` · ${pr.name.ru}`, ` · ${pr.name.de}`, ` · ${pr.name.en}`)); if (!s.model) s.model = pr.name.ru; }
@@ -1267,7 +1366,8 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       const n = parseInt(tf.slice(1), 10) || 1, tfSec = tf[0] === 'S' ? n : n * 60; // S10 = 10 s, M5 = 300 s
       let expiry = s.expiry || p.expiry; if (!expiry || expiry === 'auto') expiry = tfSec;
-      out.push({ ...s, strategy: name, tf, mode, expiry: Number(expiry), strength: clamp(s.strength) });
+      whyAdd(name, wkey, 'passed');
+      out.push({ ...s, strategy: name, tf, mode, expiry: Number(expiry), strength: clamp(s.strength), whyKey: wkey });
     }
   }
   return out;
@@ -1375,6 +1475,6 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market'];
 
-module.exports = { evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
+module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
