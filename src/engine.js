@@ -89,12 +89,28 @@ class Engine extends EventEmitter {
     // 13.11.2026 Strategy Lab: the 10 lab strategies + pin bar/Stochastic switched on once; manual mode, demo account.
     if (!this.settings.lab_1311) {
       const s = this.settings;
-      s.strategies = [...new Set([...KEEP, ...Object.keys(LAB.STRAT)])];
-      s.strat_tfs = { ...s.strat_tfs }; for (const k of Object.keys(LAB.STRAT)) s.strat_tfs[k] = ['M1'];
+      const st1 = LAB.CATALOG.filter(c => ['impulse', 'range', 'fractal', 'trap', 'overheat'].includes(c.impl)).map(c => c.id);
+      s.strategies = [...new Set([...KEEP, ...st1])];
+      s.strat_tfs = { ...s.strat_tfs }; for (const k of st1) s.strat_tfs[k] = ['M1'];
       s.trade_mode = 'SIGNAL_ONLY'; s.account = s.account || 'DEMO'; s.lab_1311 = true;
       writeJson(this.settingsFile, s);
     }
+    // 13.11.2026 stage 2: the 18 further lab strategies switched on once, except the ones hardly tradable by hand
+    // (Ludo 15 s, Fun 5 s, Volatility 25 s, Candle Bot at the minute's end); second-candle ones run on S5.
+    if (!this.settings.lab2_1311) {
+      const s = this.settings, risky = ['ludo', 'fun5s', 'volatility', 'candle_bot'];
+      const fresh = LAB.CATALOG.filter(c => c.impl && !['impulse', 'range', 'fractal', 'trap', 'overheat'].includes(c.impl));
+      s.strategies = [...new Set([...(s.strategies || []), ...fresh.filter(c => !risky.includes(c.impl)).map(c => c.id)])];
+      s.strat_tfs = { ...s.strat_tfs }; for (const c of fresh) s.strat_tfs[c.id] = [LAB.SECOND_TF[c.impl] || 'M1'];
+      s.lab2_1311 = true; writeJson(this.settingsFile, s);
+    }
     if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n] && !HIDDEN.includes(n));
+    // 13.11.2026: Settings → Strategies lists only favourites; at first every working strategy is a favourite (user:
+    // the list was empty after the update). Unstarring later stays.
+    if (!this.settings.fav_all_1311) {
+      this.settings.favorite_strategies = [...new Set([...(this.settings.favorite_strategies || []), ...strategies.list.filter(k => !HIDDEN.includes(k))])];
+      this.settings.fav_all_1311 = true; writeJson(this.settingsFile, this.settings);
+    }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
     this.paramLog = readJson(this.paramLogFile, []); // who, when, what: old → new (parameters and mode/account switches)
@@ -491,7 +507,7 @@ class Engine extends EventEmitter {
     const cx = { ...(this.ctxCandles.get(h.asset) || {}), M1: this.candles.get(h.asset) };
     const a = this.assets.get(h.asset);
     for (const sig of strategies.evaluate({ [tf]: closed, ctx: cx, otc: !!(a && a.otc), asset: h.asset }, this.enabledStrategies(), this.settings)) {
-      if (sig.strength < (this.settings.min_strength || 0)) continue;
+      if (!sig.lab && sig.strength < (this.settings.min_strength || 0)) continue;
       if (!this._ownTrendLogic(sig) && this._againstTrend(h.asset, sig.dir)) continue;
       this.scanSignals.push({ ...sig, asset: h.asset, candle: closed[closed.length - 1], entry });
     }

@@ -162,7 +162,7 @@
           ${c.impl ? wrBlock(c.id, 80) : ''}
           ${c.impl ? `<h4>${t('bt_title')}</h4>${c.backtest ? ['is', 'oos'].map(k => { const b = c.backtest[k], v = verdict(b, 80); return `<p class="hint">${k === 'is' ? 'In-sample' : 'Out-of-sample'}: <span class="num v-${v.v}">${pct(b.w / b.n)} %</span> n = ${b.n}${v.ci ? ' · ' + t('wr_ci', { lo: pct(v.ci.lo), hi: pct(v.ci.hi), be: pct(v.be) }) : ''} · ${t('v_' + v.v)}</p>`; }).join('') + `<p class="hint">${esc(c.backtest.date)} · ${esc(c.backtest.data)}</p>` : `<p class="hint">${t('bt_none')}</p>`}` : ''}
           <h4>${t('cat_stages')}</h4><ol>${c.stages.map(x => `<li>${esc(tr(x))}</li>`).join('')}</ol>
-          ${c.params ? `<h4>${t('cat_params')}</h4><div class="params">${Object.entries(c.params).map(([k, v]) => `<label class="row"><span>${esc(tr(((state.settings.allStrategies.find(a => a.key === c.id) || {}).labels || {})[k]) || k)}</span><input type="number" step="any" data-labp="${c.id}" data-k="${esc(k)}" value="${esc(v)}"></label>`).join('')}</div>` : ''}
+          ${c.params ? `<h4>${t('cat_params')}</h4><div class="params">${Object.entries(c.params).map(([k, v]) => `<label class="row"><span>${esc(tr(((state.settings.allStrategies.find(a => a.key === c.id) || {}).labels || {})[k]) || k)}</span>${typeof v === 'boolean' ? `<input type="checkbox" class="sw" data-labp="${c.id}" data-k="${esc(k)}" ${v ? 'checked' : ''}>` : `<input type="number" step="any" data-labp="${c.id}" data-k="${esc(k)}" value="${esc(v)}">`}</label>`).join('')}</div>` : ''}
           <p class="hint">${t('cat_note_wr')}</p></div>` : ''}</div>`;
     };
     const legacyHtml = legacy.map(s => `<div class="catitem"><div class="cathead">${favBtn(s.key)}<div class="catname"><b>${esc(tr(s.names))}</b><small>${esc(s.key)}</small></div>
@@ -280,6 +280,7 @@
       const list = new Set(state.settings.strategies || []); el.checked ? list.add(el.dataset.caton) : list.delete(el.dataset.caton);
       state.settings.strategies = [...list]; call({ action: 'settings', patch: { strategies: [...list] } });
     } else if (el.dataset.risk) { const v = Number(el.value); if (isFinite(v)) call({ action: 'settings', patch: { [el.dataset.risk]: v } }); }
+    else if (el.dataset.labp && el.type === 'checkbox') call({ action: 'strategy', name: el.dataset.labp, patch: { [el.dataset.k]: el.checked } });
     else if (el.dataset.labp) { const v = Number(el.value); if (isFinite(v)) call({ action: 'strategy', name: el.dataset.labp, patch: { [el.dataset.k]: v } }); }
     else if (el.dataset.lfsel) { F[el.dataset.lfsel] = el.value; saveF(); $('#live').dataset.key = ''; renderLive(); }
     else if (el.dataset.notify) {

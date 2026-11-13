@@ -69,26 +69,76 @@ for (const s of CATALOG) if (s.impl) s.status = 'BACKTEST';
 // Last backtest (13.11.2026): 12 regular forex pairs, last 20 000 M1 candles each (~14 days), entry at the next open,
 // payout 80 %, in-sample = first 70 %, out-of-sample = last 30 %. OTC variants ran on the same forex data (no OTC history).
 const BACKTEST = {
-  impulse_bot_forex: [1926, 976, 751, 365], range_bot_forex: [36, 17, 19, 11], fractal_bot_forex: [420, 193, 196, 98], overheat_bot_forex: [161, 76, 81, 42],
-  impulse_bot_otc: [2080, 1057, 798, 383], range_bot_otc: [36, 17, 19, 11], fractal_bot_otc: [420, 193, 196, 98], trap_bot_otc: [5443, 2689, 2321, 1170], overheat_bot_otc: [204, 96, 102, 51],
+  impulse_bot_forex: [777, 397, 295, 136], range_bot_forex: [36, 17, 19, 11], fractal_bot_forex: [320, 145, 154, 73], overheat_bot_forex: [161, 76, 81, 42],
+  impulse_bot_otc: [844, 430, 316, 144], range_bot_otc: [36, 17, 19, 11], fractal_bot_otc: [320, 145, 154, 73], trap_bot_otc: [5443, 2689, 2321, 1170],
+  mini_vip_otc: [18125, 8972, 7709, 3793], mini_vip_forex: [18125, 8972, 7709, 3793], pro_bot_otc: [1783, 911, 798, 412], candle_bot_otc: [3881, 1921, 1718, 857], candle_bot_forex: [3881, 1921, 1718, 857], meanrev_bot_forex: [1016, 528, 430, 214],
+  scanner_bot_otc: [6394, 3165, 2700, 1334], smart_money_otc: [4749, 2384, 2253, 1095], smart_money_forex: [4749, 2384, 2253, 1095], smart_money_5m_otc: [2177, 1041, 932, 439], spring_bot_otc: [63, 37, 22, 7],
+  candle_pressure_otc: [871, 432, 390, 193], correction_bot_otc: [1661, 817, 712, 353], double_strike_otc: [6153, 3101, 2664, 1300], neuro_bot_otc: [31789, 15767, 13822, 6745], overheat_bot_otc: [204, 96, 102, 51],
 };
 for (const [id, [isN, isW, oosN, oosW]] of Object.entries(BACKTEST)) BY_ID_TMP(id).backtest = { date: '2026-11-13', data: '12 forex pairs × 20 000 M1', is: { n: isN, w: isW }, oos: { n: oosN, w: oosW } };
 function BY_ID_TMP(id) { return CATALOG.find(c => c.id === id); }
 
 // Default parameters (all "strong/narrow" words are numbers here; user changes go through the parameter journal).
 const PARAMS = {
-  impulse: { accel_range_atr: 1.5, min_directional_closes: 2, prev_range_atr: 1.0, max_opposite_wick_pct: 30, min_level_distance_atr: 0.5, exhaustion_streak: 5, rsi_hi: 85, rsi_lo: 15, forex_close_extreme_pct: 25 },
+  impulse: { accel_range_atr: 1.5, min_directional_closes: 2, prev_range_atr: 1.0, prev_same_dir: true, max_opposite_wick_pct: 30, min_level_distance_atr: 0.5, exhaustion_streak: 5, rsi_hi: 85, rsi_lo: 15, forex_close_extreme_pct: 25 },
   // 13.11.2026 user: stricter flat check (a PUT came at the top of a rising market: EMA slope 0.049 passed 0.05, 2 touches).
   range: { window: 30, touch_tol_atr: 0.15, min_touches: 3, width_min_atr: 2, width_max_atr: 6, max_slope_atr: 0.03, zone_pct: 15, break_body_atr: 0.8, rejection_wick_pct: 50 },
   fractal: { min_amp_atr: 0.3, level_tol_atr: 0.15, min_reactions: 2, room_atr: 1.0, break_atr: 0.2, lookback: 60 },
   trap: { lookback: 20, poke_min_atr: 0.1, poke_max_atr: 0.6, body_pct: 40 },
   overheat: { z_period: 20, z_level: 2.5, extreme_window: 20, wick_pct: 50, atr_pct_lo: 20, atr_pct_hi: 80, forex_adx: 30 },
 };
+Object.assign(PARAMS, {
+  mini_vip: { rsi_call: 55, rsi_put: 45, atr_pct_lo: 20, atr_pct_hi: 80, min_level_distance_atr: 0.5, body_pct: 50, max_opposite_wick_pct: 30, min_factors: 4, min_score: 70 },
+  pro_bot: { adx_min: 20, min_body_atr: 0.6, min_closes: 3, pullback_atr: 0.3, break_atr: 0.2 },
+  candle_bot: { sec_from: 45, sec_to: 50, min_closes: 3, max_opposite_wick_pct: 50, min_level_distance_atr: 0.5 },
+  meanrev: { adx_max: 20, atr_pct_lo: 20, atr_pct_hi: 80, bb_mult: 2, max_body_atr: 1, wick_pct: 50 },
+  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30 },
+  fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
+  volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
+  scanner: {},
+  smart_money: { fvg_atr: 0.3, ob_atr: 1.5, m5: false },
+  smart_money_5m: { fvg_atr: 0.3, ob_atr: 1.5, m5: true },
+  spring: { zone_atr: 1.2, spike_atr: 0.8, min_candles_zone: 5, break_body_atr: 1.2, max_opposite_wick_pct: 25 },
+  pressure: { window: 10, third_share: 0.7, min_sequence: 3, max_opposite_wick_pct: 30, dominance: 0.65 },
+  correction: { imp_atr: 3, min_reactions: 2, depth_min: 0.38, depth_max: 0.62 },
+  double_strike: { imp_atr: 2, max_retrace: 0.38 },
+  neuro: { threshold: 0.56 },
+});
+// EMA 20/50 confirmation on by default for the logics that follow the move; off for reversal / structure / micro ones.
+const MA_ON = ['impulse', 'fractal', 'pro_bot', 'candle_bot', 'spring', 'pressure', 'correction', 'double_strike'];
+for (const [k, p] of Object.entries(PARAMS)) Object.assign(p, { ma_filter: MA_ON.includes(k), ma_fast: 20, ma_slow: 50 });
+const EXPIRY_SEC = { impulse: 60, range: 60, fractal: 120, trap: 60, overheat: 60 };
+Object.assign(EXPIRY_SEC, { mini_vip: 60, pro_bot: 60, candle_bot: 60, meanrev: 120, ludo: 15, fun5s: 5, volatility: 25, scanner: 60, smart_money: 60, smart_money_5m: 300, spring: 60, pressure: 60, correction: 60, double_strike: 60, neuro: 60 });
+// Catalog id → parameter set (impl) and run logic (when they differ).
+const IMPL = { mini_vip_otc: 'mini_vip', mini_vip_forex: 'mini_vip', pro_bot_otc: 'pro_bot', candle_bot_otc: 'candle_bot', candle_bot_forex: 'candle_bot', meanrev_bot_forex: 'meanrev',
+  ludo_bot_otc: ['ludo', 'micro'], fun_bot_5s_otc: ['fun5s', 'micro'], volatility_bot_otc: 'volatility', scanner_bot_otc: 'scanner', smart_money_otc: 'smart_money', smart_money_forex: 'smart_money',
+  smart_money_5m_otc: ['smart_money_5m', 'smart_money'], spring_bot_otc: 'spring', candle_pressure_otc: 'pressure', correction_bot_otc: 'correction', double_strike_otc: 'double_strike', neuro_bot_otc: 'neuro' };
+for (const [id, v] of Object.entries(IMPL)) { const s = CATALOG.find(c => c.id === id); if (!s) continue; s.impl = Array.isArray(v) ? v[0] : v; if (Array.isArray(v)) s.logic = v[1]; s.status = 'BACKTEST'; }
+// Second-candle strategies run on S5 candles; the candle bot on the forming M1 candle.
+const SECOND_TF = { ludo: 'S5', fun5s: 'S5', volatility: 'S5' };
 // Readable parameter names for the settings (3 languages).
 const PARAM_LABELS = {
   expiry: L('Экспирация, с', 'Ablauf, s', 'Expiry, s'),
   accel_range_atr: L('Мин. диапазон свечи, ×ATR', 'Min. Kerzenspanne, ×ATR', 'Min candle range, ×ATR'),
   min_directional_closes: L('Мин. закрытий по направлению (из 3)', 'Min. Schlüsse in Richtung (von 3)', 'Min closes in direction (of 3)'),
+  rsi_call: L('RSI 14 для CALL выше', 'RSI 14 für CALL über', 'RSI 14 for CALL above'), rsi_put: L('RSI 14 для PUT ниже', 'RSI 14 für PUT unter', 'RSI 14 for PUT below'),
+  body_pct: L('Тело свечи от, %', 'Kerzenkörper ab, %', 'Candle body from, %'), min_factors: L('Мин. факторов «за» (из 5)', 'Min. Faktoren dafür (von 5)', 'Min factors for (of 5)'), min_score: L('Мин. score', 'Min. Score', 'Min score'),
+  adx_min: L('ADX тренда от', 'Trend-ADX ab', 'Trend ADX from'), min_body_atr: L('Среднее тело 5 свечей от, ×ATR', 'Mittl. Körper 5 Kerzen ab, ×ATR', 'Avg body of 5 candles from, ×ATR'),
+  min_closes: L('Мин. закрытий по направлению', 'Min. Schlüsse in Richtung', 'Min closes in direction'), pullback_atr: L('Откат к EMA 20 в пределах, ×ATR', 'Rücksetzer zur EMA 20 innerhalb, ×ATR', 'Pullback to EMA 20 within, ×ATR'),
+  sec_from: L('Сигнал с секунды минуты', 'Signal ab Sekunde', 'Signal from second'), sec_to: L('Сигнал до секунды минуты', 'Signal bis Sekunde', 'Signal up to second'),
+  adx_max: L('ADX флэта ниже', 'Seitwärts-ADX unter', 'Flat ADX below'), bb_mult: L('Боллинджер: ширина (σ)', 'Bollinger: Breite (σ)', 'Bollinger width (σ)'), max_body_atr: L('Тело последней свечи меньше, ×ATR', 'Körper letzte Kerze unter, ×ATR', 'Last body below, ×ATR'),
+  max_chaos: L('Макс. доля разворотов (хаос)', 'Max. Anteil Wechsel (Chaos)', 'Max share of reversals (chaos)'), min_series: L('Мин. серия в одну сторону', 'Min. Serie in eine Richtung', 'Min series one way'), min_candles: L('Мин. свечей истории', 'Min. Kerzen Historie', 'Min candles of history'),
+  squeeze: L('Сжатие: ATR 5 / ATR 50 ниже', 'Kompression: ATR 5 / ATR 50 unter', 'Squeeze: ATR 5 / ATR 50 below'), min_squeeze: L('Сжатие не меньше, свечей', 'Kompression mindestens, Kerzen', 'Squeeze at least, candles'),
+  expansion_atr: L('Расширение от, ×ATR 50', 'Ausdehnung ab, ×ATR 50', 'Expansion from, ×ATR 50'), max_expansion: L('Истощение после, свечей', 'Erschöpfung nach, Kerzen', 'Exhaustion after, candles'),
+  fvg_atr: L('FVG от, ×ATR', 'FVG ab, ×ATR', 'FVG from, ×ATR'), ob_atr: L('Импульс после Order Block от, ×ATR', 'Impuls nach Order Block ab, ×ATR', 'Impulse after order block from, ×ATR'), m5: L('Анализ на 5M', 'Analyse auf 5M', 'Analysis on 5M'),
+  zone_atr: L('Зона сжатия не шире, ×ATR 50', 'Kompressionszone höchstens, ×ATR 50', 'Squeeze zone at most, ×ATR 50'), spike_atr: L('Без выбросов больше, ×ATR 50', 'Ohne Ausreißer über, ×ATR 50', 'No spikes above, ×ATR 50'),
+  min_candles_zone: L('Мин. свечей в зоне', 'Min. Kerzen in der Zone', 'Min candles in the zone'), third_share: L('Доля закрытий в крайней трети', 'Anteil Schlüsse im äußeren Drittel', 'Share of closes in the outer third'),
+  min_sequence: L('Мин. HH/HL подряд', 'Min. HH/HL in Folge', 'Min HH/HL in a row'), dominance: L('Перевес свечей от', 'Kerzen-Übergewicht ab', 'Candle dominance from'),
+  imp_atr: L('Импульс от, ×ATR', 'Impuls ab, ×ATR', 'Impulse from, ×ATR'), depth_min: L('Откат от (доля импульса)', 'Rücksetzer ab (Anteil)', 'Pullback from (share)'), depth_max: L('Откат до (доля импульса)', 'Rücksetzer bis (Anteil)', 'Pullback up to (share)'),
+  max_retrace: L('Пауза: откат не больше (доля)', 'Pause: Rücksetzer höchstens (Anteil)', 'Pause: pullback at most (share)'), threshold: L('Порог уверенности модели', 'Modell-Schwelle', 'Model threshold'),
+  ma_filter: L('Подтверждение скользящими EMA 20/50', 'Bestätigung durch EMA 20/50', 'Confirmation by EMA 20/50'),
+  ma_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'), ma_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
+  prev_same_dir: L('Прошлая свеча того же цвета', 'Vorkerze gleiche Farbe', 'Previous candle same colour'),
   prev_range_atr: L('Прошлая свеча не меньше, ×ATR', 'Vorkerze mindestens, ×ATR', 'Previous candle at least, ×ATR'),
   max_opposite_wick_pct: L('Макс. противоположная тень, %', 'Max. Gegendocht, %', 'Max opposite wick, %'),
   min_level_distance_atr: L('Мин. расстояние до уровня, ×ATR', 'Min. Abstand zum Level, ×ATR', 'Min distance to level, ×ATR'),
@@ -113,7 +163,6 @@ const PARAM_LABELS = {
   forex_adx: L('FOREX: не против тренда при ADX выше', 'FOREX: nicht gegen Trend bei ADX über', 'FOREX: not against trend at ADX above'),
 };
 const COMMON = { cooldown_candles: 2, daily_signal_limit: 20 };
-const EXPIRY_SEC = { impulse: 60, range: 60, fractal: 120, trap: 60, overheat: 60 };
 
 // ---------- reason / reject texts (3 languages, numbers filled in) ----------
 const T = {
@@ -124,6 +173,66 @@ const T = {
   price_acceleration: v => L(`диапазон свечи ${v.r}×ATR`, `Kerzenspanne ${v.r}×ATR`, `candle range ${v.r}×ATR`),
   closes_not_aligned: v => L(`по направлению ${v.k} из 3 закрытий`, `${v.k} von 3 Schlüssen in Richtung`, `${v.k} of 3 closes in direction`),
   momentum_confirmed: v => L(`${v.k} из 3 закрытий по направлению`, `${v.k} von 3 Schlüssen in Richtung`, `${v.k} of 3 closes in direction`),
+  factors_weak: v => L(`факторов «за» ${v.n} (цена или RSI не по направлению EMA)`, `${v.n} Faktoren dafür (Preis oder RSI nicht mit der EMA)`, `${v.n} factors for (price or RSI not with the EMA)`),
+  factors: v => L(`факторов «за» ${v.n} из 5`, `${v.n} von 5 Faktoren dafür`, `${v.n} of 5 factors for`),
+  candle_weak: v => L(`свеча слабая: тело ${v.b} %, тень ${v.w} %`, `Kerze schwach: Körper ${v.b} %, Docht ${v.w} %`, `weak candle: body ${v.b} %, wick ${v.w} %`),
+  candle_ok: v => L(`свеча: тело ${v.b} %, тень ${v.w} %`, `Kerze: Körper ${v.b} %, Docht ${v.w} %`, `candle: body ${v.b} %, wick ${v.w} %`),
+  agreement_low: v => L(`согласование слабое: ${v.n} из 5, score ${v.s}`, `Abgleich schwach: ${v.n} von 5, Score ${v.s}`, `weak agreement: ${v.n} of 5, score ${v.s}`),
+  agreement: v => L(`согласование ${v.n} из 5, score ${v.s}`, `Abgleich ${v.n} von 5, Score ${v.s}`, `agreement ${v.n} of 5, score ${v.s}`),
+  no_trend_m5: v => L(`нет тренда на 5M (ADX ${v.a})`, `kein Trend auf 5M (ADX ${v.a})`, `no 5M trend (ADX ${v.a})`),
+  trend_m5: v => L(`тренд 5M ${v.d}, ADX ${v.a}`, `Trend 5M ${v.d}, ADX ${v.a}`, `5M trend ${v.d}, ADX ${v.a}`),
+  weak_force: v => L(`движение слабое: тело ${v.b}×ATR, закрытий ${v.n} из 5`, `Bewegung schwach: Körper ${v.b}×ATR, ${v.n} von 5 Schlüssen`, `weak move: body ${v.b}×ATR, ${v.n} of 5 closes`),
+  force: v => L(`сила: тело ${v.b}×ATR, ${v.n} из 5 закрытий`, `Kraft: Körper ${v.b}×ATR, ${v.n} von 5 Schlüssen`, `force: body ${v.b}×ATR, ${v.n} of 5 closes`),
+  entry_weak: () => L('нет качественной точки входа', 'kein guter Einstiegspunkt', 'no good entry point'),
+  pullback_entry: () => L('откат к EMA 20, закрытие в крайней трети', 'Rücksetzer zur EMA 20, Schluss im äußeren Drittel', 'pullback to EMA 20, close in the outer third'),
+  break_entry: () => L('пробой уровня 20 свечей', 'Ausbruch über das 20-Kerzen-Level', 'breakout of the 20-candle level'),
+  not_in_window: v => L(`не время: ${v.s} с от начала минуты`, `nicht die Zeit: ${v.s} s nach Minutenbeginn`, `not the time: ${v.s} s into the minute`),
+  no_pressure: v => L(`нет давления (${v.n})`, `kein Druck (${v.n})`, `no pressure (${v.n})`),
+  pressure: v => L(`давление: ${v.n}`, `Druck: ${v.n}`, `pressure: ${v.n}`),
+  structure_changed: () => L('структура изменилась до открытия', 'Struktur vor der Eröffnung geändert', 'structure changed before the open'),
+  new_candle: () => L('новая свеча продолжает', 'neue Kerze setzt fort', 'new candle continues'),
+  not_flat: v => L(`не флэт (ADX ${v.a})`, `kein Seitwärtsmarkt (ADX ${v.a})`, `not flat (ADX ${v.a})`),
+  flat: v => L(`флэт, ADX ${v.a}`, `seitwärts, ADX ${v.a}`, `flat, ADX ${v.a}`),
+  no_deviation: () => L('нет выхода за полосу Боллинджера', 'kein Ausbruch über das Bollinger-Band', 'no move beyond the Bollinger band'),
+  deviation: () => L('цена за полосой Боллинджера', 'Preis jenseits des Bollinger-Bands', 'price beyond the Bollinger band'),
+  chaos: v => L(`хаос: ${v.c} % разворотов`, `Chaos: ${v.c} % Wechsel`, `chaos: ${v.c} % reversals`),
+  calm: v => L(`шум ${v.c} %`, `Rauschen ${v.c} %`, `noise ${v.c} %`),
+  no_series: v => L(`серия ${v.n} — мало`, `Serie ${v.n} – zu kurz`, `series ${v.n} – too short`),
+  counter_move: () => L('контрдвижение больше половины серии', 'Gegenbewegung über die Hälfte der Serie', 'counter move over half the series'),
+  series: v => L(`серия ${v.n} в одну сторону`, `Serie ${v.n} in eine Richtung`, `series of ${v.n} one way`),
+  direction_holds: () => L('направление сохраняется', 'Richtung hält', 'direction holds'),
+  no_squeeze: v => L(`нет сжатия (${v.n} свечей)`, `keine Kompression (${v.n} Kerzen)`, `no squeeze (${v.n} candles)`),
+  squeeze: v => L(`сжатие ${v.n} свечей`, `Kompression ${v.n} Kerzen`, `squeeze ${v.n} candles`),
+  no_expansion: () => L('нет расширения', 'keine Ausdehnung', 'no expansion'),
+  expansion: v => L(`расширение ${v.r}×ATR 50`, `Ausdehnung ${v.r}×ATR 50`, `expansion ${v.r}×ATR 50`),
+  no_setup: () => L('ни один детектор не нашёл сетап', 'kein Detektor fand ein Setup', 'no detector found a setup'),
+  detector: v => L(`детектор: ${v.d}`, `Detektor: ${v.d}`, `detector: ${v.d}`),
+  detector_score: v => L(`лучший score ${v.s}`, `bester Score ${v.s}`, `best score ${v.s}`),
+  confirmed_before_candle: () => L('подтверждено перед свечой', 'vor der Kerze bestätigt', 'confirmed before the candle'),
+  no_zone: () => L('цена не в зоне FVG / Order Block', 'Preis nicht in FVG / Order Block', 'price not in an FVG / order block'),
+  zone: v => L(`реакция в зоне ${v.z}`, `Reaktion in der Zone ${v.z}`, `reaction in the ${v.z} zone`),
+  smc_weak: v => L(`согласовано элементов ${v.n} из 3`, `${v.n} von 3 Elementen stimmen`, `${v.n} of 3 elements agree`),
+  smc: v => L(`FVG / OB / BOS: согласовано ${v.n}`, `FVG / OB / BOS: ${v.n} stimmen`, `FVG / OB / BOS: ${v.n} agree`),
+  back_in_zone: () => L('цена вернулась в зону', 'Preis zurück in der Zone', 'price back in the zone'),
+  held: () => L('следующая свеча удержалась', 'Folgekerze hielt', 'next candle held'),
+  no_dominance: v => L(`перевес ${v.n} %`, `Übergewicht ${v.n} %`, `dominance ${v.n} %`),
+  dominance: v => L(`перевес ${v.n} %`, `Übergewicht ${v.n} %`, `dominance ${v.n} %`),
+  no_impulse: () => L('нет импульса', 'kein Impuls', 'no impulse'),
+  impulse_found: v => L(`импульс ${v.r}×ATR`, `Impuls ${v.r}×ATR`, `impulse ${v.r}×ATR`),
+  no_correction: v => L(`нет правильной коррекции (откат ${v.p} %)`, `keine saubere Korrektur (Rücksetzer ${v.p} %)`, `no clean correction (pullback ${v.p} %)`),
+  correction: v => L(`коррекция ${v.p} %, реакция по импульсу`, `Korrektur ${v.p} %, Reaktion mit dem Impuls`, `correction ${v.p} %, reaction with the impulse`),
+  pause: v => L(`пауза ${v.n} св., откат ${v.p} %`, `Pause ${v.n} Kerzen, Rücksetzer ${v.p} %`, `pause ${v.n} candles, pullback ${v.p} %`),
+  second_impulse: () => L('второй импульс обновил экстремум', 'zweiter Impuls über das Extrem', 'second impulse beyond the extreme'),
+  no_double: () => L('нет двойного импульса', 'kein Doppelimpuls', 'no double impulse'),
+  model_not_trained: () => L('модель не обучена', 'Modell nicht trainiert', 'model not trained'),
+  features_ok: () => L('признаки посчитаны', 'Merkmale berechnet', 'features computed'),
+  out_of_distribution: () => L('рынок вне обучающих данных', 'Markt außerhalb der Trainingsdaten', 'market outside the training data'),
+  model: v => L(`модель: вверх ${v.p} %`, `Modell: aufwärts ${v.p} %`, `model: up ${v.p} %`),
+  low_confidence: v => L(`уверенность мала (вверх ${v.p} %)`, `Sicherheit gering (aufwärts ${v.p} %)`, `low confidence (up ${v.p} %)`),
+  confident: v => L(`уверенность ${v.p} %`, `Sicherheit ${v.p} %`, `confidence ${v.p} %`),
+  ma_against: v => L(`EMA ${v.f} / EMA ${v.s} против сигнала`, `EMA ${v.f} / EMA ${v.s} gegen das Signal`, `EMA ${v.f} / EMA ${v.s} against the signal`),
+  ma_confirmed: v => L(`EMA ${v.f} / EMA ${v.s} подтверждают`, `EMA ${v.f} / EMA ${v.s} bestätigen`, `EMA ${v.f} / EMA ${v.s} confirm`),
+  prev_against: () => L('прошлая свеча в другую сторону — это качели, не импульс', 'Vorkerze in die Gegenrichtung – Schaukel, kein Impuls', 'previous candle the other way – a whipsaw, not an impulse'),
   single_spike: v => L(`одиночный всплеск: прошлая свеча ${v.r}×ATR`, `Einzelspitze: Vorkerze ${v.r}×ATR`, `single spike: previous candle ${v.r}×ATR`),
   opposite_wick: v => L(`противоположная тень ${v.w} %`, `Gegendocht ${v.w} %`, `opposite wick ${v.w} %`),
   level_too_close: v => L(`до уровня ${v.d}×ATR`, `bis zum Level ${v.d}×ATR`, `level only ${v.d}×ATR away`),
@@ -184,16 +293,225 @@ function levelAhead(c, i, d, price, atr) {
   return Math.min(...pts.map(v => Math.abs(v - price))) / atr;
 }
 
+// ---------- stage 2 logics (13.11.2026) ----------
+// Same contract: return fail(...) to stop, or set out.dir + out.score and return nothing. Only closed candles,
+// except candle_bot which runs on the forming candle (liveMode 'live').
+const closes = c => c.map(x => x.close);
+const swings = (c, i, n, from) => { // swing points n+n, confirmed by candle i
+  const hi = [], lo = [];
+  for (let j = Math.max(n, from); j <= i - n; j++) {
+    let h = true, l = true;
+    for (let q = j - n; q <= j + n; q++) { if (q === j) continue; if (c[q].high >= c[j].high) h = false; if (c[q].low <= c[j].low) l = false; }
+    if (h) hi.push({ j, v: c[j].high }); if (l) lo.push({ j, v: c[j].low });
+  }
+  return { hi, lo };
+};
+const chaosShare = (c, i, n) => { let ch = 0; for (let j = i - n + 2; j <= i; j++) if (dirOf(c[j]) && dirOf(c[j - 1]) && dirOf(c[j]) !== dirOf(c[j - 1])) ch++; return ch / (n - 1); };
+const MORE = {
+  mini_vip({ c, p, i, a, atrA, k, fail, pass, out }) {
+    const cl = closes(c), e9 = I.ema(cl, 9)[i], e21 = I.ema(cl, 21)[i], rs = I.rsi(cl, 14)[i], pc = atrPct(atrA, i), d = e9 > e21 ? 1 : -1;
+    const f = { dir: true, rsi: d > 0 ? rs > p.rsi_call : rs < p.rsi_put, atr: pc != null && pc >= p.atr_pct_lo && pc <= p.atr_pct_hi, side: d > 0 ? k.close > e21 : k.close < e21, room: levelAhead(c, i, d, k.close, a) >= p.min_level_distance_atr };
+    const n = Object.values(f).filter(Boolean).length;
+    Object.assign(out.feats, { ema9: e9, ema21: e21, rsi14: rs, atr_pct: pc, factors: n });
+    if (!f.side || !f.rsi) return fail(0, 'factors_weak', { n, need: p.min_factors });
+    pass(0, 'factors', { n }); out.dir = d;
+    const bp = 100 * body(k) / (rng(k) || 1), ow = oppWickPct(k, d);
+    if (dirOf(k) !== d || bp < p.body_pct || ow > p.max_opposite_wick_pct) return fail(1, 'candle_weak', { b: f0(bp), w: f0(ow) });
+    pass(1, 'candle_ok', { b: f0(bp), w: f0(ow) });
+    const score = Math.round(40 + 8 * n + 10 * Math.min(1, (bp - 50) / 40) + 10 * (1 - ow / 30));
+    if (n < p.min_factors || score < p.min_score) return fail(2, 'agreement_low', { n, s: score });
+    pass(2, 'agreement', { n, s: score }); out.score = score;
+  },
+  pro_bot({ c, p, i, a, k, fail, pass, out }) {
+    const m5 = I.resample(c, 5, false), j = m5.length - 1; if (j < 55) return fail(0, 'no_data', { n: m5.length });
+    const e50 = I.ema(closes(m5), 50), sl = (e50[j] - e50[j - 3]) / a, d = sl > 0 && m5[j].close > e50[j] ? 1 : sl < 0 && m5[j].close < e50[j] ? -1 : 0;
+    const ad = I.adx(c, 14)[i], adx = ad ? ad.adx : 0; Object.assign(out.feats, { m5_slope_atr: sl, adx });
+    if (!d || adx < p.adx_min) return fail(0, 'no_trend_m5', { a: f0(adx) });
+    pass(0, 'trend_m5', { d: d > 0 ? '▲' : '▼', a: f0(adx) }); out.dir = d;
+    const last5 = c.slice(i - 4, i + 1), avgB = last5.reduce((s, x) => s + body(x), 0) / 5 / a, same = last5.filter(x => dirOf(x) === d).length;
+    const r3 = c.slice(i - 2, i + 1).reduce((s, x) => s + rng(x), 0), r3p = c.slice(i - 5, i - 2).reduce((s, x) => s + rng(x), 0);
+    if (avgB < p.min_body_atr || same < p.min_closes || r3 <= r3p) return fail(1, 'weak_force', { b: f1(avgB), n: same });
+    pass(1, 'force', { b: f1(avgB), n: same });
+    const e20 = I.ema(closes(c), 20)[i], third = d > 0 ? k.close >= k.high - rng(k) / 3 : k.close <= k.low + rng(k) / 3;
+    const pull = Math.abs((d > 0 ? k.low : k.high) - e20) <= p.pullback_atr * a;
+    const hi20 = Math.max(...c.slice(i - 21, i).map(x => x.high)), lo20 = Math.min(...c.slice(i - 21, i).map(x => x.low));
+    const brk = d > 0 ? k.close >= hi20 + p.break_atr * a : k.close <= lo20 - p.break_atr * a;
+    if (!third || !(pull || brk)) return fail(2, 'entry_weak');
+    pass(2, pull ? 'pullback_entry' : 'break_entry'); out.score = Math.round(55 + 15 * Math.min(1, adx / 40) + 15 * Math.min(1, avgB) + 15 * (same / 5));
+  },
+  candle_bot({ c, p, i, a, k, fail, pass, out }) {
+    // c ends with the forming candle (live). Signal only in the window sec_from…sec_to of the minute.
+    const sec = Math.floor(Date.now() / 1000) - k.time;
+    if (!p.backtest && (sec < p.sec_from || sec > p.sec_to)) return fail(0, 'not_in_window', { s: sec });
+    const cl = c.slice(i - 4, i), d0 = dirOf(cl[3]), same = cl.filter(x => dirOf(x) === d0).length;
+    if (!d0 || same < p.min_closes) return fail(0, 'no_pressure', { n: same });
+    pass(0, 'pressure', { n: same }); out.dir = d0;
+    const seq = d0 > 0 ? cl[3].high > cl[2].high && cl[2].high > cl[1].high && cl[3].low > cl[2].low : cl[3].low < cl[2].low && cl[2].low < cl[1].low && cl[3].high < cl[2].high;
+    if (!seq || oppWickPct(cl[3], d0) > p.max_opposite_wick_pct) return fail(1, 'no_structure');
+    pass(1, 'structure', { s: d0 > 0 ? 'HH/HL' : 'LH/LL' });
+    if (dirOf(k) === -d0 || levelAhead(c, i - 1, d0, k.close, a) < p.min_level_distance_atr) return fail(2, 'structure_changed');
+    pass(2, 'new_candle'); out.score = Math.round(55 + 10 * (same - 3) + 20 * Math.min(1, levelAhead(c, i - 1, d0, k.close, a) / 2));
+  },
+  meanrev({ c, p, i, a, atrA, k, fail, pass, out }) {
+    const ad = I.adx(c, 14)[i], adx = ad ? ad.adx : 99, pc = atrPct(atrA, i); Object.assign(out.feats, { adx, atr_pct: pc });
+    if (adx >= p.adx_max || pc == null || pc < p.atr_pct_lo || pc > p.atr_pct_hi) return fail(0, 'not_flat', { a: f0(adx) });
+    pass(0, 'flat', { a: f0(adx) });
+    const bb = I.bollinger(closes(c), 20, p.bb_mult)[i]; if (!bb) return fail(1, 'no_data', { n: c.length });
+    const up = k.high > bb.up, dn = k.low < bb.lo, d = up ? -1 : dn ? 1 : 0;
+    if (!d || body(k) >= p.max_body_atr * a) return fail(1, 'no_deviation');
+    pass(1, 'deviation'); out.dir = d;
+    const wick = 100 * (d < 0 ? k.high - Math.max(k.open, k.close) : Math.min(k.open, k.close) - k.low) / (rng(k) || 1);
+    if (wick < p.wick_pct || (d < 0 ? k.close > bb.up : k.close < bb.lo)) return fail(2, 'no_rejection', { w: f0(wick) });
+    pass(2, 'rejection', { w: f0(wick) }); out.score = Math.round(55 + 25 * Math.min(1, (wick - 50) / 40) + 20 * (1 - adx / p.adx_max));
+  },
+  micro({ c, p, i, a, k, fail, pass, out }) { // Ludo 15 s / Fun 5 s on second candles
+    const ch = chaosShare(c, i, p.window); out.feats.chaos = ch;
+    if (ch > p.max_chaos) return fail(0, 'chaos', { c: f0(ch * 100) });
+    pass(0, 'calm', { c: f0(ch * 100) });
+    const st = streak(c, i), d = dirOf(k);
+    if (!d || st < p.min_series) return fail(1, 'no_series', { n: st });
+    const ser = c.slice(i - st + 1, i + 1), mv = Math.abs(ser[ser.length - 1].close - ser[0].open), back = Math.max(...ser.map(x => oppWickPct(x, d) / 100 * rng(x)));
+    if (back > 0.5 * mv) return fail(1, 'counter_move');
+    pass(1, 'series', { n: st }); out.dir = d;
+    pass(2, 'direction_holds'); out.score = Math.round(50 + 10 * Math.min(3, st - p.min_series) + 20 * (1 - ch));
+  },
+  volatility({ c, p, i, a, k, fail, pass, out }) {
+    const a5 = I.atr(c, 5), a50 = I.atr(c, 50); let sq = 0;
+    for (let j = i - 2; j > i - 30 && j > 50; j--) { if (a5[j] / a50[j] < p.squeeze) sq++; else break; }
+    out.feats.squeeze_candles = sq;
+    if (sq < p.min_squeeze) return fail(0, 'no_squeeze', { n: sq });
+    pass(0, 'squeeze', { n: sq });
+    const e = c[i - 1], d = dirOf(e);
+    if (!d || rng(e) < p.expansion_atr * a50[i - 1] || dirOf(k) !== d) return fail(1, 'no_expansion');
+    pass(1, 'expansion', { r: f1(rng(e) / a50[i - 1]) }); out.dir = d;
+    if (streak(c, i) > p.max_expansion) return fail(2, 'exhaustion', { s: streak(c, i), r: '-' });
+    pass(2, 'direction_holds'); out.score = Math.round(55 + 5 * Math.min(5, sq - p.min_squeeze) + 20 * Math.min(1, rng(e) / a50[i - 1] / 4));
+  },
+  scanner(ctx) { // best of the Impulse, Range, Fractal and Trap detectors on this pair
+    const { c, p, out, fail, pass } = ctx; let best = null;
+    for (const det of ['impulse', 'range', 'fractal', 'trap']) {
+      const r = run(det, c, { ...PARAMS[det], forex: false });
+      if (r.status === 'SIGNAL' && (!best || r.score > best.r.score)) best = { det, r };
+    }
+    if (!best) return fail(0, 'no_setup');
+    pass(0, 'detector', { d: best.det }); pass(1, 'detector_score', { s: best.r.score }); pass(2, 'confirmed_before_candle');
+    out.dir = best.r.dir; out.score = best.r.score; out.feats.detector = best.det; out.reasons.push(...best.r.reasons);
+  },
+  smart_money({ c, p, i, a, k, fail, pass, out }) {
+    const cc = p.m5 ? I.resample(c, 5, false) : c, n = cc.length - 1; if (n < 40) return fail(0, 'no_data', { n: cc.length });
+    const A = I.atr(cc, 14)[n] || a, sw = swings(cc, n, 3, n - 60), H = sw.hi.slice(-2), Lw = sw.lo.slice(-2);
+    let d = 0; if (H.length === 2 && Lw.length === 2) { if (H[1].v > H[0].v && Lw[1].v > Lw[0].v) d = 1; else if (H[1].v < H[0].v && Lw[1].v < Lw[0].v) d = -1; }
+    if (!d) return fail(0, 'no_structure');
+    pass(0, 'structure', { s: d > 0 ? 'HH/HL' : 'LH/LL' }); out.dir = d;
+    const K = cc[n]; let fvg = null, ob = null;
+    for (let j = n - 1; j >= n - 20 && j >= 2; j--) {
+      if (!fvg && d > 0 && cc[j].low - cc[j - 2].high >= p.fvg_atr * A) fvg = { lo: cc[j - 2].high, hi: cc[j].low };
+      if (!fvg && d < 0 && cc[j - 2].low - cc[j].high >= p.fvg_atr * A) fvg = { lo: cc[j].high, hi: cc[j - 2].low };
+      if (!ob && j + 3 <= n && dirOf(cc[j]) === -d && d * (cc[j + 3].close - cc[j].close) >= p.ob_atr * A) ob = { lo: cc[j].low, hi: cc[j].high };
+    }
+    const inZone = z => z && K.low <= z.hi && K.high >= z.lo;
+    const last = d > 0 ? sw.hi[sw.hi.length - 1] : sw.lo[sw.lo.length - 1];
+    let bos = false; for (let j = n; j > n - 10; j--) if (last && j > last.j && d * (cc[j].close - last.v) > 0) bos = true;
+    const agree = [inZone(fvg), inZone(ob), bos].filter(Boolean).length;
+    if (!inZone(fvg) && !inZone(ob)) return fail(1, 'no_zone');
+    pass(1, 'zone', { z: inZone(fvg) ? 'FVG' : 'OB' });
+    if (agree < 2 || dirOf(K) !== d) return fail(2, 'smc_weak', { n: agree });
+    pass(2, 'smc', { n: agree }); out.score = Math.round(55 + 15 * (agree - 1) + 15 * Math.min(1, body(K) / A));
+  },
+  spring({ c, p, i, a, k, fail, pass, out }) {
+    const a50 = I.atr(c, 50)[i - 2]; let n = 0, hi = -Infinity, lo = Infinity;
+    for (let j = i - 2; j > i - 30; j--) { const h2 = Math.max(hi, c[j].high), l2 = Math.min(lo, c[j].low); if (h2 - l2 > p.zone_atr * a50 || rng(c[j]) > p.spike_atr * a50) break; hi = h2; lo = l2; n++; }
+    out.feats.squeeze_candles = n;
+    if (n < p.min_candles_zone) return fail(0, 'no_squeeze', { n });
+    pass(0, 'squeeze', { n });
+    const b = c[i - 1], d = b.close > hi ? 1 : b.close < lo ? -1 : 0;
+    if (!d || body(b) < p.break_body_atr * a || oppWickPct(b, d) > p.max_opposite_wick_pct) return fail(1, 'no_breakout');
+    pass(1, 'breakout', { b: f1(body(b) / a) }); out.dir = d;
+    if (dirOf(k) !== d || (d > 0 ? k.low <= hi : k.high >= lo)) return fail(2, 'back_in_zone');
+    pass(2, 'held'); out.score = Math.round(55 + 5 * Math.min(5, n - 5) + 20 * Math.min(1, body(b) / a / 2.4));
+  },
+  pressure({ c, p, i, a, k, fail, pass, out }) {
+    const w = c.slice(i - p.window + 1, i + 1), top = w.filter(x => x.close >= x.high - rng(x) / 3).length / w.length, bot = w.filter(x => x.close <= x.low + rng(x) / 3).length / w.length;
+    const d = top >= p.third_share ? 1 : bot >= p.third_share ? -1 : 0; Object.assign(out.feats, { top_share: top, bottom_share: bot });
+    if (!d) return fail(0, 'no_pressure', { n: f0(Math.max(top, bot) * 100) });
+    pass(0, 'pressure', { n: f0((d > 0 ? top : bot) * 100) }); out.dir = d;
+    let seq = 0; for (let j = i; j > i - 6; j--) { if (d > 0 ? c[j].high > c[j - 1].high && c[j].low > c[j - 1].low : c[j].high < c[j - 1].high && c[j].low < c[j - 1].low) seq++; else break; }
+    const ow = w.reduce((s, x) => s + oppWickPct(x, d), 0) / w.length;
+    if (seq < p.min_sequence || ow > p.max_opposite_wick_pct) return fail(1, 'no_structure');
+    pass(1, 'structure', { s: d > 0 ? 'HH/HL' : 'LH/LL' });
+    const dom = w.filter(x => dirOf(x) === d).length / w.length;
+    if (dom < p.dominance || (dirOf(k) === -d && body(k) > a)) return fail(2, 'no_dominance', { n: f0(dom * 100) });
+    pass(2, 'dominance', { n: f0(dom * 100) }); out.score = Math.round(50 + 20 * dom + 10 * Math.min(3, seq - 2) + 10 * (1 - ow / 30));
+  },
+  correction({ c, p, i, a, k, fail, pass, out }) {
+    // Impulse ≥ imp_atr × ATR within ≤ 5 candles that ended 2…12 candles ago; pullback 38–62 % with shrinking bodies; reaction candle.
+    let best = null;
+    for (let e = i - 2; e >= i - 12; e--) for (let s = e - 1; s >= e - 5; s--) {
+      const mv = c[e].close - c[s].open; if (Math.abs(mv) >= p.imp_atr * a && (!best || Math.abs(mv) > Math.abs(best.mv))) best = { s, e, mv };
+    }
+    if (!best) return fail(0, 'no_impulse');
+    const d = best.mv > 0 ? 1 : -1, ext = d > 0 ? Math.max(...c.slice(best.s, best.e + 1).map(x => x.high)) : Math.min(...c.slice(best.s, best.e + 1).map(x => x.low));
+    pass(0, 'impulse_found', { r: f1(Math.abs(best.mv) / a) }); out.dir = d;
+    const pb = c.slice(best.e + 1, i), deep = d > 0 ? Math.min(...pb.map(x => x.low)) : Math.max(...pb.map(x => x.high));
+    const depth = Math.abs(ext - deep) / Math.abs(ext - c[best.s].open);
+    const f = fractalsUpTo(c, i, i - 80), lv = (d > 0 ? f.lo : f.hi).filter(x => Math.abs(x.v - deep) <= 0.3 * a).length + 1;
+    out.feats.depth = depth;
+    if (lv < p.min_reactions) return fail(1, 'weak_level', { n: lv });
+    pass(1, 'level', { n: lv });
+    const shrink = pb.length >= 2 && body(pb[pb.length - 1]) < body(pb[0]);
+    if (depth < p.depth_min || depth > p.depth_max || !shrink || dirOf(k) !== d) return fail(2, 'no_correction', { p: f0(depth * 100) });
+    pass(2, 'correction', { p: f0(depth * 100) }); out.score = Math.round(55 + 20 * (1 - Math.abs(depth - 0.5) / 0.12) * 0.5 + 15 * Math.min(1, body(k) / a));
+  },
+  double_strike({ c, p, i, a, k, fail, pass, out }) {
+    for (let pz = 1; pz <= 4; pz++) {
+      const e = i - pz - 1; if (e < 6) break;
+      for (let s = e - 1; s >= e - 4; s--) {
+        const mv = c[e].close - c[s].open; if (Math.abs(mv) < p.imp_atr * a) continue;
+        const d = mv > 0 ? 1 : -1, ext = d > 0 ? Math.max(...c.slice(s, e + 1).map(x => x.high)) : Math.min(...c.slice(s, e + 1).map(x => x.low));
+        const pause = c.slice(e + 1, i), back = Math.max(0, ...pause.map(x => d > 0 ? ext - x.low : x.high - ext)) / Math.abs(mv);
+        if (back > p.max_retrace || pause.some(x => d * (x.close - c[s].open) < 0)) continue;
+        if (d * (k.close - ext) <= 0 || dirOf(k) !== d) continue;
+        pass(0, 'impulse_found', { r: f1(Math.abs(mv) / a) }); pass(1, 'pause', { n: pz, p: f0(back * 100) }); pass(2, 'second_impulse');
+        out.dir = d; out.score = Math.round(55 + 15 * Math.min(1, Math.abs(mv) / a / 4) + 15 * (1 - back / p.max_retrace)); return;
+      }
+    }
+    return fail(0, 'no_double');
+  },
+  neuro({ c, p, i, a, atrA, k, fail, pass, out }) {
+    const W = NEURO(); if (!W) return fail(1, 'model_not_trained');
+    const x = neuroFeatures(c, i, atrA); if (!x) return fail(0, 'no_data', { n: c.length });
+    pass(0, 'features_ok');
+    if (x.some((v, j) => Math.abs((v - W.mean[j]) / (W.sd[j] || 1)) > 4)) return fail(1, 'out_of_distribution');
+    const z = W.b + x.reduce((s, v, j) => s + W.w[j] * (v - W.mean[j]) / (W.sd[j] || 1), 0), pr = 1 / (1 + Math.exp(-z));
+    pass(1, 'model', { p: f0(pr * 100) }); out.feats.p_up = pr;
+    const d = pr >= p.threshold ? 1 : pr <= 1 - p.threshold ? -1 : 0;
+    if (!d) return fail(2, 'low_confidence', { p: f0(pr * 100) });
+    pass(2, 'confident', { p: f0(Math.max(pr, 1 - pr) * 100) }); out.dir = d; out.score = Math.round(50 + 100 * (Math.max(pr, 1 - pr) - 0.5));
+  },
+};
+// Neuro Bot features (closed candles only): trend, momentum, volatility, candle shape, structure.
+function neuroFeatures(c, i, atrA) {
+  if (i < 60) return null;
+  const cl = closes(c), a = atrA[i]; if (!(a > 0)) return null;
+  const e9 = I.ema(cl, 9), e21 = I.ema(cl, 21), s20 = I.sma(cl, 20), r14 = I.rsi(cl, 14), r7 = I.rsi(cl, 7), ad = I.adx(c, 14)[i] || { adx: 20, pdi: 20, mdi: 20 };
+  const k = c[i], n3 = (cl[i] - cl[i - 3]) / a, n10 = (cl[i] - cl[i - 10]) / a;
+  return [(e9[i] - e21[i]) / a, (cl[i] - s20[i]) / a, (r14[i] || 50) - 50, (r7[i] || 50) - 50, ad.adx, (ad.pdi - ad.mdi), n3, n10,
+    (k.close - k.open) / a, oppWickPct(k, 1) / 100, oppWickPct(k, -1) / 100, a / (atrA.slice(i - 49, i + 1).reduce((s, v) => s + (v || 0), 0) / 50), streak(c, i) * dirOf(k), chaosShare(c, i, 10)];
+}
+let NEURO_W;
+function NEURO() { if (NEURO_W === undefined) { try { NEURO_W = require('./lab-neuro'); } catch { NEURO_W = null; } } return NEURO_W && NEURO_W.w ? NEURO_W : null; }
+
 // ---------- the five logics ----------
 // Each returns { dir, score, stage results, reasons/rejects with numbers }. A failed stage ends the run.
 function run(logic, c, p, asset) {
   const i = c.length - 1, atrA = I.atr(c, 14), a = atrA[i], out = { stages: ['SKIPPED', 'SKIPPED', 'SKIPPED'], reasons: [], rejects: [], feats: {} };
   const fail = (st, code, v = {}) => { out.stages[st] = 'FAIL'; out.rejects.push({ code, v }); out.status = 'NO_TRADE'; out.stage = st + 1; return out; };
   const pass = (st, code, v = {}) => { out.stages[st] = 'PASS'; out.reasons.push({ code, v }); };
-  if (c.length < 60 || !(a > 0)) { out.status = 'NO_DATA'; out.rejects.push({ code: 'no_data', v: { n: c.length } }); out.stage = 0; return out; }
+  if (c.length < (p.min_candles || 60) || !(a > 0)) { out.status = 'NO_DATA'; out.rejects.push({ code: 'no_data', v: { n: c.length } }); out.stage = 0; return out; }
   const k = c[i];
   out.feats.atr = a;
-  if (logic === 'impulse') {
+  if (MORE[logic]) { const r = MORE[logic]({ c, p, i, a, atrA, k, out, fail, pass }); if (r) return r; }
+  else if (logic === 'impulse') {
     const r = rng(k) / a, d = dirOf(k); out.feats.range_atr = r;
     if (r < p.accel_range_atr || !d) return fail(0, 'no_acceleration', { r: f1(r), min: p.accel_range_atr });
     let same = 0; for (let j = i - 2; j <= i; j++) if (dirOf(c[j]) === d) same++;
@@ -202,6 +520,9 @@ function run(logic, c, p, asset) {
     const pr = rng(c[i - 1]) / a, ow = oppWickPct(k, d), lv = levelAhead(c, i, d, k.close, a), st = streak(c, i), rs = I.rsi(c.map(x => x.close), 7)[i] || 50;
     Object.assign(out.feats, { prev_range_atr: pr, opp_wick_pct: ow, level_atr: lv, streak: st, rsi7: rs });
     if (pr < p.prev_range_atr) return fail(1, 'single_spike', { r: f1(pr) });
+    // 13.11.2026 (user, USD/CLP CALL 23:38): the previous big candle must go the same way – a big red candle followed
+    // by a big green one is a whipsaw, not an impulse up (streak was 1).
+    if (p.prev_same_dir !== false && dirOf(c[i - 1]) !== d) return fail(1, 'prev_against', {});
     if (ow > p.max_opposite_wick_pct) return fail(1, 'opposite_wick', { w: f0(ow) });
     if (lv < p.min_level_distance_atr) return fail(1, 'level_too_close', { d: f1(lv) });
     if (st >= p.exhaustion_streak || rs > p.rsi_hi || rs < p.rsi_lo) return fail(1, 'exhaustion', { s: st, r: f0(rs) });
@@ -284,6 +605,14 @@ function run(logic, c, p, asset) {
     pass(2, 'atr_ok', { p: f0(pc) }); out.dir = d;
     out.score = Math.round(55 + 20 * Math.min(1, (Math.abs(zz) - 2.5) / 1) + 25 * Math.min(1, (wick - 50) / 40));
   }
+  // Moving-average confirmation (user 13.11.2026): EMA fast (20) above EMA slow (50) for CALL, below for PUT.
+  // On by default for the move-following logics (impulse, fractal); off for the reversal ones, which trade against the move.
+  if (p.ma_filter) {
+    const cl = c.map(x => x.close), ef = I.ema(cl, Number(p.ma_fast) || 20)[i], es = I.ema(cl, Number(p.ma_slow) || 50)[i];
+    out.feats.ema_fast = ef; out.feats.ema_slow = es;
+    if (!(ef > 0 && es > 0) || (out.dir > 0 ? ef <= es : ef >= es)) { out.reasons = out.reasons.slice(0, 2); out.stages[2] = 'FAIL'; out.rejects.push({ code: 'ma_against', v: { f: p.ma_fast || 20, s: p.ma_slow || 50 } }); out.status = 'NO_TRADE'; out.stage = 3; return out; }
+    out.reasons.push({ code: 'ma_confirmed', v: { f: p.ma_fast || 20, s: p.ma_slow || 50 } });
+  }
   out.score = Math.max(0, Math.min(100, out.score || 0));
   out.status = 'SIGNAL';
   return out;
@@ -309,10 +638,10 @@ for (const s of CATALOG.filter(s => s.impl)) {
     const asset = x.asset || '?';
     if (!!x.otc === forex) { note(s.id, asset, { status: 'NO_TRADE', stage: 0, rejects: [{ code: 'wrong_asset_type', v: { t: x.otc ? 'OTC' : 'FOREX', want: s.asset_type } }] }); return null; }
     // Fresh data: the last closed candle must have closed at most STALE seconds ago (live only; backtests call run()).
-    const age = Date.now() / 1000 - (x.c[x.last].time + 60);
+    const step = x.last > 0 ? x.c[x.last].time - x.c[x.last - 1].time : 60, age = Date.now() / 1000 - (x.c[x.last].time + (step > 0 && step < 60 ? step : 60));
     if (STALE.sec > 0 && age > STALE.sec) { note(s.id, asset, { status: 'STALE_DATA', stage: 0, rejects: [{ code: 'stale', v: { s: f1(age) } }] }); return null; }
     const p = { ...PARAMS[s.impl], ...(user || {}), forex };
-    const r = run(s.impl, x.c, p, asset);
+    const r = run(s.logic || s.impl, x.c, p, asset);
     note(s.id, asset, r);
     if (r.status !== 'SIGNAL') return null;
     const why = joinL(r.reasons.map(q => T[q.code](q.v)));
@@ -332,13 +661,13 @@ const setupKey = s => `${s.strategy}|${s.asset}|${s.dir}|${s.candle.time}`;
 // the candle where the expiry ends. Time split: first isShare = in-sample, rest = out-of-sample (used once).
 function backtest(c, id, opt = {}) {
   const s = BY_ID[id]; if (!s || !s.impl) throw new Error('not built: ' + id);
-  const p = { ...PARAMS[s.impl], ...(opt.params || {}), forex: s.asset_type === 'FOREX' };
+  const p = { ...PARAMS[s.impl], ...(opt.params || {}), forex: s.asset_type === 'FOREX', backtest: true };
   const expC = Math.max(1, Math.round((opt.expirySec || EXPIRY_SEC[s.impl]) / 60)), payout = opt.payout ?? 0.8, win = opt.window || 300;
   const cut = Math.floor(c.length * (opt.isShare ?? 0.7)), trades = [];
   let next = 0;
   for (let i = 210; i < c.length - expC - 1; i++) {
     if (i < next) continue;
-    const r = run(s.impl, c.slice(Math.max(0, i - win + 1), i + 1), p);
+    const r = run(s.logic || s.impl, c.slice(Math.max(0, i - win + 1), i + 1), p);
     if (r.status !== 'SIGNAL') continue;
     const entry = c[i + 1].open, exit = c[i + expC].close, m = (exit - entry) * r.dir;
     trades.push({ i, t: c[i].time, dir: r.dir, score: r.score, res: m > 0 ? 'WIN' : m < 0 ? 'LOSS' : 'DRAW', oos: i >= cut });
@@ -436,4 +765,4 @@ function statsFor(signals) {
   return out;
 }
 
-module.exports = { PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
+module.exports = { _neuroFeatures: neuroFeatures, SECOND_TF, PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };

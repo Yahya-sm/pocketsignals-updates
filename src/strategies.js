@@ -525,7 +525,7 @@ function m5Mini(x) {
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
-  if (LAB.STRAT[name]) return 'closed';
+  if (LAB.STRAT[name]) return /^candle_bot/.test(name) ? 'live' : 'closed';
   if (name === 'n_impulse') return 'live';
   if (name === 'n_adxonly' || name === 'n_serrev' || name === 'n_trend15' || name === 'n_market') return 'closed';
   if (name === 'n_preclose') return 'live';
