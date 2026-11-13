@@ -28,6 +28,9 @@ window.LocalEngine = {
       case 'ssid': engine.setSsid(String(msg.ssid || '').trim(), msg.url, !!msg.auto); return { ok: true };
       case 'clear': engine.clearSignals(); return { ok: true };
       case 'mine': engine.markMine(msg.id, msg.on); return { ok: true };
+      case 'paper': engine.paperTrade(msg.id); return { ok: true };
+      case 'import_history': return engine.importHistory(msg.rows, msg.account);
+      case 'lab_backtest': return engine.labBacktest(msg.id, msg.opt || {});
       case 'clear_mine': engine.clearMine(); return { ok: true };
       case 'scan': engine.scan(); return { ok: true };
       case 'trade': engine.poTrade(String(msg.kind || ''), msg.data); return { ok: true }; // Buy/Sell on the PocketOption tab

@@ -8,6 +8,7 @@
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <title>PocketSignals</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap">
 <link rel="stylesheet" href="style.css">
 <script>
   // Errors while the app starts (before app.js is loaded) – shown in the status line and the connection log.
@@ -31,12 +32,16 @@
     <button data-cmd="close" data-i18n-title="w_close">✕</button>
   </div>
   <span class="mode" id="mode"></span>
+  <button class="gearbtn" data-tab="settings" data-i18n-title="tab_settings">⚙</button>
 </header>
 
 <div id="mini"></div>
 
 <main>
   <section id="signals" class="tab active">
+    <div id="labTop"></div>
+    <div class="labgrid"><div class="labmain">
+    <div class="chips" id="labFilters"></div>
     <div id="stats" class="stats"></div>
     <div class="chips" id="dirFilter">
       <button class="chip active" data-dir="all" data-i18n="all"></button>
@@ -57,9 +62,17 @@
       <p data-i18n="waiting"></p>
       <small id="nextScan"></small>
     </div>
+    <div id="labWait"></div>
+    <div id="labNoSig"></div>
+    </div><aside id="labSide"></aside></div>
   </section>
 
+  <section id="catalog" class="tab"><h3 data-i18n="cat_title"></h3><div id="catalogBox"></div></section>
+  <section id="backtest" class="tab"><h3 data-i18n="bt_tab_title"></h3><div id="btBox"></div></section>
+  <section id="risk" class="tab"><h3 data-i18n="risk_title"></h3><div id="riskBox"></div></section>
+
   <section id="history" class="tab">
+    <div id="labJournal"></div>
     <div class="chips"><button class="chip active" data-hist="mine" data-i18n="my_trades"></button><button class="chip" data-hist="list" data-i18n="history"></button><button class="chip" data-hist="stats" data-i18n="stats_by_strategy"></button><button class="chip" data-hist="all" data-i18n="all_stats"></button><button class="chip" data-hist="archive" data-i18n="bot_archive"></button></div>
     <div id="allStats" hidden></div>
     <div id="hist"></div>
@@ -182,7 +195,10 @@
 
 <nav id="tabs">
   <button class="active" data-tab="signals"><span>⚡</span><b data-i18n="tab_signals"></b><i id="liveCount"></i></button>
-  <button data-tab="history"><span>🕘</span><b data-i18n="tab_history"></b></button>
+  <button data-tab="catalog"><span>☰</span><b data-i18n="tab_catalog"></b></button>
+  <button data-tab="backtest"><span>↺</span><b data-i18n="tab_backtest"></b></button>
+  <button data-tab="history"><span>🕘</span><b data-i18n="tab_journal"></b></button>
+  <button data-tab="risk"><span>⛨</span><b data-i18n="tab_risk"></b></button>
   <button data-tab="settings"><span>⚙</span><b data-i18n="tab_settings"></b></button>
 </nav>
 
@@ -190,6 +206,8 @@
 <script src="i18n.js"></script>
 <script src="sounds.js"></script>
 <script src="bot_stats.js"></script>
+<script src="i18n-lab.js"></script>
 <script src="app.js"></script>
+<script src="lab-ui.js"></script>
 </body>
 </html>

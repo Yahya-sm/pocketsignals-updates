@@ -29,6 +29,9 @@ const META = {
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
   n_levelstoch: [L('Пин-бар + Stochastic (уровень M15 — по желанию)', 'Pinbar + Stochastic (M15-Level optional)', 'Pin bar + Stochastic (M15 level optional)'), 'rev'],
 };
+// Strategy Lab (13.11.2026): the built logics of src/lab.js run as normal strategies (names are not translated).
+const LAB = require('./lab');
+for (const s of LAB.CATALOG.filter(s => s.impl)) META[s.id] = [L(s.name, s.name, s.name), 'lab'];
 const NAMES = Object.fromEntries(Object.entries(META).map(([k, v]) => [k, v[0]]));
 
 // Parameters per strategy: exactly the values the strategy (and the shared filters) really use – these are
@@ -522,6 +525,7 @@ function m5Mini(x) {
 function liveMode(name, settings) {
   const p = paramsFor(name, settings);
   // 02.11.2026: the lines must really have crossed on the closed candle; the early tick-based signal is optional (m25_live).
+  if (LAB.STRAT[name]) return 'closed';
   if (name === 'n_impulse') return 'live';
   if (name === 'n_adxonly' || name === 'n_serrev' || name === 'n_trend15' || name === 'n_market') return 'closed';
   if (name === 'n_preclose') return 'live';
@@ -1303,7 +1307,16 @@ function evaluate(candlesByTf, enabled, settings) {
     for (const tf of settings.strat_tfs?.[name] || ['M1']) {
       const c = candlesByTf[tf]; if (!c || c.length < 60) continue;
       const x = (ctxs[tf] ??= ctx(c)); x.tfMin = parseInt(tf.slice(1), 10) || 1;
-      x.ctx = candlesByTf.ctx; x.otc = !!candlesByTf.otc; // higher timeframes from their own history (M5/M15), for multi-timeframe strategies
+      x.ctx = candlesByTf.ctx; x.otc = !!candlesByTf.otc; x.asset = candlesByTf.asset; // higher timeframes from their own history (M5/M15), for multi-timeframe strategies
+      // Lab strategies have their own three stages, risk checks run in the engine; no general filters here.
+      if (LAB.STRAT[name]) {
+        let r = null; try { r = fn(x, base); } catch { r = null; }
+        if (!r) continue;
+        const wk = `${candlesByTf.asset || '?'}|${tf}|${c[c.length - 1].time}|${r.bar || ''}|${r.dir}`;
+        whyAdd(name, wk, 'found'); whyAdd(name, wk, 'passed');
+        out.push({ ...r, strategy: name, tf, mode: 'lab', expiry: Number(r.expiry), strength: clamp(r.strength), whyKey: wk });
+        continue;
+      }
       let s = null, p = base, pr = null, wkey = '', wfound = false, wlast = '';
       for (const set of sets) {
         x.logOn = set === sets[0]; // with several profiles the log follows the first one
@@ -1477,4 +1490,9 @@ const HELP = {
   }],
 }, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market'];
 
+for (const s of LAB.CATALOG.filter(s => s.impl)) {
+  DEFAULTS[s.id] = { expiry: LAB.EXPIRY_SEC[s.impl], ...LAB.PARAMS[s.impl] };
+  S[s.id] = LAB.STRAT[s.id];
+  OWN_LOGIC.push(s.id);
+}
 module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };

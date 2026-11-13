@@ -7,7 +7,10 @@ const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
-const HIDDEN = ['n_levelrev', 'n_trendpull', 'n_strongtrend', 'n_deeprev', 'n_stochenv', 'n_adxonly', 'n_bbrsi', 'n_ma25', 'n_sharp']; // 09.11.2026 user: remove strongtrend, deeprev, stochenv, adxonly; // n_trendpull: replaced by n_trend15 (user 09.11.2026) // code stays, not offered in the app
+const LAB = require('./lab');
+// 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
+const KEEP = ['n_levelstoch'];
+const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
 
@@ -83,8 +86,20 @@ class Engine extends EventEmitter {
         max_per_scan: 17, signals_on: true, pause_until: 0, pc_match_1028: true });
       writeJson(this.settingsFile, this.settings);
     }
+    // 13.11.2026 Strategy Lab: the 10 lab strategies + pin bar/Stochastic switched on once; manual mode, demo account.
+    if (!this.settings.lab_1311) {
+      const s = this.settings;
+      s.strategies = [...new Set([...KEEP, ...Object.keys(LAB.STRAT)])];
+      s.strat_tfs = { ...s.strat_tfs }; for (const k of Object.keys(LAB.STRAT)) s.strat_tfs[k] = ['M1'];
+      s.trade_mode = 'SIGNAL_ONLY'; s.account = s.account || 'DEMO'; s.lab_1311 = true;
+      writeJson(this.settingsFile, s);
+    }
+    if (Array.isArray(this.settings.strategies)) this.settings.strategies = this.settings.strategies.filter(n => strategies.META[n] && !HIDDEN.includes(n));
+    LAB.setStale(this.settings.stale_sec);
+    this.paramLogFile = path.join(DATA, 'param-log.json');
+    this.paramLog = readJson(this.paramLogFile, []); // who, when, what: old → new (parameters and mode/account switches)
     this.signals = readJson(this.signalsFile, []);
-    this.assets = new Map();      // symbol -> { symbol, name, type, payout, active, key, otc, category }
+    this.assets = new Map();     // symbol -> { symbol, name, type, payout, active, key, otc, category }
     this.candles = new Map();     // symbol -> closed candles
     this.trendCandles = new Map(); // "symbol|minutes" -> { at, candles } in a trend timeframe
     this.trendReq = new Map();     // request index -> { tf }
@@ -540,6 +555,8 @@ class Engine extends EventEmitter {
       }
       byTf.ctx = this.ctxCandles.get(h.asset);
       byTf.otc = /_otc$/i.test(h.asset); byTf.asset = h.asset;
+      // Stale-data limit = stale_sec on top of the scan interval (a closed candle is only seen at the next scan).
+      LAB.setStale(Number(this.settings.stale_sec ?? 5) === 0 ? 0 : Number(this.settings.stale_sec ?? 5) + (this.scanInterval || 60));
       for (const sig of strategies.evaluate(byTf, names, this.settings)) {
         // The pin bar strategy has its own minimum score (pb_min_score) instead of the general minimum strength.
         if (!this._ownTrendLogic(sig) && sig.strength < (this.settings.min_strength || 0)) continue;
@@ -596,12 +613,25 @@ class Engine extends EventEmitter {
     const entryTime = s.entry || s.candle.time + 60; // next candle start (S-timeframes set their own)
     const id = `${s.asset}-${s.strategy}-${s.tf}-${s.bar ?? entryTime}`; // entry "now" inside a candle: one signal per candle
     if (this.signals.some(x => x.id === id)) return;
+    // Lab: setup key = strategy + asset + direction + formation candle; risk checks (payout, cooldown, daily limit).
+    if (s.lab) {
+      const key = LAB.setupKey(s);
+      if (this.signals.some(x => x.setupKey === key)) return;
+      const rb = LAB.riskCheck(s, this.signals, this.settings, a.payout);
+      if (rb) { const d = LAB.lastDecisions(); d[s.strategy] = { status: rb.status, code: rb.reason, at: Date.now(), asset: s.asset }; return; }
+      s.setupKey = key;
+    }
     strategies.whyAdd(s.strategy, s.whyKey || id, 'delivered');
     const sig = {
       id, symbol: s.asset, name: a.name, otc: !!a.otc, payout: a.payout, dir: s.dir > 0 ? 'CALL' : 'PUT',
       strategy: s.strategy, strategyName: strategies.NAMES[s.strategy] || s.strategy, reason: s.reason, tf: s.tf, ...(s.model ? { model: s.model } : {}), ...(s.regime ? { regime: s.regime } : {}), ...(s.im ? { im: s.im } : {}),      strength: s.strength, expiry: s.expiry, entryTime, entryPrice: s.candle.close,
       tv: tvUrl(s.asset, a.type), tvSymbol: tvSymbol(s.asset, a.type), result: null, created: Date.now(),
+      account: this.settings.account === 'REAL' ? 'REAL' : 'DEMO', tradeMode: this.settings.trade_mode || 'SIGNAL_ONLY',
     };
+    if (s.lab) {
+      // Entry window made for a human: at least 10 s for 1M, 20 s for 2M+ after the entry candle opens.
+      Object.assign(sig, { lab: s.lab, setupKey: s.setupKey, expiresAt: entryTime + (s.expiry >= 120 ? 20 : 10) });
+    }
     const hist0 = this.candles.get(s.asset), atr0 = hist0 && hist0.length > 15 ? I.atr(hist0, 14)[hist0.length - 1] : null;
     if (atr0 > 0) sig.atr0 = atr0;
     try { const mc = this._miniChart(hist0, s); if (mc) { sig.m5 = mc.m5; sig.m1 = mc.m1; sig.miniTf = this.settings.mini_tf || 'M5'; } } catch {}
@@ -629,6 +659,7 @@ class Engine extends EventEmitter {
       const diff = k.close - s.entryPrice;
       s.result = diff === 0 ? 'DRAW' : (diff > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS';
       s.exitPrice = k.close; changed = true;
+      if (s.paper && !s.paper.result && s.paper.price != null) { const dp = k.close - s.paper.price; s.paper.result = dp === 0 ? 'DRAW' : (dp > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS'; s.paper.close = k.close; }
       if (s.im) this._logImpulse(s);
       if (s.entryLive != null) { const dz = k.close - s.entryLive; s.zoneResult = dz === 0 ? 'DRAW' : (dz > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS'; }
     }
@@ -678,8 +709,87 @@ class Engine extends EventEmitter {
     return this.po.openOnAccount(symbol, sec || undefined);
   }
 
+  // Parameter journal: who, when, old → new (newest 1000).
+  _logParam(scope, key, oldV, newV) {
+    if (JSON.stringify(oldV) === JSON.stringify(newV)) return;
+    this.paramLog.unshift({ at: Date.now(), who: 'user', scope, key, old: oldV ?? null, new: newV ?? null });
+    this.paramLog = this.paramLog.slice(0, 1000);
+    try { writeJson(this.paramLogFile, this.paramLog); } catch {}
+  }
+
+  // Broker history import (CSV/Excel-CSV/HTML table parsed in the UI into rows):
+  // { time (s), asset, dir 'CALL'|'PUT', amount, expiry (s), result 'WIN'|'LOSS'|'DRAW', profit, demo }.
+  // Each row is matched to a signal (same asset + direction, open time within created … expiresAt + tolerance);
+  // otherwise it is kept as a trade outside signals. Already imported rows (same key) are skipped.
+  importHistory(rows, account) {
+    if (!Array.isArray(rows)) return { ok: false, error: 'err_json' };
+    const tol = Number(this.settings.match_tolerance_sec ?? 10);
+    let matched = 0, outside = 0, ambiguous = 0, skipped = 0;
+    const norm = a => String(a || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/OTC$/, '_otc');
+    for (const r of rows) {
+      const t = Number(r.time), dir = /put|down|sell|вниз/i.test(r.dir) ? 'PUT' : 'CALL', sym = norm(r.asset);
+      if (!t || !sym) { skipped++; continue; }
+      const key = `imp-${sym}-${t}-${dir}-${r.amount || ''}`;
+      if (this.signals.some(s => s.trade && s.trade.req === key)) { skipped++; continue; }
+      const res = /win|выиг|gewinn|^\+/i.test(r.result) ? 'WIN' : /loss|проиг|verlust|^-/i.test(r.result) ? 'LOSS' : /draw|ничья|возврат|refund/i.test(r.result) ? 'DRAW' : (Number(r.profit) > 0 ? 'WIN' : Number(r.profit) < 0 ? 'LOSS' : null);
+      const demo = r.demo != null ? !!r.demo : account !== 'REAL';
+      const trade = { req: key, at: t, expiry: Number(r.expiry) || 60, amount: Number(r.amount) || 0, demo, dir, result: res, profit: Number(r.profit) || 0, source: 'import' };
+      const cands = this.signals.filter(s => !s.manual && s.symbol.toUpperCase().replace(/[^A-Z0-9_]/g, '') === sym.toUpperCase() && s.dir === dir && !s.trade
+        && t >= (s.created || 0) / 1000 - 5 && t <= (s.expiresAt ? s.expiresAt + tol : s.entryTime + s.expiry));
+      const sig = cands.sort((x, y) => Math.abs(t - x.created / 1000) - Math.abs(t - y.created / 1000))[0];
+      if (sig) { sig.mine = true; sig.trade = { ...trade, delay: Math.round(t - sig.created / 1000), ambiguous: cands.length > 1 }; matched++; if (cands.length > 1) ambiguous++; }
+      else {
+        this.signals.push({ id: `trade-${key}`, symbol: sym, name: sym.replace(/_otc$/, ' OTC'), otc: /_otc$/.test(sym), payout: null, dir, manual: true, mine: true,
+          strategy: 'manual', strategyName: { ru: 'Вне сигналов', de: 'Außerhalb der Signale', en: 'Outside signals' }, reason: '', tf: '', strength: 0,
+          expiry: trade.expiry, entryTime: t, entryPrice: null, result: res, created: t * 1000, trade });
+        outside++;
+      }
+    }
+    this.signals.sort((a, b) => (b.created || 0) - (a.created || 0));
+    writeJson(this.signalsFile, this.signals); this.emit('state');
+    return { ok: true, matched, outside, ambiguous, skipped };
+  }
+
+  // Backtest inside the app: the PC uses the recorded quotes (data/otc/*.csv) plus the loaded candles,
+  // the phone only the loaded candles (~300 per pair). Returns the lab report per strategy.
+  labBacktest(id, opt = {}) {
+    if (!LAB.BY_ID[id] || !LAB.BY_ID[id].impl) return { ok: false, error: 'not_built' };
+    const series = new Map();
+    for (const [sym, c] of this.candles) series.set(sym, c.slice());
+    try {
+      const dir = path.join(DATA, 'otc'), files = fs.readdirSync(dir).filter(f => /^\d{4}-\d\d-\d\d\.csv$/.test(f)).sort().slice(-Number(opt.days || 14));
+      const rec = new Map();
+      for (const f of files) for (const line of fs.readFileSync(path.join(dir, f), 'utf8').split('\n')) {
+        const [sym, time, o, h, l, c] = line.split(','); if (!sym || !c) continue;
+        (rec.get(sym) || rec.set(sym, new Map()).get(sym)).set(Number(time), { time: Number(time), open: +o, high: +h, low: +l, close: +c });
+      }
+      for (const [sym, m] of rec) { const old = series.get(sym) || []; for (const k of old) m.set(k.time, k); series.set(sym, [...m.values()].sort((a, b) => a.time - b.time)); }
+    } catch {}
+    const want = LAB.BY_ID[id].asset_type === 'OTC';
+    const agg = { is: [], oos: [] }; let pairs = 0, candles = 0;
+    for (const [sym, c] of series) {
+      if (/_otc$/i.test(sym) !== want || c.length < 260) continue;
+      pairs++; candles += c.length;
+      const r = LAB.backtest(c.slice(-20000), id, { payout: (Number(opt.payout) || 80) / 100, expirySec: Number(opt.expiry) || undefined });
+      for (const t of r.trades) (t.oos ? agg.oos : agg.is).push(t);
+    }
+    const sum = list => { const w = list.filter(x => x.res === 'WIN').length, n = list.filter(x => x.res !== 'DRAW').length; return { w, n, ci: LAB.wilson(w, n) }; };
+    return { ok: true, id, pairs, candles, payout: Number(opt.payout) || 80, is: sum(agg.is), oos: sum(agg.oos), at: Date.now() };
+  }
+
+  // Paper trade on a lab signal: virtual entry at the current price, settled at expiry like the signal.
+  paperTrade(id) {
+    const s = this.signals.find(x => x.id === id); if (!s || s.paper) return;
+    const t = this.ticks.get(s.symbol), price = t && t.length ? t[t.length - 1][1] : s.entryPrice;
+    s.paper = { at: Math.floor(Date.now() / 1000), price, delay: Math.round(Date.now() / 1000 - s.created / 1000) };
+    writeJson(this.signalsFile, this.signals); this.emit('state');
+  }
+
   updateSettings(patch) {
+    for (const k of ['account', 'trade_mode', 'strategies', 'risk_daily_loss_units', 'risk_max_trades', 'risk_max_losses', 'risk_min_payout', 'risk_stake_pct', 'cooldown_candles', 'daily_signal_limit', 'min_payout'])
+      if (k in patch) this._logParam('settings', k, this.settings[k], patch[k]);
     Object.assign(this.settings, patch);
+    if ('stale_sec' in patch) LAB.setStale(patch.stale_sec);
     writeJson(this.settingsFile, this.settings);
     if ('scan_interval' in patch) this.restartTimer();
     // Quotes back to the real login right away when the demo option is switched off (the demo chart gets its candles back).
@@ -695,6 +805,7 @@ class Engine extends EventEmitter {
     if (!strategies.META[name]) return;
     const s = this.settings;
     s.strategy_settings = s.strategy_settings || {};
+    if (patch) for (const [k, v] of Object.entries(patch)) this._logParam(name, k, strategies.paramsFor(name, s)[k], v);
     if (patch) s.strategy_settings[name] = { ...(s.strategy_settings[name] || {}), ...patch };
     if (Array.isArray(presets)) { s.strat_presets = s.strat_presets || {}; s.strat_presets[name] = presets.filter(n => Number.isInteger(n)); }
     if (tfs) { s.strat_tfs = s.strat_tfs || {}; s.strat_tfs[name] = tfs.length ? tfs : ['M1']; }
@@ -782,9 +893,11 @@ class Engine extends EventEmitter {
       const key = String(d.requestId ?? `${sym}-${Math.floor(now)}`);
       if (this.signals.some(s => s.trade && s.trade.req === key)) return;
       const trade = { req: key, at: Math.floor(now), expiry: exp, amount: Number(d.amount) || 0, demo: !!d.isDemo, dir };
-      const sig = this.signals.find(s => !s.manual && s.symbol === sym && s.dir === dir && !s.trade
-        && now >= (s.created || 0) / 1000 - 5 && now < s.entryTime + s.expiry);
-      if (sig) { sig.mine = true; sig.trade = trade; }
+      // Lab signals: open time within created … expiresAt + 10 s; several candidates → the nearest, marked ambiguous.
+      const cands = this.signals.filter(s => !s.manual && s.symbol === sym && s.dir === dir && !s.trade
+        && now >= (s.created || 0) / 1000 - 5 && now < (s.expiresAt ? s.expiresAt + 10 : s.entryTime + s.expiry));
+      const sig = cands.sort((x, y) => Math.abs(now - x.created / 1000) - Math.abs(now - y.created / 1000))[0];
+      if (sig) { sig.mine = true; sig.trade = trade; trade.delay = Math.round(now - sig.created / 1000); if (cands.length > 1) trade.ambiguous = true; }
       else {
         const a = this.assets.get(sym) || { name: sym.replace(/_otc$/, ' OTC'), otc: /_otc$/.test(sym) };
         const t = this.ticks.get(sym), price = t && t.length ? t[t.length - 1][1] : null;
@@ -835,6 +948,15 @@ class Engine extends EventEmitter {
       signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, trends: this.trendMinutes.map(m => ({ tf: 'M' + m, dir: this.m5Trend(s.symbol, m) })).filter(x => x.dir) } : s)),
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
       why: strategies.whyHour(), // "Why (last hour)": found / filtered / delivered per strategy
+      lab: {
+        catalog: LAB.CATALOG.map(c => ({ ...c, params: c.impl ? strategies.paramsFor(c.id, this.settings) : null })),
+        decisions: LAB.lastDecisions(), stats: LAB.statsFor(this.signals),
+        limits: LAB.manualLimits(this.signals, this.settings, this.settings.account === 'REAL' ? 'REAL' : 'DEMO'),
+        paramLog: this.paramLog.slice(0, 100), risk: { ...LAB.RISK_DEFAULTS, ...LAB.COMMON, ...Object.fromEntries(Object.keys({ ...LAB.RISK_DEFAULTS, ...LAB.COMMON }).filter(k => this.settings[k] != null).map(k => [k, this.settings[k]])) },
+        account: this.settings.account === 'REAL' ? 'REAL' : 'DEMO', mode: this.settings.trade_mode || 'SIGNAL_ONLY',
+        notify_strats: this.settings.notify_strats || [], stale_sec: Number(this.settings.stale_sec ?? 5),
+        latency: (() => { let best = null; for (const t of this.ticks.values()) { const x = t && t.length ? t[t.length - 1][0] : null; if (x) { const age = Date.now() - x * 1000; if (best === null || age < best) best = age; } } return best; })(),
+      },
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],
         allStrategies: strategies.list.filter(k => !HIDDEN.includes(k)).map(k => ({

@@ -120,6 +120,7 @@ function render() {
   $('#stats').innerHTML = statTiles(mineList(), true);
 
   renderLive();
+  if (window.labRender) window.labRender();
   $('#liveCount').textContent = open || '';
   // No (working) PocketOption session yet: ask to log in; the app takes the session over automatically.
   $('#loginBox').hidden = !['no_ssid', 'expired'].includes(state.status) || (!isDesktop && !isAndroid);
@@ -183,10 +184,12 @@ function statTiles(list, mine) {
     <div class="stat"><b style="color:${r == null ? 'inherit' : rateColor(r)}">${r == null ? '–' : r + '%'}</b><span>${t('winrate')}</span></div>`;
 }
 function visibleSignals() {
-  const list = state.signals.filter(isVisible);
+  const list = state.signals.filter(isVisible).filter(s => !window.labFilter || window.labFilter(s));
   const pinned = pins.map(id => list.find(s => s.id === id)).filter(Boolean);
-  // Starred first, then newest on top (user, 04.11.2026: every fresh signal must be seen at once).
-  const rest = list.filter(s => !pins.includes(s.id)).sort((a, b) => (b.created || 0) - (a.created || 0) || b.strength - a.strength);
+  // Starred first, then by remaining validity, shortest on top (Strategy Lab, 13.11.2026; not by win rate).
+  // Entry window over (lab) → behind the signals that can still be entered.
+  const left = s => { const now = Date.now() / 1000; return s.expiresAt && s.expiresAt > now ? s.expiresAt - now : s.entryTime + s.expiry - now + (s.expiresAt ? 1e4 : 0); };
+  const rest = list.filter(s => !pins.includes(s.id)).sort((a, b) => left(a) - left(b) || (b.created || 0) - (a.created || 0));
   return [...pinned, ...rest];
 }
 // Trend badge; clicking it opens the pair in PocketOption on the trend timeframe.
@@ -211,7 +214,8 @@ function renderLive() {
   if (scrolled && heldOrder) { fresh = live.filter(s => !heldOrder.includes(s.id)).length; live = heldOrder.map(id => live.find(s => s.id === id)).filter(Boolean); }
   else heldOrder = live.map(s => s.id);
   $('#newPill').hidden = !fresh; if (fresh) $('#newPill').textContent = t('new_signals', { n: fresh });
-  const liveKey = [LANG, state.settings.show_m5, state.settings.trend_tfs, ...live.map(sig)].join('|');
+  const lk = state.lab ? [state.lab.mode, state.lab.account, JSON.stringify(state.lab.stats || {}).length, live.map(s => (s.trade ? 1 : 0) + (s.paper ? (s.paper.result || 'p') : '')).join()] : [];
+  const liveKey = [LANG, state.settings.show_m5, state.settings.trend_tfs, ...lk, ...live.map(sig)].join('|');
   if ($('#live').dataset.key !== liveKey) { const top = main.scrollTop; $('#live').innerHTML = live.map(card).join(''); $('#live').dataset.key = liveKey; main.scrollTop = top; }
   $('#liveEmpty').hidden = live.length > 0;
   updateAdxBoxes();
@@ -303,6 +307,7 @@ function card(s) {
     </div>
     <div class="sig-now"><div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
       <span>${fmtExp(s.expiry)} · ${s.payout}%</span></div>
+    ${window.labCard ? labCard(s) : ''}
     ${m5Chart(s)}
     ${done ? '' : `<div class="pricehint" data-zone-id="${esc(s.id)}">${priceHint(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
@@ -825,11 +830,15 @@ function beep(key) {
 const soundOf = name => (state && state.settings.strat_sounds && state.settings.strat_sounds[name]) || 'default';
 let lastAuto = 0;
 function onSignal(s) {
+  // Notifications only for the chosen strategies (Strategy Lab settings; empty list = all).
+  const ns = state && state.lab && state.lab.notify_strats;
+  if (ns && ns.length && !ns.includes(s.strategy)) return;
   const snd = soundOf(s.strategy);
   // The phone plays the strategy's sound with the notification (its own channel); the app only on the PC/browser.
   if (state && state.settings.sound && !isAndroid) beep(snd);
   if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
-  const body = `${tr(s.strategyName)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}`;
+  const left = s.expiresAt ? Math.max(0, Math.round(s.expiresAt - Date.now() / 1000)) : null;
+  const body = `${tr(s.strategyName)} · ${fmtExp(s.expiry)} · ${s.lab ? 'score ' + s.lab.score : t('strength') + ' ' + s.strength}${left != null ? ' · ' + t('notif_left', { s: left }) : ''}`;
   // Pair first (user 08.11.2026: the collapsed phone notification showed only the emojis and two letters of the pair).
   const title = isAndroid ? `${s.name} ${s.dir === 'CALL' ? '▲' : '▼'} ${s.dir}` : `${s.dir === 'CALL' ? '🟢⬆️' : '🔴⬇️'} ${s.dir} · ${s.name}`;
   if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, s.name, s.symbol, s.tv, state.settings.sound ? snd : 'none');
