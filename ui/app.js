@@ -138,7 +138,7 @@ function render() {
   const s = state.settings;
   if (!$('#settings').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') {
     $('#sOn').checked = s.signals_on; $('#sSound').checked = s.sound; $('#sAuto').checked = s.auto_po; $('#sQuick').checked = !!s.quick_trade; $('#sQuickReal').checked = !!s.quick_real; $('#sRegimeMode').value = s.regime_mode || 'off'; document.querySelectorAll('[data-rg]').forEach(i => { i.value = s[i.dataset.rg]; }); $('#sChaos').checked = s.chaos_skip; $('#sPoClick').checked = s.po_click_toggle; $('#sMini').checked = s.mini_on_blur; $('#sM5').checked = s.show_m5;
-    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; $('#sMktLevel').value = String(s.mkt_level || 0); $('#sQuotesDemo').checked = !!s.quotes_demo; $('#sSmartExp').checked = !!s.smart_exp; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
+    $('#sPoStart').value = s.po_start_mode || 'last'; $('#sTvOpen').value = s.tv_open || 'external'; $('#sMiniTf').value = s.mini_tf || 'M5'; $('#sMktLevel').value = String(s.mkt_level || 0); $('#sQuotesDemo').checked = !!s.quotes_demo; document.querySelectorAll('[data-trendtf]').forEach(x => { x.checked = (s.trend_tfs || ['M5']).includes(x.value); }); $('#sTrendFilter').checked = s.trend_filter; $('#sOtcRec').checked = s.otc_record !== false;
     { const r = state.otcRec || {}; let extra = ''; if (isAndroid && window.AndroidApp.recInfo) { try { const a = JSON.parse(window.AndroidApp.recInfo()); extra = ' · ' + t('otc_rec_store', { d: a.days, mb: (a.bytes / 1048576).toFixed(1) }); } catch {} } else if (isDesktop && r.dir) extra = ' · ' + r.dir;
       $('#otcRecInfo').textContent = (r.error ? r.error + ' · ' : '') + t('otc_rec_info', { n: r.rows || 0, p: r.pairs || 0 }) + extra; $('#otcExportBtn').hidden = !(isAndroid && window.AndroidApp.recExport); }
     $('#poLastInfo').textContent = s.po_last_mode ? t('po_last_was', { m: t(s.po_last_mode === 'demo' ? 'po_demo' : 'po_real') }) : '';
@@ -524,14 +524,16 @@ function paramInput(key, name, v) {
 }
 function renderStrategies(s) {
   const q = stratQuery.toLowerCase();
-  const list = s.allStrategies.filter(x =>
-    (stratFilter === 'all' || (stratFilter === 'on' ? s.strategies.includes(x.key) : s.favorites.includes(x.key))) &&
+  // Only the strategies starred in the Catalog are listed here (user 13.11.2026: no need to go to the Catalog each time).
+  const list = s.allStrategies.filter(x => s.favorites.includes(x.key) &&
+    (stratFilter === 'all' || (stratFilter === 'on' ? s.strategies.includes(x.key) : true)) &&
     (!q || Object.values(x.names || { n: x.name }).some(n => String(n).toLowerCase().includes(q)) || x.key.includes(q)));
-  $('#stratCount').textContent = t('active_of', { a: s.strategies.length, n: s.allStrategies.length });
+  $('#stratCount').textContent = '★ ' + s.allStrategies.filter(x => s.favorites.includes(x.key)).length;
   document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === stratFilter));
   $('#strats').innerHTML = list.map(x => `<div class="strat${openStrats.has(x.key) ? ' open' : ''}">
     <div class="strat-head"><input type="checkbox" class="sw" data-strat="${x.key}" ${s.strategies.includes(x.key) ? 'checked' : ''}>
-      <button class="strat-name" data-open="${x.key}">${s.favorites.includes(x.key) ? '★ ' : ''}${esc(tr(x.names || x.name))}<small>${x.tfs.join(' · ')} · ${x.type === 'rev' ? (x.params.follow_move ? t('follow') : t('reversal')) : t('trend')}</small></button>
+      <button class="favstar on" data-favstrat="${x.key}" title="${t('fav_remove')}">★</button>
+      <button class="strat-name" data-open="${x.key}">${esc(tr(x.names || x.name))}<small>${x.tfs.join(' · ')} · ${x.type === 'rev' ? (x.params.follow_move ? t('follow') : t('reversal')) : t('trend')}</small></button>
       <button class="strat-arrow" data-open="${x.key}">${openStrats.has(x.key) ? '▴' : '▾'}</button></div>
     <div class="strat-body">
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
@@ -541,7 +543,7 @@ function renderStrategies(s) {
       ${testTable(x)}
       ${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
-    </div></div>`).join('') || `<p class="empty">${t('no_strategy')}</p>`;
+    </div></div>`).join('') || `<p class="empty">${t('fav_empty')}</p>`;
 }
 
 // Countdown + progress until entry, then until expiry. Also used when a card is (re)built,

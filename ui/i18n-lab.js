@@ -34,6 +34,8 @@
     review_title: 'Разбор дня', review_hint: 'Сегодняшние сигналы: одним касанием отметьте те, по которым входили (после сессии, не во время торговли).', outside_title: 'Сделки вне сигналов', paper_title: 'Paper-сделки',
     risk_acct: 'Лимиты считаются по моим сделкам на счёте: {a}', risk_stale: 'Порог свежести данных, с (поверх интервала сканирования; 0 = выкл.)',
     notify_title: 'Уведомления', notify_hint: 'Звук и push только по выбранным стратегиям.', ad_tf: 'Адаптивный ТФ',
+    fav_add: 'В избранное — стратегия появится в Настройках → Стратегии', fav_remove: 'Убрать из избранного', fav_added: '★ Добавлено в Настройки → Стратегии', fav_removed: 'Убрано из избранного',
+    fav_empty: 'Здесь только избранные стратегии. Отметьте нужные звёздочкой ☆ в Каталоге.',
   };
   const de = {
     tab_catalog: 'Katalog', acct_demo: 'Demo', acct_real: 'Real', real_badge: 'ECHTGELDKONTO',
@@ -69,6 +71,8 @@
     review_title: 'Tagesrückblick', review_hint: 'Heutige Signale: mit einem Tipp die markieren, bei denen Sie eingestiegen sind (nach der Sitzung, nicht beim Handeln).', outside_title: 'Trades außerhalb der Signale', paper_title: 'Paper-Trades',
     risk_acct: 'Limits zählen meine Trades auf dem Konto: {a}', risk_stale: 'Grenze für frische Daten, s (zusätzlich zum Scan-Intervall; 0 = aus)',
     notify_title: 'Benachrichtigungen', notify_hint: 'Ton und Push nur für die gewählten Strategien.', ad_tf: 'Adaptiver ZR',
+    fav_add: 'Favorit – Strategie erscheint unter Einstellungen → Strategien', fav_remove: 'Aus Favoriten entfernen', fav_added: '★ Zu Einstellungen → Strategien hinzugefügt', fav_removed: 'Aus Favoriten entfernt',
+    fav_empty: 'Hier stehen nur Favoriten. Markieren Sie Strategien im Katalog mit dem Stern ☆.',
   };
   const en = {
     tab_catalog: 'Catalog', acct_demo: 'Demo', acct_real: 'Real', real_badge: 'REAL ACCOUNT',
@@ -104,6 +108,8 @@
     review_title: 'Day review', review_hint: 'Today’s signals: tap the ones you entered (after the session, not while trading).', outside_title: 'Trades outside signals', paper_title: 'Paper trades',
     risk_acct: 'Limits count my trades on the account: {a}', risk_stale: 'Fresh-data limit, s (on top of the scan interval; 0 = off)',
     notify_title: 'Notifications', notify_hint: 'Sound and push only for the chosen strategies.', ad_tf: 'Adaptive TF',
+    fav_add: 'Favourite – the strategy appears in Settings → Strategies', fav_remove: 'Remove from favourites', fav_added: '★ Added to Settings → Strategies', fav_removed: 'Removed from favourites',
+    fav_empty: 'Only favourite strategies are listed here. Star them ☆ in the Catalog.',
   };
   if (typeof I18N !== 'undefined') { Object.assign(I18N.ru, ru); Object.assign(I18N.de, de); Object.assign(I18N.en, en); }
   if (typeof module !== 'undefined') module.exports = { ru, de, en };

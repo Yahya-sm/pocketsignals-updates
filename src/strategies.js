@@ -1493,6 +1493,7 @@ const HELP = {
 for (const s of LAB.CATALOG.filter(s => s.impl)) {
   DEFAULTS[s.id] = { expiry: LAB.EXPIRY_SEC[s.impl], ...LAB.PARAMS[s.impl] };
   S[s.id] = LAB.STRAT[s.id];
+  LABELS[s.id] = LAB.PARAM_LABELS;
   OWN_LOGIC.push(s.id);
 }
 module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };

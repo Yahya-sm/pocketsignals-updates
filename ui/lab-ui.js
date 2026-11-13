@@ -142,6 +142,8 @@
 
   // ---------- catalog ----------
   const openCat = new Set();
+  // Star = favourite: the strategy then shows in Settings → Strategies (user 13.11.2026).
+  const favBtn = id => { const on = (state.settings.favorites || []).includes(id); return `<button class="favstar${on ? ' on' : ''}" data-favstrat="${id}" title="${t(on ? 'fav_remove' : 'fav_add')}">${on ? '★' : '☆'}</button>`; };
   function renderCatalog() {
     const el = document.getElementById('catalogBox'); if (!el || !lab() || !isActive('catalog') || editing('catalog')) return;
     const L = lab(), on = new Set(state.settings.strategies || []);
@@ -150,7 +152,7 @@
       const st = (L.stats || {})[c.id] || {}, sg = st.signals || { w: 0, n: 0 }, vd = verdict(sg, 80), open = openCat.has(c.id);
       const risk = ['HIGH', 'VERY_HIGH', 'CRITICAL'].includes(c.risk_level) && c.manual_hard ? ` <span class="hirisk">${t('hi_risk')}</span>` : '';
       return `<div class="catitem${c.impl ? '' : ' draft'}"><div class="cathead" data-cat="${c.id}">
-          <div><b>${esc(c.name)}</b>${risk}<small>${esc(c.id)} · ${esc(c.asset_type)} · ${esc(c.expiry.join(' / '))}</small></div>
+          ${c.impl ? favBtn(c.id) : ''}<div class="catname"><b>${esc(c.name)}</b>${risk}<small>${esc(c.id)} · ${esc(c.asset_type)} · ${esc(c.expiry.join(' / '))}</small></div>
           <div class="catright"><span class="tag">${c.impl ? t('cat_impl') : t('cat_draft')}</span><span class="num v-${vd.v}">${vd.ci ? pct(vd.ci.rate) + ' %' : '–'} <small>n=${sg.n}</small></span></div></div>
         ${open ? `<div class="catbody">
           ${c.impl ? `<label class="row"><span>${t('cat_on')}</span><input type="checkbox" class="sw" data-caton="${c.id}" ${on.has(c.id) ? 'checked' : ''}></label>` : ''}
@@ -160,10 +162,10 @@
           ${c.impl ? wrBlock(c.id, 80) : ''}
           ${c.impl ? `<h4>${t('bt_title')}</h4>${c.backtest ? ['is', 'oos'].map(k => { const b = c.backtest[k], v = verdict(b, 80); return `<p class="hint">${k === 'is' ? 'In-sample' : 'Out-of-sample'}: <span class="num v-${v.v}">${pct(b.w / b.n)} %</span> n = ${b.n}${v.ci ? ' · ' + t('wr_ci', { lo: pct(v.ci.lo), hi: pct(v.ci.hi), be: pct(v.be) }) : ''} · ${t('v_' + v.v)}</p>`; }).join('') + `<p class="hint">${esc(c.backtest.date)} · ${esc(c.backtest.data)}</p>` : `<p class="hint">${t('bt_none')}</p>`}` : ''}
           <h4>${t('cat_stages')}</h4><ol>${c.stages.map(x => `<li>${esc(tr(x))}</li>`).join('')}</ol>
-          ${c.params ? `<h4>${t('cat_params')}</h4><div class="params">${Object.entries(c.params).map(([k, v]) => `<label class="row"><span class="mono">${esc(k)}</span><input type="number" step="any" data-labp="${c.id}" data-k="${esc(k)}" value="${esc(v)}"></label>`).join('')}</div>` : ''}
+          ${c.params ? `<h4>${t('cat_params')}</h4><div class="params">${Object.entries(c.params).map(([k, v]) => `<label class="row"><span>${esc(tr(((state.settings.allStrategies.find(a => a.key === c.id) || {}).labels || {})[k]) || k)}</span><input type="number" step="any" data-labp="${c.id}" data-k="${esc(k)}" value="${esc(v)}"></label>`).join('')}</div>` : ''}
           <p class="hint">${t('cat_note_wr')}</p></div>` : ''}</div>`;
     };
-    const legacyHtml = legacy.map(s => `<div class="catitem"><div class="cathead"><div><b>${esc(tr(s.names))}</b><small>${esc(s.key)}</small></div>
+    const legacyHtml = legacy.map(s => `<div class="catitem"><div class="cathead">${favBtn(s.key)}<div class="catname"><b>${esc(tr(s.names))}</b><small>${esc(s.key)}</small></div>
       <div class="catright"><input type="checkbox" class="sw" data-caton="${s.key}" ${on.has(s.key) ? 'checked' : ''}></div></div></div>`).join('');
     setHtml(el, `<p class="hint">${t('cat_note_wr')}</p>${legacyHtml}${L.catalog.map(item).join('')}`);
   }
@@ -242,6 +244,15 @@
 
   // ---------- events ----------
   window.__labWhy = new Set();
+  document.addEventListener('click', e => {
+    const fb = e.target.closest('[data-favstrat]'); if (!fb || !state) return;
+    e.stopPropagation();
+    const id = fb.dataset.favstrat, list = new Set(state.settings.favorites || []);
+    const add = !list.has(id); add ? list.add(id) : list.delete(id);
+    state.settings.favorites = [...list]; call({ action: 'settings', patch: { favorite_strategies: [...list] } });
+    toast(t(add ? 'fav_added' : 'fav_removed'));
+    const cb = document.getElementById('catalogBox'); if (cb) cb.dataset.h = ''; renderCatalog(); renderStrategies(state.settings);
+  }, true);
   document.addEventListener('click', async e => {
     const el = e.target.closest('[data-acct],[data-tmode],[data-paper],[data-labwhy],[data-cat],[data-lf],#btRun,[data-btexp],#histPick'); if (!el || !state || !state.lab) return;
     if (el.dataset.acct) {

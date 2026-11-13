@@ -69,8 +69,8 @@ for (const s of CATALOG) if (s.impl) s.status = 'BACKTEST';
 // Last backtest (13.11.2026): 12 regular forex pairs, last 20 000 M1 candles each (~14 days), entry at the next open,
 // payout 80 %, in-sample = first 70 %, out-of-sample = last 30 %. OTC variants ran on the same forex data (no OTC history).
 const BACKTEST = {
-  impulse_bot_forex: [1926, 976, 751, 365], range_bot_forex: [378, 196, 170, 96], fractal_bot_forex: [420, 193, 196, 98], overheat_bot_forex: [161, 76, 81, 42],
-  impulse_bot_otc: [2080, 1057, 798, 383], range_bot_otc: [378, 196, 170, 96], fractal_bot_otc: [420, 193, 196, 98], trap_bot_otc: [5443, 2689, 2321, 1170], overheat_bot_otc: [204, 96, 102, 51],
+  impulse_bot_forex: [1926, 976, 751, 365], range_bot_forex: [36, 17, 19, 11], fractal_bot_forex: [420, 193, 196, 98], overheat_bot_forex: [161, 76, 81, 42],
+  impulse_bot_otc: [2080, 1057, 798, 383], range_bot_otc: [36, 17, 19, 11], fractal_bot_otc: [420, 193, 196, 98], trap_bot_otc: [5443, 2689, 2321, 1170], overheat_bot_otc: [204, 96, 102, 51],
 };
 for (const [id, [isN, isW, oosN, oosW]] of Object.entries(BACKTEST)) BY_ID_TMP(id).backtest = { date: '2026-11-13', data: '12 forex pairs × 20 000 M1', is: { n: isN, w: isW }, oos: { n: oosN, w: oosW } };
 function BY_ID_TMP(id) { return CATALOG.find(c => c.id === id); }
@@ -78,10 +78,39 @@ function BY_ID_TMP(id) { return CATALOG.find(c => c.id === id); }
 // Default parameters (all "strong/narrow" words are numbers here; user changes go through the parameter journal).
 const PARAMS = {
   impulse: { accel_range_atr: 1.5, min_directional_closes: 2, prev_range_atr: 1.0, max_opposite_wick_pct: 30, min_level_distance_atr: 0.5, exhaustion_streak: 5, rsi_hi: 85, rsi_lo: 15, forex_close_extreme_pct: 25 },
-  range: { window: 30, touch_tol_atr: 0.15, min_touches: 2, width_min_atr: 2, width_max_atr: 6, max_slope_atr: 0.05, zone_pct: 15, break_body_atr: 0.8, rejection_wick_pct: 50 },
+  // 13.11.2026 user: stricter flat check (a PUT came at the top of a rising market: EMA slope 0.049 passed 0.05, 2 touches).
+  range: { window: 30, touch_tol_atr: 0.15, min_touches: 3, width_min_atr: 2, width_max_atr: 6, max_slope_atr: 0.03, zone_pct: 15, break_body_atr: 0.8, rejection_wick_pct: 50 },
   fractal: { min_amp_atr: 0.3, level_tol_atr: 0.15, min_reactions: 2, room_atr: 1.0, break_atr: 0.2, lookback: 60 },
   trap: { lookback: 20, poke_min_atr: 0.1, poke_max_atr: 0.6, body_pct: 40 },
   overheat: { z_period: 20, z_level: 2.5, extreme_window: 20, wick_pct: 50, atr_pct_lo: 20, atr_pct_hi: 80, forex_adx: 30 },
+};
+// Readable parameter names for the settings (3 languages).
+const PARAM_LABELS = {
+  expiry: L('Экспирация, с', 'Ablauf, s', 'Expiry, s'),
+  accel_range_atr: L('Мин. диапазон свечи, ×ATR', 'Min. Kerzenspanne, ×ATR', 'Min candle range, ×ATR'),
+  min_directional_closes: L('Мин. закрытий по направлению (из 3)', 'Min. Schlüsse in Richtung (von 3)', 'Min closes in direction (of 3)'),
+  prev_range_atr: L('Прошлая свеча не меньше, ×ATR', 'Vorkerze mindestens, ×ATR', 'Previous candle at least, ×ATR'),
+  max_opposite_wick_pct: L('Макс. противоположная тень, %', 'Max. Gegendocht, %', 'Max opposite wick, %'),
+  min_level_distance_atr: L('Мин. расстояние до уровня, ×ATR', 'Min. Abstand zum Level, ×ATR', 'Min distance to level, ×ATR'),
+  exhaustion_streak: L('Истощение: свечей подряд', 'Erschöpfung: Kerzen in Folge', 'Exhaustion: candles in a row'),
+  rsi_hi: L('Истощение: RSI 7 выше', 'Erschöpfung: RSI 7 über', 'Exhaustion: RSI 7 above'), rsi_lo: L('Истощение: RSI 7 ниже', 'Erschöpfung: RSI 7 unter', 'Exhaustion: RSI 7 below'),
+  forex_close_extreme_pct: L('FOREX: закрытие в крайних, %', 'FOREX: Schluss in äußeren, %', 'FOREX: close in the outer, %'),
+  window: L('Окно диапазона, свечей', 'Range-Fenster, Kerzen', 'Range window, candles'),
+  touch_tol_atr: L('Допуск касания, ×ATR', 'Toleranz Berührung, ×ATR', 'Touch tolerance, ×ATR'),
+  min_touches: L('Мин. касаний каждой границы', 'Min. Berührungen je Grenze', 'Min touches of each bound'),
+  width_min_atr: L('Ширина диапазона от, ×ATR', 'Range-Breite ab, ×ATR', 'Range width from, ×ATR'), width_max_atr: L('Ширина диапазона до, ×ATR', 'Range-Breite bis, ×ATR', 'Range width up to, ×ATR'),
+  max_slope_atr: L('Макс. наклон EMA 20, ×ATR за свечу (меньше = строже боковик)', 'Max. Neigung EMA 20, ×ATR je Kerze (kleiner = strenger)', 'Max EMA 20 slope, ×ATR per candle (lower = stricter flat)'),
+  zone_pct: L('Зона у границы, % ширины', 'Zone an der Grenze, % der Breite', 'Zone at the bound, % of width'),
+  break_body_atr: L('Пробойная свеча: тело больше, ×ATR', 'Ausbruchskerze: Körper über, ×ATR', 'Breakout candle: body above, ×ATR'),
+  rejection_wick_pct: L('Свеча отказа: тень от, %', 'Ablehnungskerze: Docht ab, %', 'Rejection candle: wick from, %'),
+  min_amp_atr: L('Мин. амплитуда фрактала, ×ATR', 'Min. Fraktal-Amplitude, ×ATR', 'Min fractal amplitude, ×ATR'),
+  level_tol_atr: L('Допуск уровня, ×ATR', 'Level-Toleranz, ×ATR', 'Level tolerance, ×ATR'), min_reactions: L('Мин. реакций уровня', 'Min. Reaktionen am Level', 'Min level reactions'),
+  room_atr: L('Мин. место до следующего уровня, ×ATR', 'Min. Platz zum nächsten Level, ×ATR', 'Min room to next level, ×ATR'), break_atr: L('Пробой не меньше, ×ATR', 'Ausbruch mindestens, ×ATR', 'Breakout at least, ×ATR'),
+  lookback: L('История, свечей', 'Rückblick, Kerzen', 'Lookback, candles'), poke_min_atr: L('Выход за экстремум от, ×ATR', 'Stich über Extrem ab, ×ATR', 'Poke from, ×ATR'), poke_max_atr: L('Выход за экстремум до, ×ATR', 'Stich über Extrem bis, ×ATR', 'Poke up to, ×ATR'),
+  body_pct: L('Тело свечи против пробоя от, %', 'Körper gegen Ausbruch ab, %', 'Counter body from, %'),
+  z_period: L('Z-score: период', 'Z-Score: Periode', 'Z-score period'), z_level: L('Z-score: уровень', 'Z-Score: Schwelle', 'Z-score level'), extreme_window: L('Окно экстремума, свечей', 'Extrem-Fenster, Kerzen', 'Extreme window, candles'),
+  wick_pct: L('Свеча отказа: тень от, %', 'Ablehnungskerze: Docht ab, %', 'Rejection wick from, %'), atr_pct_lo: L('ATR-перцентиль от', 'ATR-Perzentil ab', 'ATR percentile from'), atr_pct_hi: L('ATR-перцентиль до', 'ATR-Perzentil bis', 'ATR percentile up to'),
+  forex_adx: L('FOREX: не против тренда при ADX выше', 'FOREX: nicht gegen Trend bei ADX über', 'FOREX: not against trend at ADX above'),
 };
 const COMMON = { cooldown_candles: 2, daily_signal_limit: 20 };
 const EXPIRY_SEC = { impulse: 60, range: 60, fractal: 120, trap: 60, overheat: 60 };
@@ -103,7 +132,7 @@ const T = {
   close_not_extreme: v => L(`закрытие не в крайних ${v.p} % (${v.x} %)`, `Schluss nicht in äußeren ${v.p} % (${v.x} %)`, `close not in the outer ${v.p} % (${v.x} %)`),
   no_range: v => L(`нет диапазона: ${v.why}`, `keine Range: ${v.why}`, `no range: ${v.why}`),
   range_found: v => L(`диапазон ${v.w}×ATR, касаний ${v.a}/${v.b}`, `Range ${v.w}×ATR, Berührungen ${v.a}/${v.b}`, `range ${v.w}×ATR, touches ${v.a}/${v.b}`),
-  at_bound: v => L(`цена у  границы, пробоя нет`, `Preis an der  Grenze, kein Ausbruch`, `price at the  bound, no breakout`),
+  at_bound: v => L(`цена у ${v.b === 'top' ? 'верхней' : 'нижней'} границы, пробоя нет`, `Preis an der ${v.b === 'top' ? 'oberen' : 'unteren'} Grenze, kein Ausbruch`, `price at the ${v.b === 'top' ? 'upper' : 'lower'} bound, no breakout`),
   not_at_bound: () => L('цена не у границы', 'Preis nicht an der Grenze', 'price not at a bound'),
   breakout_candle: v => L(`пробойная свеча, тело ${v.b}×ATR`, `Ausbruchskerze, Körper ${v.b}×ATR`, `breakout candle, body ${v.b}×ATR`),
   no_rejection: v => L(`нет свечи отказа (тень ${v.w} %)`, `keine Ablehnungskerze (Docht ${v.w} %)`, `no rejection candle (wick ${v.w} %)`),
@@ -407,4 +436,4 @@ function statsFor(signals) {
   return out;
 }
 
-module.exports = { adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
+module.exports = { PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };

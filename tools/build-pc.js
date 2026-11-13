@@ -48,7 +48,7 @@ function bumpVersion() {
     icon: path.join(BUILD, 'icon.ico'), overwrite: true, asar: false, prune: true, appVersion: version,
     extraResource: [defaults()],
     // Keep earlier build outputs (zip, setup, apk) out of the app.
-    ignore: [/^\/android/, /^\/build-pc/, /^\/data/, /^\/tools/, /^\/installer/, /^\/updates/, /^\/\.github-token/, /\.apk$/, /\.idsig$/, /\.zip$/, /\.exe$/, /\.bat$/, /\.md$/],
+    ignore: [/^\/\.claude/, /^\/\.github/, /^\/\.git/, /^\/android/, /^\/build-pc/, /^\/data/, /^\/tools/, /^\/installer/, /^\/updates/, /^\/\.github-token/, /\.apk$/, /\.idsig$/, /\.zip$/, /\.exe$/, /\.bat$/, /\.md$/],
     win32metadata: { CompanyName: 'PocketSignals', ProductName: 'PocketSignals', FileDescription: 'PocketSignals' },
   });
   // Portable package for other PCs: PocketSignals-PC.zip with the app and an installer script.
