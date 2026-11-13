@@ -487,3 +487,25 @@ html, body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, s
 .favstar.on { color: var(--warn); }
 .cathead .catname { flex: 1; min-width: 0; }
 .strat-head .favstar { width: 34px; font-size: 20px; }
+
+/* Compact signal cards (user 14.11.2026) */
+.sig { padding: 8px 10px; margin-bottom: 7px; }
+.pair { font-size: 15px; }
+.dir .arrow { width: 26px; height: 26px; font-size: 17px; }
+.dir { padding: 2px 9px 2px 2px; font-size: 12px; }
+.sig-now { margin: 4px 0 2px; font-size: 12px; }
+.sig-now .timer { font-size: 14px; }
+.m5chart { margin: 3px 0 1px; }
+.m5chart svg { height: 42px; margin-top: 14px; }
+.labcard { gap: 3px; margin: 2px 0; }
+.labline { font-size: 11px; gap: 6px; flex-wrap: wrap; }
+.labline .linkbtn { margin-left: auto; padding: 0 2px; min-height: 24px; font-size: 12px; }
+.entrywin { margin-left: 0; font-size: 11px; }
+.paperbtn { min-height: 30px; padding: 4px 8px; font-size: 12px; }
+.mybadge { padding: 2px 6px; font-size: 10px; }
+.btns { margin-top: 5px; }
+.posplit button { padding: 5px 4px; }
+.posplit b { font-size: 12px; }
+.btns .posplit .adtf { background: var(--po); color: #fff; }
+.timebar { height: 4px; }
+.labwhy .wrbox { margin-bottom: 4px; }

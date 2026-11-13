@@ -32,7 +32,7 @@
     if (F.type === 'otc' && !s.otc) return false;
     if (F.type === 'forex' && s.otc) return false;
     if (F.exp !== 'all' && String(s.expiry) !== F.exp) return false;
-    if (F.noRisk && s.lab && cat(s.lab.id) && ['HIGH', 'VERY_HIGH', 'CRITICAL'].includes(cat(s.lab.id).risk_level)) return false;
+    if (false && s.lab && cat(s.lab.id) && ['HIGH', 'VERY_HIGH', 'CRITICAL'].includes(cat(s.lab.id).risk_level)) return false;
     return true;
   };
   function renderFilters() {
@@ -40,7 +40,7 @@
     const chip = (k, v, label) => `<button class="chip${F[k] === v ? ' active' : ''}" data-lf="${k}" data-lv="${v}">${label}</button>`;
     setHtml(el, `${chip('type', 'all', t('all'))}${chip('type', 'otc', 'OTC')}${chip('type', 'forex', 'Forex')}
       <select class="chipsel" data-lfsel="exp"><option value="all">${t('f_expiry')}</option>${[60, 120, 180, 300].map(s => `<option value="${s}"${F.exp === String(s) ? ' selected' : ''}>${fmtExp(s)}</option>`).join('')}</select>
-      <button class="chip${F.noRisk ? ' active' : ''}" data-lf="noRisk" data-lv="toggle">${t('f_norisk')}</button>`);
+`);
   }
 
   // ---------- win-rate block ----------
@@ -58,7 +58,7 @@
   window.labCard = function (s) {
     if (!s.lab || !lab()) return '';
     const c = cat(s.lab.id) || {};
-    const paper = lab().mode === 'PAPER';
+    const paper = false; // 14.11.2026 user: no Manual/Paper switch – the user trades by hand anyway
     const stages = (s.lab.stages || []).map((x, i) => `<span class="stg ${x}">${t('stage', { n: i + 1 })}: ${t('st_' + x)}</span>`).join('');
     const tw = c.target_win_rate, B = be(s.payout);
     const target = tw ? `<small class="tgt">${t('target', { a: tw.min, b: tw.max })}${tw.min / 100 < B ? ' · ' + t('target_warn') : ''}</small>` : `<small class="tgt">${t('target_tbd')}</small>`;
@@ -68,10 +68,10 @@
     const open = window.__labWhy.has(s.id), now = Date.now() / 1000;
     const win = s.expiresAt ? `<span class="entrywin num${s.expiresAt - now <= 15 ? ' soon' : ''}" data-entrywin="${s.expiresAt}">${winText(s.expiresAt)}</span>` : '';
     const real = lab().account === 'REAL' && c.status !== 'LIVE_READY' ? `<small class="tgt warnc">${t('real_unverified')}</small>` : '';
-    return `<div class="labcard"><div class="labline"><span class="tag">${esc(s.lab.type)}</span><span>${t('score', { s: s.lab.score })} · ${scoreTxt(s.lab.score)}</span>${win}</div>
-      ${wrBlock(s.strategy, s.payout)}${target}${real}${trade}${pap}
-      <button class="linkbtn" data-labwhy="${esc(s.id)}">${t('why_btn')} ${open ? '▴' : '▾'}</button>
-      ${open ? `<div class="labwhy"><div>${esc(tr(s.reason))}</div><div class="stgs">${stages}</div><small>${esc((s.lab.reasons || []).join(', '))}</small>
+    // Compact (user 14.11.2026): one line on the card; win rate, target and details under "Why?".
+    return `<div class="labcard"><div class="labline"><span class="tag">${esc(s.lab.type)}</span><span>${t('score', { s: s.lab.score })}</span>${win}<button class="linkbtn" data-labwhy="${esc(s.id)}">${t('why_btn')} ${open ? '▴' : '▾'}</button></div>
+      ${trade}${pap}
+      ${open ? `<div class="labwhy">${wrBlock(s.strategy, s.payout)}${target}${real}<div>${scoreTxt(s.lab.score)} · ${esc(tr(s.reason))}</div><div class="stgs">${stages}</div><small>${esc((s.lab.reasons || []).join(', '))}</small>
         <small class="feats">${esc(Object.entries(s.lab.feats || {}).map(([k, v]) => k + '=' + v).join(' · '))}</small></div>` : ''}</div>`;
   };
   function winText(exp) { const l = Math.round(exp - Date.now() / 1000); return l > 0 ? `${t('win_left')} 00:${String(l).padStart(2, '0')}` : t('win_over'); }
@@ -88,7 +88,7 @@
     const pays = (state.signals || []).filter(s => !s.result && s.payout).map(s => s.payout);
     const html = `${real ? `<div class="realbadge">${t('real_badge')}</div>` : ''}
       <div class="toprow"><div class="seg acct"><button data-acct="DEMO" class="${!real ? 'on' : ''}">${t('acct_demo')}</button><button data-acct="REAL" class="${real ? 'on real' : ''}">${t('acct_real')}</button></div>
-      <div class="seg"><button data-tmode="SIGNAL_ONLY" class="${L.mode !== 'PAPER' ? 'on' : ''}">${t('mode_manual')}</button><button data-tmode="PAPER" class="${L.mode === 'PAPER' ? 'on' : ''}">${t('mode_paper')}</button></div></div>
+</div>
       ${lim.hit ? `<div class="limitbanner">${t('limit_hit')} (${t('lim_' + lim.hit)})</div>` : ''}
       <div class="rktiles">
         <div class="rk"><span>${t('rk_loss')}</span><b class="num">${(lim.cur.loss || 0).toFixed(1)} / ${lim.lim.loss} ${t('rk_units')}</b>${bar(lim.cur.loss || 0, lim.lim.loss)}</div>
