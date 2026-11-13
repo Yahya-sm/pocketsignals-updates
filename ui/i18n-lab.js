@@ -33,7 +33,7 @@
     import_btn: 'Выбрать файл', import_none: 'В файле не найдено сделок (нужны колонки время и актив)', import_done: 'Строк {n}: привязано к сигналам {m}, вне сигналов {o}, неоднозначно {a}, пропущено {s}',
     review_title: 'Разбор дня', review_hint: 'Сегодняшние сигналы: одним касанием отметьте те, по которым входили (после сессии, не во время торговли).', outside_title: 'Сделки вне сигналов', paper_title: 'Paper-сделки',
     risk_acct: 'Лимиты считаются по моим сделкам на счёте: {a}', risk_stale: 'Порог свежести данных, с (поверх интервала сканирования; 0 = выкл.)',
-    notify_title: 'Уведомления', notify_hint: 'Звук и push только по выбранным стратегиям.',
+    notify_title: 'Уведомления', notify_hint: 'Звук и push только по выбранным стратегиям.', ad_tf: 'Адаптивный ТФ',
   };
   const de = {
     tab_catalog: 'Katalog', acct_demo: 'Demo', acct_real: 'Real', real_badge: 'ECHTGELDKONTO',
@@ -68,7 +68,7 @@
     import_btn: 'Datei wählen', import_none: 'Keine Trades in der Datei gefunden (Spalten Zeit und Asset nötig)', import_done: 'Zeilen {n}: Signalen zugeordnet {m}, außerhalb der Signale {o}, mehrdeutig {a}, übersprungen {s}',
     review_title: 'Tagesrückblick', review_hint: 'Heutige Signale: mit einem Tipp die markieren, bei denen Sie eingestiegen sind (nach der Sitzung, nicht beim Handeln).', outside_title: 'Trades außerhalb der Signale', paper_title: 'Paper-Trades',
     risk_acct: 'Limits zählen meine Trades auf dem Konto: {a}', risk_stale: 'Grenze für frische Daten, s (zusätzlich zum Scan-Intervall; 0 = aus)',
-    notify_title: 'Benachrichtigungen', notify_hint: 'Ton und Push nur für die gewählten Strategien.',
+    notify_title: 'Benachrichtigungen', notify_hint: 'Ton und Push nur für die gewählten Strategien.', ad_tf: 'Adaptiver ZR',
   };
   const en = {
     tab_catalog: 'Catalog', acct_demo: 'Demo', acct_real: 'Real', real_badge: 'REAL ACCOUNT',
@@ -103,7 +103,7 @@
     import_btn: 'Choose file', import_none: 'No trades found in the file (time and asset columns needed)', import_done: '{n} rows: matched to signals {m}, outside signals {o}, ambiguous {a}, skipped {s}',
     review_title: 'Day review', review_hint: 'Today’s signals: tap the ones you entered (after the session, not while trading).', outside_title: 'Trades outside signals', paper_title: 'Paper trades',
     risk_acct: 'Limits count my trades on the account: {a}', risk_stale: 'Fresh-data limit, s (on top of the scan interval; 0 = off)',
-    notify_title: 'Notifications', notify_hint: 'Sound and push only for the chosen strategies.',
+    notify_title: 'Notifications', notify_hint: 'Sound and push only for the chosen strategies.', ad_tf: 'Adaptive TF',
   };
   if (typeof I18N !== 'undefined') { Object.assign(I18N.ru, ru); Object.assign(I18N.de, de); Object.assign(I18N.en, en); }
   if (typeof module !== 'undefined') module.exports = { ru, de, en };

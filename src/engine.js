@@ -634,6 +634,8 @@ class Engine extends EventEmitter {
     }
     const hist0 = this.candles.get(s.asset), atr0 = hist0 && hist0.length > 15 ? I.atr(hist0, 14)[hist0.length - 1] : null;
     if (atr0 > 0) sig.atr0 = atr0;
+    // Adaptive timeframe for the chart (structure, ADX, ATR on M1…M15; LAB.adaptiveTf).
+    try { const at = hist0 && LAB.adaptiveTf(hist0, s.dir); if (at) sig.adTf = { tf: at.tf, why: at.why, all: at.all }; } catch {}
     try { const mc = this._miniChart(hist0, s); if (mc) { sig.m5 = mc.m5; sig.m1 = mc.m1; sig.miniTf = this.settings.mini_tf || 'M5'; } } catch {}
     const a0 = this.liveAdx(sig); if (a0) { sig.adx0 = a0.adx; sig.adxLive = { ...a0, hist: [a0.adx] }; }
     try { const re = this.recExpiry(sig); if (re) { sig.recExp = re.sec; sig.recWhy = re.why; sig.recWeak = re.weak; sig.recShort = re.short; } } catch {}

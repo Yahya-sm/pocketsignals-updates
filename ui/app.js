@@ -312,11 +312,11 @@ function card(s) {
     ${done ? '' : `<div class="pricehint" data-zone-id="${esc(s.id)}">${priceHint(s)}</div>`}
     <div class="timebar${tp.run ? ' run' : ''}" data-entry="${s.entryTime}" data-exp="${s.expiry}" data-created="${created}"><i style="width:${tp.pct}%"></i></div>
     <div class="btns">
-      <div class="posplit"><button class="po" data-po="${esc(s.id)}" data-poexp="${s.expiry}" title="${t('po_set_hint')}"><small>PocketOption ↗</small><b>⏱ ${fmtExp(s.expiry)}</b></button><button class="po keep" data-po="${esc(s.id)}" title="${t('po_keep_hint')}"><small>PocketOption ↗</small><b>${t('po_keep')}</b></button></div>
+      <div class="posplit"><button class="po" data-po="${esc(s.id)}" data-poexp="${s.expiry}" title="${t('po_set_hint')}"><small>PocketOption ↗</small><b>⏱ ${fmtExp(s.expiry)}</b></button><button class="po keep" data-po="${esc(s.id)}" title="${t('po_keep_hint')}"><small>PocketOption ↗</small><b>${t('po_keep')}</b></button>${s.adTf ? `<button class="po adtf" data-po="${esc(s.id)}" data-potf="${s.adTf.tf}" data-poexp="${s.expiry}" title="${esc(tr(s.adTf.why))}"><small>${t('ad_tf')} ↗</small><b>${s.adTf.tf} · ⏱ ${fmtExp(s.expiry)}</b></button>` : ''}</div>
       ${!done && state.settings.quick_trade && (isDesktop || isAndroid) ? `<button class="po quick ${s.dir}${quickArmed(s.id) ? ' armed' : ''}" data-quick="${esc(s.id)}"><small>⚡ ${quickArmed(s.id) ? t('quick_sure') : s.dir}</small><b>${fmtExp(s.expiry)}</b></button>` : ''}
       <button class="morebtn" data-more="${esc(s.id)}" aria-expanded="${more}" title="${t('card_more')}">${more ? '▴' : '▾'}</button>
     </div>
-    ${more ? `<div class="sig-more"><div class="why">${esc(tr(s.reason))}</div>
+    ${more ? `<div class="sig-more"><div class="why">${esc(tr(s.reason))}</div>${s.adTf ? `<div class="why"><b>${t('ad_tf')}:</b> ${esc(tr(s.adTf.why))}<br><small>${(s.adTf.all || []).map(x => `${x.tf} ${Math.round(x.score * 100)}`).join(' · ')}</small></div>` : ''}
       ${done ? '' : `<div class="trendbox" data-trend-id="${esc(s.id)}">${trendBox(s)}</div><div class="adxbox" data-adx-id="${esc(s.id)}">${adxBox(s)}</div>${recBtn(s)}`}
       <button class="tag" data-po="${esc(s.id)}" data-potf="${s.tf || 'M1'}" title="${t('open_tf')}">${s.tf || 'M1'} ↗</button>
       <button class="tag" data-tv="${esc(s.id)}">TradingView ↗</button></div>` : ''}

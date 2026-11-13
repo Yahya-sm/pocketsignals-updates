@@ -325,6 +325,46 @@ function backtest(c, id, opt = {}) {
   return { id, is: rep(trades.filter(x => !x.oos)), oos: rep(trades.filter(x => x.oos)), all: rep(trades), trades };
 }
 
+// ---------- adaptive timeframe (user 13.11.2026) ----------
+// For the chart: which timeframe shows this pair's move most clearly right now. From closed M1 candles each candidate
+// (M1, M2, M3, M5, M15) is built and rated on the last 20 candles:
+//   structure  – efficiency ratio |net move| / sum of candle moves (1 = straight line, 0 = noise) and how many of the
+//                last swing steps go the same way (higher highs + higher lows, or the mirror);
+//   strength   – ADX 14 (25+ = trend) and +DI/−DI agreeing with the move;
+//   volatility – ATR 14 of that timeframe vs its own 50-candle average (too calm < 0.6 or wild > 2 lowers the score).
+// Score = 0.4 × structure + 0.35 × strength + 0.25 × volatility; ties go to the shorter timeframe. Needs ≥ 30 candles
+// on the timeframe (≥ 20 for M15). The weights are judgement, not tested.
+function adaptiveTf(m1, dirWanted) {
+  const out = [];
+  for (const m of [1, 2, 3, 5, 15]) {
+    const c = m === 1 ? m1 : I.resample(m1, m, false);
+    if (c.length < (m === 15 ? 20 : 30)) continue;
+    const i = c.length - 1, n = 20, seg = c.slice(-n);
+    const net = seg[n - 1].close - seg[0].open, path = seg.reduce((a, k) => a + Math.abs(k.close - k.open), 0);
+    const er = path > 0 ? Math.abs(net) / path : 0, dir = net > 0 ? 1 : net < 0 ? -1 : 0;
+    let steps = 0, same = 0;
+    for (let j = 4; j < n; j += 4) { const a = seg.slice(j - 4, j), b = seg.slice(j, j + 4); if (!b.length) break; steps++;
+      const hh = Math.max(...b.map(k => k.high)) > Math.max(...a.map(k => k.high)), hl = Math.min(...b.map(k => k.low)) > Math.min(...a.map(k => k.low));
+      if (dir > 0 ? hh && hl : dir < 0 ? !hh && !hl : false) same++; }
+    const structure = 0.6 * er + 0.4 * (steps ? same / steps : 0);
+    const ad = I.adx(c, 14)[i], adx = ad ? ad.adx : 0, diOk = ad ? (ad.pdi > ad.mdi ? 1 : -1) === dir : false;
+    const strength = Math.min(1, adx / 40) * (diOk ? 1 : 0.5);
+    const atr = I.atr(c, 14); let s = 0, k = 0; for (let j = Math.max(14, i - 49); j <= i; j++) if (atr[j] > 0) { s += atr[j]; k++; }
+    const ratio = k && atr[i] > 0 ? atr[i] / (s / k) : 1;
+    const vol = ratio < 0.6 ? ratio / 0.6 : ratio > 2 ? Math.max(0, 1 - (ratio - 2)) : 1;
+    let score = 0.4 * structure + 0.35 * strength + 0.25 * vol;
+    if (dirWanted && dir && dir !== dirWanted) score *= 0.8; // the move on this timeframe goes against the signal
+    out.push({ tf: 'M' + m, score: +score.toFixed(3), er: +er.toFixed(2), adx: +adx.toFixed(1), atrRatio: +ratio.toFixed(2), dir: dir > 0 ? 'UP' : dir < 0 ? 'DOWN' : 'FLAT', steps: `${same}/${steps}` });
+  }
+  if (!out.length) return null;
+  const best = out.reduce((a, b) => (b.score > a.score + 0.02 ? b : a));
+  const dirTxt = { UP: L('вверх', 'aufwärts', 'up'), DOWN: L('вниз', 'abwärts', 'down'), FLAT: L('боком', 'seitwärts', 'sideways') }[best.dir];
+  const why = L(`${best.tf}: движение ${dirTxt.ru}, чистота ${Math.round(best.er * 100)} %, ступени ${best.steps}, ADX ${best.adx}, ATR ${best.atrRatio}× от среднего`,
+    `${best.tf}: Bewegung ${dirTxt.de}, Sauberkeit ${Math.round(best.er * 100)} %, Stufen ${best.steps}, ADX ${best.adx}, ATR ${best.atrRatio}× vom Mittel`,
+    `${best.tf}: move ${dirTxt.en}, clean ${Math.round(best.er * 100)} %, steps ${best.steps}, ADX ${best.adx}, ATR ${best.atrRatio}× of average`);
+  return { tf: best.tf, score: best.score, why, all: out };
+}
+
 // ---------- risk ----------
 const RISK_DEFAULTS = { risk_daily_loss_units: 3, risk_max_trades: 20, risk_max_losses: 4, risk_min_payout: 80, risk_stake_pct: 1 };
 // Checks for a new signal before it is shown. signals = the engine's list (newest first).
@@ -367,4 +407,4 @@ function statsFor(signals) {
   return out;
 }
 
-module.exports = { setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
+module.exports = { adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
