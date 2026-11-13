@@ -135,8 +135,7 @@
     const today = state.signals.filter(s => s.mine && s.trade && s.trade.at * 1000 >= day.getTime());
     const w = today.filter(s => s.trade.result === 'WIN').length, l = today.filter(s => s.trade.result === 'LOSS').length;
     const units = today.reduce((a, s) => a + (s.trade.result === 'WIN' ? (s.payout || 80) / 100 : s.trade.result === 'LOSS' ? -1 : 0), 0);
-    setHtml(el, `<div class="sidebox"><b>${t('legend_title')}</b><div class="lg"><i class="v-above"></i>${t('v_above')}</div><div class="lg"><i class="v-unproven"></i>${t('v_unproven')}</div><div class="lg"><i class="v-below"></i>${t('v_below')}</div><div class="lg"><i class="v-few"></i>${t('v_few')}</div><p class="hint">${t('legend')}</p></div>
-      <div class="sidebox"><b>${t('last_trades')}</b>${last}<button class="linkbtn" data-tab="history">${t('tab_journal')} →</button></div>
+    setHtml(el, `<div class="sidebox"><b>${t('last_trades')}</b>${last}<button class="linkbtn" data-tab="history">${t('tab_journal')} →</button></div>
       <div class="sidebox"><b>${t('today_mine')}</b><p class="num">${today.length} · W ${w} / L ${l} · ${units >= 0 ? '+' : ''}${units.toFixed(2)} ${t('rk_units')}</p><p class="hint">${t('today_hint', { n: today.length })}</p></div>`);
   }
 
