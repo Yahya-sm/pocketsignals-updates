@@ -101,7 +101,7 @@ const DEFAULTS = {
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
-  n_levelstoch: { expiry: 300, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
+  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
     tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20, tp_first: true, tp_return_max: 50 },
@@ -933,7 +933,7 @@ const S = {
     const useLevel = p.ls_level === true, m15 = x.ctx?.M15;
     if (m5.length < 20 || (useLevel && (!m15 || m15.length < 30))) return null;
     const h = new Date(lastT * 1000).getUTCHours(); if (h < Number(p.ls_hour_from) || h >= Number(p.ls_hour_to)) return null;
-    const i = m5.length - 1, k = m5[i], atr = I.atr(m5, 14)[i]; if (!(atr > 0)) return null;
+    const i = m5.length - 1, k = m5[i], atr = I.atr(m5, Number(p.ls_atr_period) || 14)[i]; if (!(atr > 0)) return null;
     const rr = k.high - k.low, body = Math.abs(k.close - k.open), lower = Math.min(k.open, k.close) - k.low, upper = k.high - Math.max(k.open, k.close);
     const d = lower >= 2 * body && lower >= 0.5 * rr && lower > upper ? 1 : upper >= 2 * body && upper >= 0.5 * rr && upper > lower ? -1 : 0;
     if (!d || !(rr > 0)) return null;
@@ -945,7 +945,7 @@ const S = {
     if (useLevel) { const mid = (zone.lo + zone.hi) / 2; let saw = 0;
       for (let j = Math.max(1, m15.length - 30); j < m15.length; j++) if ((m15[j].close - mid) * (m15[j - 1].close - mid) < 0) saw++;
       if (saw > (Number(p.ls_saw) || 3)) return null; }
-    const st = I.stoch(m5, 3, 1, 1).k, z = Number(p.ls_stoch_zone) || 20;
+    const st = I.stoch(m5, Number(p.ls_stoch_k) || 3, Number(p.ls_stoch_slow) || 1, Number(p.ls_stoch_d) || 1).k, z = Number(p.ls_stoch_zone) || 20;
     if (st[i] == null || st[i - 1] == null || (st[i] - st[i - 1]) * d <= 0) return null;
     if (d > 0 ? Math.min(st[i], st[i - 1]) >= z : Math.max(st[i], st[i - 1]) <= 100 - z) return null;
     if (!useLevel) return Object.assign(sig(d, 75, L(`пин-бар M${pm}, Stochastic разворачивается ${d > 0 ? 'вверх' : 'вниз'}`, `M${pm}-Pinbar, Stochastic dreht ${d > 0 ? 'nach oben' : 'nach unten'}`, `M${pm} pin bar, Stochastic turning ${d > 0 ? 'up' : 'down'}`)), { noFlip: true });
@@ -1490,10 +1490,14 @@ const HELP = {
   }],
 }, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market'];
 
+LABELS.n_levelstoch = { ...(LABELS.n_levelstoch || {}),
+  ls_stoch_k: L('Stochastic: период %K', 'Stochastic: Periode %K', 'Stochastic %K period'), ls_stoch_slow: L('Stochastic: замедление', 'Stochastic: Glättung', 'Stochastic slowing'),
+  ls_stoch_d: L('Stochastic: период %D', 'Stochastic: Periode %D', 'Stochastic %D period'), ls_atr_period: L('ATR: период', 'ATR: Periode', 'ATR period') };
 for (const s of LAB.CATALOG.filter(s => s.impl)) {
   DEFAULTS[s.id] = { expiry: LAB.EXPIRY_SEC[s.impl], ...LAB.PARAMS[s.impl] };
   S[s.id] = LAB.STRAT[s.id];
   LABELS[s.id] = LAB.PARAM_LABELS;
+  const h = LAB.helpFor(s); if (h) HELP[s.id] = h;
   OWN_LOGIC.push(s.id);
 }
 module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
