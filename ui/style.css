@@ -509,3 +509,9 @@ html, body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, s
 .btns .posplit .adtf { background: var(--po); color: #fff; }
 .timebar { height: 4px; }
 .labwhy .wrbox { margin-bottom: 4px; }
+
+.latchip { margin-left: auto; align-self: center; font-size: 11px; color: var(--muted); white-space: nowrap; } .latchip.ok { color: var(--call); } .latchip.bad { color: var(--bad); }
+
+#labFilters { flex-wrap: nowrap; } .chipsel { min-width: 0; max-width: 120px; } .latchip { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; flex: none; } .latchip small { font-size: 9px; } .latchip b { font-size: 11px; }
+
+.chipsel { max-width: 104px; } #labFilters .chip { padding-left: 10px; padding-right: 10px; }

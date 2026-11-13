@@ -39,7 +39,7 @@
     const el = document.getElementById('labFilters'); if (!el) return;
     const chip = (k, v, label) => `<button class="chip${F[k] === v ? ' active' : ''}" data-lf="${k}" data-lv="${v}">${label}</button>`;
     setHtml(el, `${chip('type', 'all', t('all'))}${chip('type', 'otc', 'OTC')}${chip('type', 'forex', 'Forex')}
-      <select class="chipsel" data-lfsel="exp"><option value="all">${t('f_expiry')}</option>${[60, 120, 180, 300].map(s => `<option value="${s}"${F.exp === String(s) ? ' selected' : ''}>${fmtExp(s)}</option>`).join('')}</select>
+      <select class="chipsel" data-lfsel="exp"><option value="all">${t('f_expiry')}</option>${[60, 120, 180, 300].map(s => `<option value="${s}"${F.exp === String(s) ? ' selected' : ''}>${fmtExp(s)}</option>`).join('')}</select>${(() => { const L = lab(), lat = L && L.latency, ok = lat != null && lat < ((L.stale_sec || 5) * 1000 + 60000); return `<span class="latchip ${lat == null ? '' : ok ? 'ok' : 'bad'}" title="${t('rk_lat')}"><small>${t('lat_short')}</small><b class="num">${lat == null ? '–' : (lat / 1000).toFixed(1) + ' s'}</b></span>`; })()}
 `);
   }
 
@@ -94,7 +94,6 @@
         <div class="rk"><span>${t('rk_loss')}</span><b class="num">${(lim.cur.loss || 0).toFixed(1)} / ${lim.lim.loss} ${t('rk_units')}</b>${bar(lim.cur.loss || 0, lim.lim.loss)}</div>
         <div class="rk"><span>${t('rk_trades')}</span><b class="num">${lim.cur.trades || 0} / ${lim.lim.trades}</b>${bar(lim.cur.trades || 0, lim.lim.trades)}</div>
         <div class="rk opt"><span>${t('rk_streak')}</span><b class="num">${lim.cur.streak || 0} / ${lim.lim.streak}</b>${bar(lim.cur.streak || 0, lim.lim.streak)}</div>
-        <div class="rk"><span>${t('rk_lat')}</span><b class="num ${lat == null ? '' : latOk ? 'ok' : 'bad'}">${lat == null ? '–' : (lat / 1000).toFixed(1) + ' s'}</b></div>
         <div class="rk opt"><span>${t('rk_pay')}</span><b class="num">${pays.length ? Math.min(...pays) + '–' + Math.max(...pays) + ' %' : '–'}</b><small>${pays.length ? t('rk_be', { v: pct(be(Math.max(...pays))) + '–' + pct(be(Math.min(...pays))) + ' %' }) + ' · ' : ''}min ${L.risk.risk_min_payout} %</small></div>
       </div>`;
     setHtml(el, html);
