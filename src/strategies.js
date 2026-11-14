@@ -27,8 +27,9 @@ const META = {
   n_fractal: [L('🧪 Пробой фрактала', '🧪 Fraktal-Ausbruch', '🧪 Fractal breakout'), 'trend'],
   n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
-  n_levelstoch: [L('Пин-бар + Stochastic (уровень M15 — по желанию)', 'Pinbar + Stochastic (M15-Level optional)', 'Pin bar + Stochastic (M15 level optional)'), 'rev'],
-  n_lsweather: [L('Пин-бар + Stochastic + погода рынка', 'Pinbar + Stochastic + Marktwetter', 'Pin bar + Stochastic + market weather'), 'rev'],
+  // Names start with 1 / 2 so the two are told apart at a glance (user 14.11.2026).
+  n_levelstoch: [L('Пин-бар 1 + Stochastic', 'Pinbar 1 + Stochastic', 'Pin bar 1 + Stochastic'), 'rev'],
+  n_lsweather: [L('Пин-бар 2 + Stochastic (погода рынка)', 'Pinbar 2 + Stochastic (Marktwetter)', 'Pin bar 2 + Stochastic (market weather)'), 'rev'],
 };
 // Strategy Lab (13.11.2026): the built logics of src/lab.js run as normal strategies (names are not translated).
 const LAB = require('./lab');
@@ -1543,7 +1544,7 @@ GROUPS.n_lsweather = [...GROUPS.n_levelstoch,
   { title: L('Погода 3: ATR — без скачков', 'Wetter 3: ATR – ohne Sprünge', 'Weather 3: ATR – no spikes'), desc: L('ATR сейчас / средний за 100 свечей. Выше порога — всплеск, пропуск.', 'ATR jetzt / Mittel über 100 Kerzen. Darüber = Spitze, auslassen.', 'ATR now / average over 100 candles. Above = spike, skip.'), keys: ['lw_atr_on', 'lw_atr_period', 'lw_atr_max'] },
 ];
 HELP.n_lsweather = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
-  L('Копия «Пин-бар + Stochastic» с тремя фильтрами «погоды рынка»: 1) сделка только против движения (наклон EMA 50), 2) ADX на M5 не ниже 23 — рынок живой, 3) ATR не выше среднего — без резких скачков. Каждый фильтр выключается отдельно, чтобы сравнить.', 'Kopie von „Pinbar + Stochastic“ mit drei Marktwetter-Filtern: 1) nur gegen die Bewegung (EMA-50-Neigung), 2) ADX M5 mindestens 23, 3) ATR nicht über dem Mittel. Jeder Filter einzeln abschaltbar.', 'Copy of "Pin bar + Stochastic" with three market weather filters: 1) only against the move (EMA 50 slope), 2) ADX M5 at least 23, 3) ATR not above average. Each filter can be switched off.'),
+  L('Копия «Пин-бар 1 + Stochastic» с тремя фильтрами «погоды рынка»: 1) сделка только против движения (наклон EMA 50), 2) ADX на M5 не ниже 23 — рынок живой, 3) ATR не выше среднего — без резких скачков. Каждый фильтр выключается отдельно, чтобы сравнить.', 'Kopie von „Pinbar 1 + Stochastic“ mit drei Marktwetter-Filtern: 1) nur gegen die Bewegung (EMA-50-Neigung), 2) ADX M5 mindestens 23, 3) ATR nicht über dem Mittel. Jeder Filter einzeln abschaltbar.', 'Copy of "Pin bar 1 + Stochastic" with three market weather filters: 1) only against the move (EMA 50 slope), 2) ADX M5 at least 23, 3) ATR not above average. Each filter can be switched off.'),
   L('Проверка 14.11.2026 на 18 OTC-парах (около 9500 минут): все сигналы 53 %, с тремя фильтрами 67 % за 4 мин и 64 % за 5 мин (94 сделки, обе половины данных одинаково). Данных мало — сначала демо.', 'Test 14.11.2026 auf 18 OTC-Paaren (etwa 9500 Minuten): alle Signale 53 %, mit drei Filtern 67 % bei 4 Min, 64 % bei 5 Min (94 Trades, beide Hälften gleich). Wenig Daten – zuerst Demo.', 'Test 14.11.2026 on 18 OTC pairs (about 9500 minutes): all signals 53 %, with the three filters 67 % at 4 min, 64 % at 5 min (94 trades, both halves alike). Little data – demo first.'),
 ] }];
 for (const s of LAB.CATALOG.filter(s => s.impl)) {
