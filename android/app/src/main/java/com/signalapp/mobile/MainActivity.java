@@ -44,7 +44,9 @@ public class MainActivity extends Activity {
     static final String CHANNEL = "signals";
 
     WebView signals, po, tv;
-    TextView backBtn;
+    TextView backBtn, dirBadge;
+    String dirText = null; // current direction badge text, null = none
+    Runnable dirHide = null;
     String pendingPoName = null;
     volatile String poUserAgent = null;
     volatile String poStart = null; // demo or real trading page, set by the app (settings / last used)
@@ -207,6 +209,21 @@ public class MainActivity extends Activity {
         backBtn.setVisibility(View.GONE);
         backBtn.setOnClickListener(v -> show(signals));
 
+        // Direction badge over PocketOption (user 14.11.2026: "I forget the signal's direction once the chart is open"):
+        // bottom left, above the back button – green ▲ CALL / red ▼ PUT with pair and expiry. Tap hides it; it also goes
+        // away by itself once the signal is old (set by the signal page via Bridge.setDirBadge).
+        dirBadge = new TextView(this);
+        dirBadge.setTextColor(Color.WHITE);
+        dirBadge.setTextSize(17);
+        dirBadge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        dirBadge.setPadding(40, 22, 40, 22);
+        dirBadge.setElevation(14);
+        FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
+        dl.setMargins(30, 0, 0, 300);
+        root.addView(dirBadge, dl);
+        dirBadge.setVisibility(View.GONE);
+        dirBadge.setOnClickListener(v -> { dirText = null; dirBadge.setVisibility(View.GONE); });
+
         setContentView(root);
         signals.loadUrl(APP_BASE + "index.html");
         // PocketOption loads once the app has said demo or real (setPoStart); fallback after 5 s.
@@ -274,9 +291,11 @@ public class MainActivity extends Activity {
         po.setVisibility(w == po ? View.VISIBLE : View.INVISIBLE);
         tv.setVisibility(w == tv ? View.VISIBLE : View.INVISIBLE);
         backBtn.setVisibility(w == signals ? View.GONE : View.VISIBLE);
+        dirBadge.setVisibility(w == po && dirText != null ? View.VISIBLE : View.GONE);
         w.bringToFront(); // the visible page on top (hidden ones keep their size but get no touches)
         if (w == tv && tvPopup != null) tvPopup.bringToFront(); // an open TradingView sign-in window stays above
         backBtn.bringToFront();
+        dirBadge.bringToFront();
         // Let the page redraw its chart for the now visible size.
         if (w != signals) w.postDelayed(() -> w.evaluateJavascript("window.dispatchEvent(new Event('resize'))", null), 300);
     }
@@ -302,6 +321,25 @@ public class MainActivity extends Activity {
     class Bridge {
         @JavascriptInterface
         public boolean getBackground() { return bgOn(); }
+
+        // Direction badge shown over PocketOption (see onCreate). up = CALL; hideSec: hide after this many seconds.
+        @JavascriptInterface
+        public void setDirBadge(String text, boolean up, int hideSec) {
+            runOnUiThread(() -> {
+                dirText = text;
+                GradientDrawable b = new GradientDrawable();
+                b.setColor(Color.parseColor(up ? "#F022A55B" : "#F0E5484D"));
+                b.setCornerRadius(28);
+                dirBadge.setBackground(b);
+                dirBadge.setText(text);
+                dirBadge.setVisibility(po.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);
+                dirBadge.bringToFront();
+                if (dirHide != null) dirBadge.removeCallbacks(dirHide);
+                final String mine = text;
+                dirHide = () -> { if (mine.equals(dirText)) { dirText = null; dirBadge.setVisibility(View.GONE); } };
+                if (hideSec > 0) dirBadge.postDelayed(dirHide, hideSec * 1000L);
+            });
+        }
 
         // Double-tap switching (user, 08.11.2026): the setting, and the way back from the signals page to PocketOption.
         @JavascriptInterface
