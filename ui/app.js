@@ -379,11 +379,36 @@ function row(s) {
   // Tap a row: it opens and shows the full strategy name and the reason (the narrow row cuts them off).
   const open = openHist.has(s.id);
   return `<div class="hist${open ? ' open' : ''}" data-hist-id="${esc(s.id)}"><span class="d ${s.dir}">${s.dir === 'CALL' ? '▲' : '▼'}<br>${s.dir}</span>
-    <div class="info"><b>${esc(s.name)}</b><small>${esc(tr(s.strategyName))} · ${s.tf || 'M1'}</small>
+    <div class="info"><b>${esc(s.name)}${tradeNet(s) != null ? ` <span style="color:${tradeNet(s) > 0 ? 'var(--call)' : tradeNet(s) < 0 ? 'var(--put)' : 'inherit'}">${money(tradeNet(s))}${s.trade.demo ? ' · Demo' : ' · Real'}</span>` : ''}</b><small>${esc(tr(s.strategyName))} · ${s.tf || 'M1'}</small>
       <small>${fmtTime(s.entryTime)} · ${fmtExp(s.expiry)} · ${t('strength')} ${s.strength}</small></div>${res}
     <button class="mini mine${s.mine ? ' on' : ''}" data-mine="${esc(s.id)}" title="${t('my_mark')}">${s.mine ? '✓' : '＋'}</button>
     <button class="mini po" data-po="${esc(s.id)}">PO</button><button class="mini" data-tv="${esc(s.id)}">TV</button>
     ${open ? `<div class="why">${esc(tr(s.reason) || '')}${s.entryPrice ? ` · ${s.entryPrice}${s.exitPrice ? ' → ' + s.exitPrice : ''}` : ''}</div>` : ''}</div>`;
+}
+// Money per trade (user 14.11.2026: "after every trade count it, demo and real apart"). Only trades seen in the PO page carry
+// an amount. Net result: loss = −amount; win = PO's profit (if it is larger than the stake it is the total return → minus stake),
+// without profit the pair's payout %; draw = 0. null = no amount / not settled.
+function tradeNet(s) {
+  const tr = s.trade; if (!tr || !(tr.amount > 0) || !tr.result) return null;
+  if (tr.result === 'LOSS') return -tr.amount;
+  if (tr.result !== 'WIN') return 0;
+  const p = Number(tr.profit) || 0;
+  return p > 0 ? (p > tr.amount ? p - tr.amount : p) : tr.amount * (Number(s.payout) || 85) / 100;
+}
+const money = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+function moneyStats(mine) {
+  const day = new Date(); day.setHours(0, 0, 0, 0); const d0 = day.getTime() / 1000;
+  const box = demo => {
+    const tr = mine.filter(s => s.trade && !!s.trade.demo === demo && tradeNet(s) != null);
+    if (!tr.length) return '';
+    const sum = a => a.reduce((x, s) => x + tradeNet(s), 0), today = tr.filter(s => (s.trade.at || s.entryTime) >= d0);
+    const all = sum(tr), td = sum(today), col = v => v > 0 ? 'var(--call)' : v < 0 ? 'var(--put)' : 'inherit';
+    return `<div class="stat"><b style="color:${col(td)}">${money(td)}</b><span>${t(demo ? 'pl_demo_day' : 'pl_real_day')} · ${today.length}</span></div>
+      <div class="stat"><b style="color:${col(all)}">${money(all)}</b><span>${t(demo ? 'pl_demo_all' : 'pl_real_all')} · ${tr.length}</span></div>`;
+  };
+  const h = box(true) + box(false);
+  const none = mine.filter(s => s.result && tradeNet(s) == null).length;
+  return h ? `<div class="stats">${h}</div>${none ? `<p class="hint">${t('pl_none').replace('{n}', none)}</p>` : ''}` : '';
 }
 // The user's own trades (signals marked "taken"): summary, per strategy, and the list – apart from the bot's statistics.
 function myStats() {
@@ -395,7 +420,7 @@ function myStats() {
       <div class="stat"><b style="color:var(--call)">${w}</b><span>${t('won')}</span></div>
       <div class="stat"><b style="color:var(--put)">${l}</b><span>${t('lost')}</span></div>
       <div class="stat"><b style="color:${r == null ? 'inherit' : rateColor(r)}">${r == null ? '–' : r + '%'}</b><span>${t('winrate')}</span></div></div>
-    ${strategyStats(mine)}${mine.map(row).join('')}`;
+    ${moneyStats(mine)}${strategyStats(mine)}${mine.map(row).join('')}`;
 }
 // Statistics archived from the old Telegram bot (ui/bot_stats.js, counts only): by market, strategy and expiry, with the 95 % interval
 // (Wilson) and the break-even rate at 85 % payout – a rate counts as proven only when the whole interval lies above break-even.
