@@ -599,6 +599,18 @@ function quickTrade(el) {
   openPO(s.id, undefined, false, s.expiry, s.dir);
 }
 
+// Direction badge over the PocketOption chart (Android). Short (user: the badge was too big): arrow, direction, expiry.
+function dirBadge(sig, exp) {
+  if (!sig || !window.AndroidApp || !window.AndroidApp.setDirBadge) return;
+  const up = sig.dir === 'CALL' || sig.dir > 0, e = Number(exp || sig.expiry) || 0;
+  try { window.AndroidApp.setDirBadge(`${up ? '▲ CALL' : '▼ PUT'}${e ? ' ' + fmtExp(e) : ''}`, up, (e || 300) + 60); } catch {}
+}
+// Opened from the notification's PocketOption button (user 14.11.2026: the badge was missing on some pairs):
+// the newest signal of that pair from the last 10 minutes.
+window.__dirBadgeFor = sym => {
+  const s = (state && state.signals || []).filter(x => x.symbol === sym && Date.now() - x.created < 600000).sort((a, b) => b.created - a.created)[0];
+  dirBadge(s);
+};
 async function openPO(id, tf, auto, exp, trade) {
   const sig = state.signals.find(s => s.id === id);
   const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG, ...(trade ? { trade } : {}) });
@@ -606,11 +618,7 @@ async function openPO(id, tf, auto, exp, trade) {
   if (isDesktop) { toast(t('toast_po', { name }) + (tf ? ' · ' + tf : '')); return; }
   if (isAndroid) {
     // Direction badge over the PocketOption chart (user 14.11.2026): ▲ CALL / ▼ PUT, pair, expiry; hides after expiry + 1 min.
-    if (sig && window.AndroidApp.setDirBadge) {
-      const up = sig.dir === 'CALL' || sig.dir > 0, e = Number(exp || sig.expiry) || 0;
-      // Short (user: the badge was too big): arrow, direction and expiry only.
-      try { window.AndroidApp.setDirBadge(`${up ? '▲ CALL' : '▼ PUT'}${e ? ' ' + fmtExp(e) : ''}`, up, (e || 300) + 60); } catch {}
-    }
+    dirBadge(sig, exp);
     if (tf && window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(name);
     else window.AndroidApp.openPocketOption(name, r.symbol || (sig && sig.symbol) || '');
     return;

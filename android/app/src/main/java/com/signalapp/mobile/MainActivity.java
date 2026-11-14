@@ -57,9 +57,34 @@ public class MainActivity extends Activity {
     // Page PocketOption opens with (user 14.11.2026: after a restart the real chart opened and a trade could slip in):
     // the fixed account from the settings, else the account used last (stored on the phone), else DEMO – never the
     // general cabinet page, which leads to the real account.
+    void savePoMode(String mode, String where) {
+        android.content.SharedPreferences sp = getSharedPreferences("app", MODE_PRIVATE);
+        if (mode.equals(sp.getString("po_mode", null))) return;
+        sp.edit().putString("po_mode", mode).apply();
+        try { new AuthBridge().onPoLog("PO-Konto gemerkt: " + mode + " (" + where + ")"); } catch (Exception ignored) { }
+    }
+
+    // The phone page of PocketOption may switch demo/real without changing the address (user 14.11.2026: real again after
+    // the update). Every 10 s while the PO page is open: read the account from the page – address /cabinet/demo-… or the
+    // balance label "QT Demo" / "QT Real" – and store it.
+    static final String ACCOUNT_JS = "(function(){try{if(/\\/cabinet\\/demo-/.test(location.pathname))return 'demo';"
+        + "var t=(document.body&&document.body.innerText||'').slice(0,4000);"
+        + "if(/QT\\s*Demo|Demo\\s*account|Демо[- ]?сч/i.test(t))return 'demo';if(/QT\\s*Real|Real\\s*account|Реальн/i.test(t))return 'real';}catch(e){}return '';})()";
+    void watchPoAccount() {
+        po.postDelayed(new Runnable() { public void run() {
+            String u = po.getUrl();
+            if (u != null && u.contains("pocketoption.com") && u.contains("/cabinet"))
+                po.evaluateJavascript(ACCOUNT_JS, v -> {
+                    String m = v == null ? "" : v.replace("\"", "");
+                    if (m.equals("demo") || m.equals("real")) { lastPoMode = m; savePoMode(m, "Seite"); }
+                });
+            po.postDelayed(this, 10000);
+        } }, 10000);
+    }
+
     String startUrl() {
         String m = poForcedMode != null ? poForcedMode : getSharedPreferences("app", MODE_PRIVATE).getString("po_mode", null);
-        if (m == null && poStart != null) return poStart;
+        // No stored account → demo (the old engine setting po_last_mode could still say "real" from earlier versions).
         return "https://pocketoption.com/en/cabinet/" + ("real".equals(m) ? "quick-high-low/" : "demo-quick-high-low/");
     }
     boolean poLoaded = false;
@@ -161,7 +186,7 @@ public class MainActivity extends Activity {
                     lastPoMode = mode;
                     // Stored on the phone right away (user 14.11.2026: after a restart the real chart opened) – the next
                     // start opens this account even before the engine has loaded.
-                    getSharedPreferences("app", MODE_PRIVATE).edit().putString("po_mode", mode).apply();
+                    savePoMode(mode, url);
                     signals.evaluateJavascript("window.LocalEngine && window.LocalEngine.act({action:'settings',patch:{po_last_mode:'" + mode + "'}})", null);
                 }
             }
@@ -272,6 +297,7 @@ public class MainActivity extends Activity {
         signals.loadUrl(APP_BASE + "index.html");
         // PocketOption loads once the app has said demo or real (setPoStart); fallback after 5 s.
         root.postDelayed(() -> { if (po.getUrl() == null) po.loadUrl(startUrl()); }, 5000);
+        watchPoAccount();
 
         handleAction(getIntent()); // app was started from a notification button
 
@@ -747,6 +773,7 @@ public class MainActivity extends Activity {
         intent.removeExtra("action");
         if ("po".equals(action) && name != null && !name.isEmpty()) {
             signals.evaluateJavascript("window.LocalEngine && window.LocalEngine.act({action:'openPO',symbol:" + JSONObject.quote(symbol) + "})", null);
+            signals.evaluateJavascript("window.__dirBadgeFor && window.__dirBadgeFor(" + JSONObject.quote(symbol) + ")", null); // direction badge
             show(po);
             if (poLoaded && po.getUrl() != null && po.getUrl().contains("/cabinet")) switchPo(name);
             else pendingPoName = name;
