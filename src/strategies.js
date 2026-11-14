@@ -1493,11 +1493,23 @@ const HELP = {
 LABELS.n_levelstoch = { ...(LABELS.n_levelstoch || {}),
   ls_stoch_k: L('Stochastic: период %K', 'Stochastic: Periode %K', 'Stochastic %K period'), ls_stoch_slow: L('Stochastic: замедление', 'Stochastic: Glättung', 'Stochastic slowing'),
   ls_stoch_d: L('Stochastic: период %D', 'Stochastic: Periode %D', 'Stochastic %D period'), ls_atr_period: L('ATR: период', 'ATR: Periode', 'ATR period') };
+// Pin bar + Stochastic: settings by indicator and a description of the signal indicators (user 14.11.2026).
+GROUPS.n_levelstoch = [
+  { title: L('Stochastic — осциллятор', 'Stochastic – Oszillator', 'Stochastic – oscillator'), desc: L('Разворот линии Stochastic из зоны перепроданности / перекупленности.', 'Wende der Stochastic-Linie aus der Extremzone.', 'Stochastic line turning out of the extreme zone.'), keys: ['ls_stoch_k', 'ls_stoch_slow', 'ls_stoch_d', 'ls_stoch_zone'] },
+  { title: L('Пин-бар и ATR', 'Pinbar und ATR', 'Pin bar and ATR'), desc: L('Таймфрейм пин-бара, размер свечей в ATR.', 'Zeitrahmen des Pinbars, Kerzengröße in ATR.', 'Pin bar timeframe, candle size in ATR.'), keys: ['ls_tf', 'ls_atr_period', 'ls_big_atr'] },
+  { title: L('Уровень M15 (по желанию)', 'M15-Level (optional)', 'M15 level (optional)'), desc: L('Отскок от уровня поддержки / сопротивления M15.', 'Abprall an M15-Unterstützung / Widerstand.', 'Bounce off an M15 support / resistance.'), keys: ['ls_level', 'ls_touches', 'ls_zone_atr', 'ls_saw'] },
+  { title: L('Время и рынок', 'Zeit und Markt', 'Time and market'), desc: L('Часы торговли (UTC) и пропуск OTC.', 'Handelszeiten (UTC) und OTC auslassen.', 'Trading hours (UTC) and skip OTC.'), keys: ['ls_hour_from', 'ls_hour_to', 'ls_no_otc'] },
+];
+HELP.n_levelstoch = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
+  L('Как работает: на закрытой свече выбранного таймфрейма (по умолчанию M5) ищет пин-бар — длинная тень не меньше двух тел и половины свечи, — пришедший с другой стороны, без больших свечей перед ним. Сигнал, когда Stochastic в крайней зоне разворачивается в сторону пин-бара. По желанию — только от уровня M15.', 'So funktioniert es: auf der geschlossenen Kerze des gewählten Zeitrahmens (Standard M5) ein Pinbar – langer Docht mindestens zwei Körper und die halbe Kerze –, von der Gegenseite kommend, ohne große Kerzen davor. Signal, wenn der Stochastic in der Extremzone in Pinbar-Richtung dreht. Optional nur an einem M15-Level.', 'How it works: on the closed candle of the chosen timeframe (default M5) a pin bar – long wick at least two bodies and half the candle – coming from the other side, with no big candles before it. Signal when the Stochastic in the extreme zone turns the pin bar way. Optionally only at an M15 level.'),
+  L('Индикаторы сигнала: Stochastic (%K, замедление, %D, зона), ATR (большие свечи, ширина зоны уровня), свинги M15 (уровень, по желанию), часы UTC. Скользящие и MACD не используются.', 'Indikatoren des Signals: Stochastic (%K, Glättung, %D, Zone), ATR (große Kerzen, Level-Zone), M15-Swings (Level, optional), UTC-Stunden. Keine gleitenden Durchschnitte, kein MACD.', 'Signal indicators: Stochastic (%K, slowing, %D, zone), ATR (big candles, level zone), M15 swings (level, optional), UTC hours. No moving averages, no MACD.'),
+] }];
 for (const s of LAB.CATALOG.filter(s => s.impl)) {
   DEFAULTS[s.id] = { expiry: LAB.EXPIRY_SEC[s.impl], ...LAB.PARAMS[s.impl] };
   S[s.id] = LAB.STRAT[s.id];
   LABELS[s.id] = LAB.PARAM_LABELS;
   const h = LAB.helpFor(s); if (h) HELP[s.id] = h;
+  GROUPS[s.id] = LAB.groupsFor(DEFAULTS[s.id]);
   OWN_LOGIC.push(s.id);
 }
 module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };

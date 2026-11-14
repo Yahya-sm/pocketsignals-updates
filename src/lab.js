@@ -83,7 +83,7 @@ const PARAMS = {
   impulse: { accel_range_atr: 1.5, min_directional_closes: 2, prev_range_atr: 1.0, prev_same_dir: true, max_opposite_wick_pct: 30, min_level_distance_atr: 0.5, exhaustion_streak: 5, rsi_hi: 85, rsi_lo: 15, forex_close_extreme_pct: 25 },
   // 13.11.2026 user: stricter flat check (a PUT came at the top of a rising market: EMA slope 0.049 passed 0.05, 2 touches).
   range: { window: 30, touch_tol_atr: 0.15, min_touches: 3, width_min_atr: 2, width_max_atr: 6, max_slope_atr: 0.03, zone_pct: 15, break_body_atr: 0.8, rejection_wick_pct: 50 },
-  fractal: { min_amp_atr: 0.3, level_tol_atr: 0.15, min_reactions: 2, room_atr: 1.0, break_atr: 0.2, lookback: 60 },
+  fractal: { fractal_n: 2, min_amp_atr: 0.3, level_tol_atr: 0.15, min_reactions: 2, room_atr: 1.0, break_atr: 0.2, lookback: 60 },
   trap: { lookback: 20, poke_min_atr: 0.1, poke_max_atr: 0.6, body_pct: 40 },
   overheat: { z_period: 20, z_level: 2.5, extreme_window: 20, wick_pct: 50, atr_pct_lo: 20, atr_pct_hi: 80, forex_adx: 30 },
 };
@@ -96,8 +96,8 @@ Object.assign(PARAMS, {
   fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
   volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
   scanner: {},
-  smart_money: { fvg_atr: 0.3, ob_atr: 1.5, m5: false },
-  smart_money_5m: { fvg_atr: 0.3, ob_atr: 1.5, m5: true },
+  smart_money: { swing_n: 3, fvg_atr: 0.3, ob_atr: 1.5, m5: false },
+  smart_money_5m: { swing_n: 3, fvg_atr: 0.3, ob_atr: 1.5, m5: true },
   spring: { zone_atr: 1.2, spike_atr: 0.8, min_candles_zone: 5, break_body_atr: 1.2, max_opposite_wick_pct: 25 },
   pressure: { window: 10, third_share: 0.7, min_sequence: 3, max_opposite_wick_pct: 30, dominance: 0.65 },
   correction: { imp_atr: 3, min_reactions: 2, depth_min: 0.38, depth_max: 0.62 },
@@ -138,6 +138,7 @@ const PARAM_LABELS = {
   min_sequence: L('Мин. HH/HL подряд', 'Min. HH/HL in Folge', 'Min HH/HL in a row'), dominance: L('Перевес свечей от', 'Kerzen-Übergewicht ab', 'Candle dominance from'),
   imp_atr: L('Импульс от, ×ATR', 'Impuls ab, ×ATR', 'Impulse from, ×ATR'), depth_min: L('Откат от (доля импульса)', 'Rücksetzer ab (Anteil)', 'Pullback from (share)'), depth_max: L('Откат до (доля импульса)', 'Rücksetzer bis (Anteil)', 'Pullback up to (share)'),
   max_retrace: L('Пауза: откат не больше (доля)', 'Pause: Rücksetzer höchstens (Anteil)', 'Pause: pullback at most (share)'), threshold: L('Порог уверенности модели', 'Modell-Schwelle', 'Model threshold'),
+  fractal_n: L('Фрактал: свечей с каждой стороны', 'Fraktal: Kerzen je Seite', 'Fractal: candles each side'), swing_n: L('Свинг: свечей с каждой стороны', 'Swing: Kerzen je Seite', 'Swing: candles each side'),
   atr_period: L('ATR: период', 'ATR: Periode', 'ATR period'), rsi_period: L('RSI: период', 'RSI: Periode', 'RSI period'), adx_period: L('ADX: период', 'ADX: Periode', 'ADX period'),
   range_ema: L('EMA наклона диапазона: период', 'EMA für Range-Neigung: Periode', 'Range slope EMA period'), atr_pct_window: L('ATR-перцентиль: окно, свечей', 'ATR-Perzentil: Fenster, Kerzen', 'ATR percentile window, candles'),
   vip_ema_fast: L('Быстрая EMA направления: период', 'Schnelle Richtungs-EMA: Periode', 'Fast direction EMA period'), vip_ema_slow: L('Медленная EMA направления: период', 'Langsame Richtungs-EMA: Periode', 'Slow direction EMA period'),
@@ -284,12 +285,14 @@ function oppWickPct(k, d) { const r = rng(k); if (!(r > 0)) return 100; return 1
 function streak(c, i) { const d = dirOf(c[i]); let n = 0; while (i - n >= 0 && d && dirOf(c[i - n]) === d) n++; return n; }
 function atrPct(atr, i, win = 200) { const v = atr[i]; if (!(v > 0)) return null; const a = []; for (let j = Math.max(0, i - win + 1); j <= i; j++) if (atr[j] > 0) a.push(atr[j]); if (a.length < 50) return null; return 100 * a.filter(x => x <= v).length / a.length; }
 // Fractals 2+2 that are fully confirmed by candle i (so j ≤ i − 2).
-function fractalsUpTo(c, i, from) {
+// n = candles on each side (default 2 = the classic 2+2 fractal; setting fractal_n).
+function fractalsUpTo(c, i, from, n = 2) {
   const hi = [], lo = [];
-  for (let j = Math.max(2, from); j <= i - 2; j++) {
-    const h = c[j].high, l = c[j].low;
-    if (h > c[j - 1].high && h > c[j - 2].high && h >= c[j + 1].high && h >= c[j + 2].high) hi.push({ j, v: h, amp: h - Math.min(c[j - 2].low, c[j + 2].low) });
-    if (l < c[j - 1].low && l < c[j - 2].low && l <= c[j + 1].low && l <= c[j + 2].low) lo.push({ j, v: l, amp: Math.max(c[j - 2].high, c[j + 2].high) - l });
+  for (let j = Math.max(n, from); j <= i - n; j++) {
+    const h = c[j].high, l = c[j].low; let isH = true, isL = true;
+    for (let q = 1; q <= n; q++) { if (!(h > c[j - q].high && h >= c[j + q].high)) isH = false; if (!(l < c[j - q].low && l <= c[j + q].low)) isL = false; }
+    if (isH) hi.push({ j, v: h, amp: h - Math.min(c[j - n].low, c[j + n].low) });
+    if (isL) lo.push({ j, v: l, amp: Math.max(c[j - n].high, c[j + n].high) - l });
   }
   return { hi, lo };
 }
@@ -406,7 +409,7 @@ const MORE = {
   },
   smart_money({ c, p, i, a, k, fail, pass, out }) {
     const cc = p.m5 ? I.resample(c, 5, false) : c, n = cc.length - 1; if (n < 40) return fail(0, 'no_data', { n: cc.length });
-    const A = I.atr(cc, p.atr_period || 14)[n] || a, sw = swings(cc, n, 3, n - 60), H = sw.hi.slice(-2), Lw = sw.lo.slice(-2);
+    const A = I.atr(cc, p.atr_period || 14)[n] || a, sw = swings(cc, n, p.swing_n || 3, n - 60), H = sw.hi.slice(-2), Lw = sw.lo.slice(-2);
     let d = 0; if (H.length === 2 && Lw.length === 2) { if (H[1].v > H[0].v && Lw[1].v > Lw[0].v) d = 1; else if (H[1].v < H[0].v && Lw[1].v < Lw[0].v) d = -1; }
     if (!d) return fail(0, 'no_structure');
     pass(0, 'structure', { s: d > 0 ? 'HH/HL' : 'LH/LL' }); out.dir = d;
@@ -556,7 +559,7 @@ function run(logic, c, p, asset) {
     pass(2, 'rejection', { w: f0(wick) }); out.dir = d;
     out.score = Math.round(55 + 10 * Math.min(1, (Math.min(th, tl) - 2) / 2) + 20 * Math.min(1, (wick - 50) / 40) + 15 * (1 - slope / p.max_slope_atr));
   } else if (logic === 'fractal') {
-    const f = fractalsUpTo(c, i - 1, i - p.lookback), big = arr => arr.filter(x => x.amp >= p.min_amp_atr * a);
+    const f = fractalsUpTo(c, i - 1, i - p.lookback, p.fractal_n || 2), big = arr => arr.filter(x => x.amp >= p.min_amp_atr * a);
     const H = big(f.hi), Lo = big(f.lo);
     let d = 0;
     const lastTwo = arr => arr.slice(-2);
@@ -688,6 +691,23 @@ function backtest(c, id, opt = {}) {
     return { n, w, l, draws: list.length - n, rate: n ? w / n : null, ci, be: breakEven(payout), ev: n ? ev(w / n, payout) : null, maxLossStreak: mls, maxDrawdown: dd, verdict: verdict(w, n, payout).v };
   };
   return { id, is: rep(trades.filter(x => !x.oos)), oos: rep(trades.filter(x => x.oos)), all: rep(trades), trades };
+}
+
+// ---------- settings grouped by indicator (user 14.11.2026): one folded block per indicator ----------
+const IND_GROUPS = [
+  { title: L('EMA — скользящие средние', 'EMA – gleitende Durchschnitte', 'EMA – moving averages'), desc: L('Направление и подтверждение тренда.', 'Richtung und Trendbestätigung.', 'Direction and trend confirmation.'), keys: ['ma_filter', 'ma_fast', 'ma_slow', 'vip_ema_fast', 'vip_ema_slow', 'trend_ema', 'entry_ema', 'range_ema', 'max_slope_atr', 'pullback_atr'] },
+  { title: L('RSI — осциллятор', 'RSI – Oszillator', 'RSI – oscillator'), desc: L('Импульс и перекупленность / перепроданность.', 'Impuls und überkauft / überverkauft.', 'Momentum and overbought / oversold.'), keys: ['rsi_period', 'rsi_hi', 'rsi_lo', 'rsi_call', 'rsi_put'] },
+  { title: L('ADX / DI — сила тренда', 'ADX / DI – Trendstärke', 'ADX / DI – trend strength'), desc: L('Есть ли тренд и куда он направлен.', 'Gibt es einen Trend und wohin.', 'Is there a trend and which way.'), keys: ['adx_period', 'adx_min', 'adx_max', 'forex_adx'] },
+  { title: L('ATR — волатильность', 'ATR – Volatilität', 'ATR – volatility'), desc: L('Размер свечей, допуски и «нормальная» волатильность.', 'Kerzengröße, Toleranzen und „normale“ Volatilität.', 'Candle size, tolerances and "normal" volatility.'), keys: ['atr_period', 'atr_fast', 'atr_slow', 'atr_pct_window', 'atr_pct_lo', 'atr_pct_hi', 'squeeze', 'min_squeeze', 'expansion_atr', 'max_expansion'] },
+  { title: L('Полосы Боллинджера', 'Bollinger-Bänder', 'Bollinger bands'), desc: L('Отклонение цены от средней.', 'Abweichung vom Mittel.', 'Deviation from the mean.'), keys: ['bb_period', 'bb_mult', 'max_body_atr'] },
+  { title: L('Z-score — перегрев', 'Z-Score – Überhitzung', 'Z-score – overheating'), desc: L('На сколько отклонений цена ушла от средней.', 'Wie viele Standardabweichungen vom Mittel.', 'How many standard deviations from the mean.'), keys: ['z_period', 'z_level', 'extreme_window'] },
+  { title: L('Фракталы, свинги и уровни', 'Fraktale, Swings und Level', 'Fractals, swings and levels'), desc: L('Структура рынка и уровни поддержки / сопротивления.', 'Marktstruktur und Unterstützung / Widerstand.', 'Market structure and support / resistance.'), keys: ['fractal_n', 'swing_n', 'min_amp_atr', 'level_tol_atr', 'min_reactions', 'room_atr', 'break_atr', 'lookback', 'min_level_distance_atr', 'fvg_atr', 'ob_atr', 'm5'] },
+  { title: L('Диапазон / сжатие', 'Range / Kompression', 'Range / squeeze'), desc: L('Границы бокового рынка и зоны сжатия.', 'Grenzen des Seitwärtsmarkts und Kompressionszonen.', 'Sideways bounds and squeeze zones.'), keys: ['window', 'touch_tol_atr', 'min_touches', 'width_min_atr', 'width_max_atr', 'zone_pct', 'zone_atr', 'spike_atr', 'min_candles_zone'] },
+  { title: L('Свечи и паттерны', 'Kerzen und Muster', 'Candles and patterns'), desc: L('Размер, тело, тени, серии свечей.', 'Größe, Körper, Dochte, Serien.', 'Size, body, wicks, series.'), keys: ['accel_range_atr', 'min_directional_closes', 'prev_range_atr', 'prev_same_dir', 'max_opposite_wick_pct', 'exhaustion_streak', 'forex_close_extreme_pct', 'break_body_atr', 'rejection_wick_pct', 'wick_pct', 'body_pct', 'min_body_atr', 'min_closes', 'poke_min_atr', 'poke_max_atr', 'third_share', 'min_sequence', 'dominance', 'imp_atr', 'depth_min', 'depth_max', 'max_retrace', 'window', 'max_chaos', 'min_series'] },
+];
+function groupsFor(params) {
+  const used = new Set();
+  return IND_GROUPS.map(g => ({ ...g, keys: g.keys.filter(k => k in params && !used.has(k) && used.add(k)) })).filter(g => g.keys.length);
 }
 
 // ---------- descriptions for the settings (user 14.11.2026): how it works + which indicators form the signal ----------
@@ -826,4 +846,4 @@ function statsFor(signals) {
   return out;
 }
 
-module.exports = { helpFor, _neuroFeatures: neuroFeatures, SECOND_TF, PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
+module.exports = { groupsFor, helpFor, _neuroFeatures: neuroFeatures, SECOND_TF, PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
