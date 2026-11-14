@@ -192,3 +192,4 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 14.11.2026: direction badge also when PO is opened from the notification button (handleAction 'po' -> window.__dirBadgeFor(symbol): newest signal of the pair within 10 min); app.js dirBadge(sig, exp) shared.
 - 14.11.2026: account watcher reads only 'QT Demo' from the page text (the 'Реальн' match hit menu words on the demo page and stored real); real only from the URL. Still unverified on the phone – the user's setting 'PocketOption открывается в: Демо-счёт' (po_start_mode) forces demo.
 - 14.11.2026: n_market ('Рынок: цена пересекла скользящую') back in KEEP at the user's request (6 own trades 4/2); migration mkt_1411 switches it on + favourite, TF M1 if none set.
+- 14.11.2026: n_trend15 ('Тренд M5 + вход на S15', bounce from EMA 20) back in KEEP at the user's request; migration t15_1411 switches it on + favourite (TF S15 if none set).

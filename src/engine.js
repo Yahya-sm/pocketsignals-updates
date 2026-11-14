@@ -9,7 +9,7 @@ const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
 const LAB = require('./lab');
 // 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
-const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market']; // + its copy with market weather filters (14.11.2026)
+const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15']; // + its copy with market weather filters (14.11.2026)
 const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
@@ -126,6 +126,14 @@ class Engine extends EventEmitter {
       s.strategies = [...new Set([...(s.strategies || []), 'n_market'])];
       if (!(s.strat_tfs || {}).n_market) s.strat_tfs = { ...s.strat_tfs, n_market: ['M1'] };
       s.mkt_1411 = true; writeJson(this.settingsFile, s);
+    }
+    // 14.11.2026: "Тренд M5 + вход на S15" (n_trend15, bounce from EMA 20 in the M5 trend) back at the user's request.
+    if (!this.settings.t15_1411) {
+      const s = this.settings;
+      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_trend15'])];
+      s.strategies = [...new Set([...(s.strategies || []), 'n_trend15'])];
+      if (!(s.strat_tfs || {}).n_trend15) s.strat_tfs = { ...s.strat_tfs, n_trend15: ['S15'] };
+      s.t15_1411 = true; writeJson(this.settingsFile, s);
     }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
