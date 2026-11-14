@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
     TextView backBtn, dirBadge;
     String dirText = null; // current direction badge text, null = none
     Runnable dirHide = null;
+    boolean dirPlaced = false; // badge put at its stored place once it has a size
     String pendingPoName = null;
     volatile String poUserAgent = null;
     volatile String poStart = null; // demo or real trading page, set by the app (settings / last used)
@@ -232,11 +233,40 @@ public class MainActivity extends Activity {
         dirBadge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         dirBadge.setPadding(18, 8, 18, 8);
         dirBadge.setElevation(14);
-        FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.START);
-        dl.setMargins(6, 0, 0, 0);
+        // 14.11.2026 (user): the left edge covered PocketOption's timeframe picker. Now draggable with a finger, the place is
+        // stored on the phone; default at the right edge (price scale, no buttons) a third down. A tap without moving hides it.
+        FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
         root.addView(dirBadge, dl);
         dirBadge.setVisibility(View.GONE);
-        dirBadge.setOnClickListener(v -> { dirText = null; dirBadge.setVisibility(View.GONE); });
+        dirBadge.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (dirPlaced || root.getWidth() == 0 || v.getWidth() == 0) return;
+            dirPlaced = true;
+            android.content.SharedPreferences sp = getSharedPreferences("app", MODE_PRIVATE);
+            float fx = sp.getFloat("dir_x", -1f), fy = sp.getFloat("dir_y", 0.33f); // fractions of the screen
+            v.setX(fx < 0 ? root.getWidth() - v.getWidth() - 6 : fx * root.getWidth());
+            v.setY(fy * root.getHeight());
+        });
+        dirBadge.setOnTouchListener(new View.OnTouchListener() {
+            float dx, dy, sx, sy; boolean moved;
+            @Override public boolean onTouch(View v, android.view.MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN: dx = v.getX() - e.getRawX(); dy = v.getY() - e.getRawY(); sx = e.getRawX(); sy = e.getRawY(); moved = false; return true;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        if (Math.abs(e.getRawX() - sx) + Math.abs(e.getRawY() - sy) > 20) moved = true;
+                        if (moved) {
+                            v.setX(Math.max(0, Math.min(root.getWidth() - v.getWidth(), e.getRawX() + dx)));
+                            v.setY(Math.max(0, Math.min(root.getHeight() - v.getHeight(), e.getRawY() + dy)));
+                        }
+                        return true;
+                    case android.view.MotionEvent.ACTION_UP:
+                        if (moved) getSharedPreferences("app", MODE_PRIVATE).edit()
+                            .putFloat("dir_x", v.getX() / Math.max(1, root.getWidth())).putFloat("dir_y", v.getY() / Math.max(1, root.getHeight())).apply();
+                        else { dirText = null; v.setVisibility(View.GONE); }
+                        return true;
+                }
+                return false;
+            }
+        });
 
         setContentView(root);
         signals.loadUrl(APP_BASE + "index.html");
