@@ -771,7 +771,8 @@ class Engine extends EventEmitter {
   // Backtest inside the app: the PC uses the recorded quotes (data/otc/*.csv) plus the loaded candles,
   // the phone only the loaded candles (~300 per pair). Returns the lab report per strategy.
   labBacktest(id, opt = {}) {
-    if (!LAB.BY_ID[id] || !LAB.BY_ID[id].impl) return { ok: false, error: 'not_built' };
+    const generic = !LAB.BY_ID[id] && strategies.META[id] && !HIDDEN.includes(id); // old strategies, e.g. pin bar + Stochastic
+    if (!generic && (!LAB.BY_ID[id] || !LAB.BY_ID[id].impl)) return { ok: false, error: 'not_built' };
     const series = new Map();
     for (const [sym, c] of this.candles) series.set(sym, c.slice());
     try {
@@ -783,16 +784,37 @@ class Engine extends EventEmitter {
       }
       for (const [sym, m] of rec) { const old = series.get(sym) || []; for (const k of old) m.set(k.time, k); series.set(sym, [...m.values()].sort((a, b) => a.time - b.time)); }
     } catch {}
-    const want = LAB.BY_ID[id].asset_type === 'OTC';
+    const want = generic ? null : LAB.BY_ID[id].asset_type === 'OTC';
     const agg = { is: [], oos: [] }; let pairs = 0, candles = 0;
     for (const [sym, c] of series) {
-      if (/_otc$/i.test(sym) !== want || c.length < 260) continue;
+      if ((want !== null && /_otc$/i.test(sym) !== want) || c.length < 260) continue;
       pairs++; candles += c.length;
+      if (generic) { for (const t of this._genericBacktest(c.slice(-20000), id, sym, opt)) (t.oos ? agg.oos : agg.is).push(t); continue; }
       const r = LAB.backtest(c.slice(-20000), id, { payout: (Number(opt.payout) || 80) / 100, expirySec: Number(opt.expiry) || undefined });
       for (const t of r.trades) (t.oos ? agg.oos : agg.is).push(t);
     }
     const sum = list => { const w = list.filter(x => x.res === 'WIN').length, n = list.filter(x => x.res !== 'DRAW').length; return { w, n, ci: LAB.wilson(w, n) }; };
     return { ok: true, id, pairs, candles, payout: Number(opt.payout) || 80, is: sum(agg.is), oos: sum(agg.oos), at: Date.now() };
+  }
+
+  // Backtest of an old strategy (pin bar + Stochastic …) through strategies.evaluate with the user's settings:
+  // decision on the last 300 closed M1 candles (+ M15 built from them), entry at the next open, exit at the close of
+  // the candle where the expiry ends; first 70 % in-sample, rest out-of-sample.
+  _genericBacktest(c, id, sym, opt) {
+    const st = { ...this.settings, strat_tfs: { ...this.settings.strat_tfs, [id]: ['M1'] }, chaos_skip: this.settings.chaos_skip };
+    const cut = Math.floor(c.length * 0.7), out = [], otc = /_otc$/i.test(sym);
+    let next = 0;
+    for (let i = 300; i < c.length - 16; i++) {
+      if (i < next) continue;
+      const w = c.slice(i - 299, i + 1);
+      let r; try { r = strategies.evaluate({ M1: w, ctx: { M15: I.resample(w, 15), M5: I.resample(w, 5), M1: w }, otc, asset: sym }, [id], st)[0]; } catch { r = null; }
+      if (!r) continue;
+      const expC = Math.max(1, Math.round((Number(opt.expiry) || r.expiry || 60) / 60)); if (i + expC >= c.length) break;
+      const m = (c[i + expC].close - c[i + 1].open) * (r.dir > 0 ? 1 : -1);
+      out.push({ res: m > 0 ? 'WIN' : m < 0 ? 'LOSS' : 'DRAW', oos: i >= cut });
+      next = i + 1 + 2;
+    }
+    return out;
   }
 
   // Paper trade on a lab signal: virtual entry at the current price, settled at expiry like the signal.

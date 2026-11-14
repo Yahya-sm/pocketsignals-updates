@@ -173,7 +173,7 @@
   let btResult = null, btBusy = false;
   function renderBacktest() {
     const el = document.getElementById('btBox'); if (!el || !lab() || !isActive('backtest') || editing('backtest')) return;
-    const built = lab().catalog.filter(c => c.impl), sel = el.querySelector('#btStrat') ? el.querySelector('#btStrat').value : built[0].id;
+    const built = [...(state.settings.allStrategies || []).filter(s => !lab().catalog.some(c => c.id === s.key)).map(s => ({ id: s.key, name: tr(s.names) })), ...lab().catalog.filter(c => c.impl)], sel = el.querySelector('#btStrat') ? el.querySelector('#btStrat').value : built[0].id;
     const r = btResult;
     const part = (name, b) => { if (!b || !b.n) return `<p class="hint">${name}: n = 0</p>`; const v = verdict(b, r.payout); return `<div class="wrbox v-${v.v}"><div class="wrhead"><span>${name}</span><b>${t('v_' + v.v)}</b></div><div class="wrmain"><span class="num">${pct(b.w / b.n)} %</span><span class="num n">n = ${b.n}</span></div>${v.ci ? `<small>${t('wr_ci', { lo: pct(v.ci.lo), hi: pct(v.ci.hi), be: pct(v.be) })}</small>` : ''}<small>EV ${(b.w / b.n * r.payout / 100 - (1 - b.w / b.n)).toFixed(3)} ${t('per_stake')}</small></div>`; };
     setHtml(el, `<p class="hint">${t('bt_hint')}</p>
@@ -182,7 +182,7 @@
       <label class="row"><span>${t('bt_payout')}</span><input type="number" id="btPayout" value="80" min="50" max="100"></label>
       <label class="row"><span>${t('cat_expiry')} (s)</span><input type="number" id="btExp" placeholder="auto" min="60" step="60"></label>
       <button class="btn wide" id="btRun"${btBusy ? ' disabled' : ''}>${btBusy ? '…' : t('bt_run')}</button>
-      ${r ? (r.ok ? `<h4>${esc(cat(r.id).name)} · ${t('bt_data', { p: r.pairs, c: r.candles })}</h4>${part('In-sample', r.is)}${part('Out-of-sample', r.oos)}
+      ${r ? (r.ok ? `<h4>${esc((built.find(b => b.id === r.id) || { name: r.id }).name)} · ${t('bt_data', { p: r.pairs, c: r.candles })}</h4>${part('In-sample', r.is)}${part('Out-of-sample', r.oos)}
         <div class="btnrow"><button class="btn ghost" data-btexp="csv">CSV</button><button class="btn ghost" data-btexp="json">JSON</button></div>` : `<p class="hint warn">${esc(r.error || 'error')}</p>`) : ''}`);
   }
 
