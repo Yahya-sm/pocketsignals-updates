@@ -214,12 +214,13 @@ public class MainActivity extends Activity {
         // away by itself once the signal is old (set by the signal page via Bridge.setDirBadge).
         dirBadge = new TextView(this);
         dirBadge.setTextColor(Color.WHITE);
-        dirBadge.setTextSize(17);
+        // 14.11.2026 (user): small, at the left edge in the middle – the bottom covered the Stochastic.
+        dirBadge.setTextSize(12);
         dirBadge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        dirBadge.setPadding(40, 22, 40, 22);
+        dirBadge.setPadding(18, 8, 18, 8);
         dirBadge.setElevation(14);
-        FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
-        dl.setMargins(30, 0, 0, 300);
+        FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.START);
+        dl.setMargins(6, 0, 0, 0);
         root.addView(dirBadge, dl);
         dirBadge.setVisibility(View.GONE);
         dirBadge.setOnClickListener(v -> { dirText = null; dirBadge.setVisibility(View.GONE); });
@@ -329,7 +330,7 @@ public class MainActivity extends Activity {
                 dirText = text;
                 GradientDrawable b = new GradientDrawable();
                 b.setColor(Color.parseColor(up ? "#F022A55B" : "#F0E5484D"));
-                b.setCornerRadius(28);
+                b.setCornerRadius(14);
                 dirBadge.setBackground(b);
                 dirBadge.setText(text);
                 dirBadge.setVisibility(po.getVisibility() == View.VISIBLE ? View.VISIBLE : View.GONE);

@@ -608,7 +608,8 @@ async function openPO(id, tf, auto, exp, trade) {
     // Direction badge over the PocketOption chart (user 14.11.2026): ▲ CALL / ▼ PUT, pair, expiry; hides after expiry + 1 min.
     if (sig && window.AndroidApp.setDirBadge) {
       const up = sig.dir === 'CALL' || sig.dir > 0, e = Number(exp || sig.expiry) || 0;
-      try { window.AndroidApp.setDirBadge(`${up ? '▲ CALL' : '▼ PUT'}  ${name}${e ? '  ⏱ ' + fmtExp(e) : ''}`, up, (e || 300) + 60); } catch {}
+      // Short (user: the badge was too big): arrow, direction and expiry only.
+      try { window.AndroidApp.setDirBadge(`${up ? '▲ CALL' : '▼ PUT'}${e ? ' ' + fmtExp(e) : ''}`, up, (e || 300) + 60); } catch {}
     }
     if (tf && window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(name);
     else window.AndroidApp.openPocketOption(name, r.symbol || (sig && sig.symbol) || '');
