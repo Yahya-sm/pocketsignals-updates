@@ -103,7 +103,7 @@ const DEFAULTS = {
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
-  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
+  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_period: 14, ls_flat_adx: 23 },
   // Same + market weather filters (see S.n_lsweather); tested on OTC around the clock, so OTC and all hours on by default.
   n_lsweather: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5,
     lw_trend_on: true, lw_ema: 50, lw_slope_min: 0, lw_adx_on: true, lw_adx_period: 14, lw_adx_min: 23, lw_atr_on: true, lw_atr_period: 14, lw_atr_max: 1 },
@@ -953,6 +953,11 @@ const S = {
     const st = I.stoch(m5, Number(p.ls_stoch_k) || 3, Number(p.ls_stoch_slow) || 1, Number(p.ls_stoch_d) || 1).k, z = Number(p.ls_stoch_zone) || 20;
     if (st[i] == null || st[i - 1] == null || (st[i] - st[i - 1]) * d <= 0) return null;
     if (d > 0 ? Math.min(st[i], st[i - 1]) >= z : Math.max(st[i], st[i - 1]) <= 100 - z) return null;
+    // Flat market = no signals (user 14.11.2026): ADX on M5 below ls_flat_adx → the market stands still, skip.
+    if (p.ls_flat_on === true) {
+      const f5 = x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : I.resample(x.c, 5), fa = I.adx(f5, Number(p.ls_flat_period) || 14)[f5.length - 1];
+      if (!fa || fa.adx < (Number(p.ls_flat_adx) || 23)) return null;
+    }
     if (!useLevel) return Object.assign(sig(d, 75, L(`пин-бар M${pm}, Stochastic разворачивается ${d > 0 ? 'вверх' : 'вниз'}`, `M${pm}-Pinbar, Stochastic dreht ${d > 0 ? 'nach oben' : 'nach unten'}`, `M${pm} pin bar, Stochastic turning ${d > 0 ? 'up' : 'down'}`)), { noFlip: true });
     return Object.assign(sig(d, 75, d > 0
       ? L(`пин-бар M5 от поддержки M15 (${zone.n} касания), Stochastic разворачивается вверх`, `M5-Pinbar an M15-Unterstützung (${zone.n} Berührungen), Stochastic dreht nach oben`, `M5 pin bar at M15 support (${zone.n} touches), Stochastic turning up`)
@@ -1519,13 +1524,16 @@ const HELP = {
 
 LABELS.n_levelstoch = { ...(LABELS.n_levelstoch || {}),
   ls_stoch_k: L('Stochastic: период %K', 'Stochastic: Periode %K', 'Stochastic %K period'), ls_stoch_slow: L('Stochastic: замедление', 'Stochastic: Glättung', 'Stochastic slowing'),
-  ls_stoch_d: L('Stochastic: период %D', 'Stochastic: Periode %D', 'Stochastic %D period'), ls_atr_period: L('ATR: период', 'ATR: Periode', 'ATR period') };
+  ls_stoch_d: L('Stochastic: период %D', 'Stochastic: Periode %D', 'Stochastic %D period'), ls_atr_period: L('ATR: период', 'ATR: Periode', 'ATR period'),
+  ls_flat_on: L('Не торговать во флэте', 'Nicht im Seitwärtsmarkt handeln', 'No trading in a flat market'), ls_flat_period: L('ADX: период', 'ADX: Periode', 'ADX period'),
+  ls_flat_adx: L('ADX M5 не ниже (иначе флэт)', 'ADX M5 mindestens (sonst seitwärts)', 'ADX M5 at least (else flat)') };
 // Pin bar + Stochastic: settings by indicator and a description of the signal indicators (user 14.11.2026).
 GROUPS.n_levelstoch = [
   { title: L('Stochastic — осциллятор', 'Stochastic – Oszillator', 'Stochastic – oscillator'), desc: L('Разворот линии Stochastic из зоны перепроданности / перекупленности.', 'Wende der Stochastic-Linie aus der Extremzone.', 'Stochastic line turning out of the extreme zone.'), keys: ['ls_stoch_k', 'ls_stoch_slow', 'ls_stoch_d', 'ls_stoch_zone'] },
   { title: L('Пин-бар и ATR', 'Pinbar und ATR', 'Pin bar and ATR'), desc: L('Таймфрейм пин-бара, размер свечей в ATR.', 'Zeitrahmen des Pinbars, Kerzengröße in ATR.', 'Pin bar timeframe, candle size in ATR.'), keys: ['ls_tf', 'ls_atr_period', 'ls_big_atr'] },
   { title: L('Уровень M15 (по желанию)', 'M15-Level (optional)', 'M15 level (optional)'), desc: L('Отскок от уровня поддержки / сопротивления M15.', 'Abprall an M15-Unterstützung / Widerstand.', 'Bounce off an M15 support / resistance.'), keys: ['ls_level', 'ls_touches', 'ls_zone_atr', 'ls_saw'] },
   { title: L('Время и рынок', 'Zeit und Markt', 'Time and market'), desc: L('Часы торговли (UTC) и пропуск OTC.', 'Handelszeiten (UTC) und OTC auslassen.', 'Trading hours (UTC) and skip OTC.'), keys: ['ls_hour_from', 'ls_hour_to', 'ls_no_otc'] },
+  { title: L('Флэт — рынок без силы (ADX M5)', 'Seitwärts – Markt ohne Kraft (ADX M5)', 'Flat – market without strength (ADX M5)'), desc: L('Если ADX на M5 ниже порога, рынок топчется на месте — сигналов нет.', 'ADX auf M5 unter der Schwelle = Markt tritt auf der Stelle, keine Signale.', 'ADX on M5 below the threshold = market standing still, no signals.'), keys: ['ls_flat_on', 'ls_flat_period', 'ls_flat_adx'] },
 ];
 HELP.n_levelstoch = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
   L('Как работает: на закрытой свече выбранного таймфрейма (по умолчанию M5) ищет пин-бар — длинная тень не меньше двух тел и половины свечи, — пришедший с другой стороны, без больших свечей перед ним. Сигнал, когда Stochastic в крайней зоне разворачивается в сторону пин-бара. По желанию — только от уровня M15.', 'So funktioniert es: auf der geschlossenen Kerze des gewählten Zeitrahmens (Standard M5) ein Pinbar – langer Docht mindestens zwei Körper und die halbe Kerze –, von der Gegenseite kommend, ohne große Kerzen davor. Signal, wenn der Stochastic in der Extremzone in Pinbar-Richtung dreht. Optional nur an einem M15-Level.', 'How it works: on the closed candle of the chosen timeframe (default M5) a pin bar – long wick at least two bodies and half the candle – coming from the other side, with no big candles before it. Signal when the Stochastic in the extreme zone turns the pin bar way. Optionally only at an M15 level.'),
@@ -1538,7 +1546,7 @@ LABELS.n_lsweather = { ...LABELS.n_levelstoch,
   lw_adx_on: L('Фильтр ADX M5', 'ADX-M5-Filter', 'ADX M5 filter'), lw_adx_period: L('ADX: период', 'ADX: Periode', 'ADX period'), lw_adx_min: L('ADX M5 не ниже', 'ADX M5 mindestens', 'ADX M5 at least'),
   lw_atr_on: L('Фильтр всплеска ATR', 'ATR-Spitzenfilter', 'ATR spike filter'), lw_atr_period: L('ATR фильтра: период', 'Filter-ATR: Periode', 'Filter ATR period'),
   lw_atr_max: L('ATR / средний ATR не выше', 'ATR / mittlerer ATR höchstens', 'ATR / average ATR at most') };
-GROUPS.n_lsweather = [...GROUPS.n_levelstoch,
+GROUPS.n_lsweather = [...GROUPS.n_levelstoch.filter(g => !g.keys.includes('ls_flat_on')), // its flat filter is "Weather 2"
   { title: L('Погода 1: EMA — против движения', 'Wetter 1: EMA – gegen die Bewegung', 'Weather 1: EMA – against the move'), desc: L('Сигнал только против наклона EMA (разворот после движения). По тренду — пропуск.', 'Signal nur gegen die EMA-Neigung (Umkehr nach einer Bewegung).', 'Signal only against the EMA slope (reversal after a move).'), keys: ['lw_trend_on', 'lw_ema', 'lw_slope_min'] },
   { title: L('Погода 2: ADX M5 — рынок живой', 'Wetter 2: ADX M5 – Markt lebt', 'Weather 2: ADX M5 – market alive'), desc: L('При ADX на M5 ниже порога рынок вялый — пропуск.', 'ADX auf M5 unter der Schwelle = träger Markt, auslassen.', 'ADX on M5 below the threshold = dull market, skip.'), keys: ['lw_adx_on', 'lw_adx_period', 'lw_adx_min'] },
   { title: L('Погода 3: ATR — без скачков', 'Wetter 3: ATR – ohne Sprünge', 'Weather 3: ATR – no spikes'), desc: L('ATR сейчас / средний за 100 свечей. Выше порога — всплеск, пропуск.', 'ATR jetzt / Mittel über 100 Kerzen. Darüber = Spitze, auslassen.', 'ATR now / average over 100 candles. Above = spike, skip.'), keys: ['lw_atr_on', 'lw_atr_period', 'lw_atr_max'] },
