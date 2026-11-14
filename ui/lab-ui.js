@@ -77,6 +77,16 @@
   function winText(exp) { const l = Math.round(exp - Date.now() / 1000); return l > 0 ? `${t('win_left')} 00:${String(l).padStart(2, '0')}` : t('win_over'); }
   setInterval(() => document.querySelectorAll('[data-entrywin]').forEach(el => { const e = +el.dataset.entrywin; el.textContent = winText(e); el.classList.toggle('soon', e - Date.now() / 1000 <= 15); }), 1000);
 
+  // Deposit tile (user 14.11.2026: instead of "daily loss 0.0 / 50 stakes" show 1000 Fr. and whether it grows or shrinks):
+  // deposit (settings.deposit, default 1000, Risk tab) + net of all own trades on the shown account (tradeNet in app.js).
+  function depTile(real) {
+    const dep = Number(state.settings.deposit) || 1000;
+    const tr = (state.signals || []).filter(s => s.mine && s.trade && !!s.trade.demo === !real && typeof tradeNet === 'function' && tradeNet(s) != null);
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    const all = tr.reduce((a, s) => a + tradeNet(s), 0), td = tr.filter(s => (s.trade.at || s.entryTime) * 1000 >= d0.getTime()).reduce((a, s) => a + tradeNet(s), 0);
+    const col = v => v > 0 ? 'var(--call)' : v < 0 ? 'var(--put)' : 'inherit', sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+    return `<div class="rk"><span>${t('rk_dep')} ${dep.toFixed(0)} Fr.</span><b class="num" style="color:${col(all)}">${(dep + all).toFixed(2)} Fr.</b><small style="color:${col(td)}">${t('rk_today')} ${sg(td)} · ${t('rk_total')} ${sg(all)}</small></div>`;
+  }
   // ---------- top: account + mode, risk tiles, banner ----------
   function renderTop() {
     const el = document.getElementById('labTop'); if (!el || !lab()) return;
@@ -91,7 +101,7 @@
 </div>
       ${lim.hit ? `<div class="limitbanner">${t('limit_hit')} (${t('lim_' + lim.hit)})</div>` : ''}
       <div class="rktiles">
-        <div class="rk"><span>${t('rk_loss')}</span><b class="num">${(lim.cur.loss || 0).toFixed(1)} / ${lim.lim.loss} ${t('rk_units')}</b>${bar(lim.cur.loss || 0, lim.lim.loss)}</div>
+        ${depTile(real)}
         <div class="rk"><span>${t('rk_trades')}</span><b class="num">${lim.cur.trades || 0} / ${lim.lim.trades}</b>${bar(lim.cur.trades || 0, lim.lim.trades)}</div>
         <div class="rk opt"><span>${t('rk_streak')}</span><b class="num">${lim.cur.streak || 0} / ${lim.lim.streak}</b>${bar(lim.cur.streak || 0, lim.lim.streak)}</div>
         <div class="rk opt"><span>${t('rk_pay')}</span><b class="num">${pays.length ? Math.min(...pays) + '–' + Math.max(...pays) + ' %' : '–'}</b><small>${pays.length ? t('rk_be', { v: pct(be(Math.max(...pays))) + '–' + pct(be(Math.min(...pays))) + ' %' }) + ' · ' : ''}min ${L.risk.risk_min_payout} %</small></div>
@@ -214,6 +224,7 @@
     const R = lab().risk, inp = (k, label, v) => `<label class="row"><span>${t(label)}</span><input type="number" step="any" data-risk="${k}" value="${esc(v ?? R[k])}"></label>`;
     const ns = new Set(lab().notify_strats || []), names = (state.settings.allStrategies || []).filter(s => (state.settings.strategies || []).includes(s.key));
     setHtml(el, `<p class="hint">${t('risk_acct', { a: lab().account === 'REAL' ? t('acct_real') : t('acct_demo') })}</p>
+      <label class="row"><span>${t('risk_dep')}</span><input type="number" step="any" data-risk="deposit" value="${esc(state.settings.deposit ?? 1000)}"></label>
       ${inp('risk_daily_loss_units', 'risk_loss')}${inp('risk_max_trades', 'risk_trades')}${inp('risk_max_losses', 'risk_streak')}${inp('risk_min_payout', 'risk_payout')}${inp('risk_stake_pct', 'risk_stake')}${inp('cooldown_candles', 'risk_cool')}${inp('daily_signal_limit', 'risk_daily')}${inp('stale_sec', 'risk_stale', lab().stale_sec)}
       <p class="hint">${t('risk_note')}</p>
       <h4>${t('notify_title')}</h4><p class="hint">${t('notify_hint')}</p>
