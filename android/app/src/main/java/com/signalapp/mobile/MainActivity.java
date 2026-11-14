@@ -51,6 +51,16 @@ public class MainActivity extends Activity {
     volatile String poUserAgent = null;
     volatile String poStart = null; // demo or real trading page, set by the app (settings / last used)
     String lastPoMode = null;
+    volatile String poForcedMode = null; // 'demo' / 'real' when the settings fix the account, null = last used
+
+    // Page PocketOption opens with (user 14.11.2026: after a restart the real chart opened and a trade could slip in):
+    // the fixed account from the settings, else the account used last (stored on the phone), else DEMO – never the
+    // general cabinet page, which leads to the real account.
+    String startUrl() {
+        String m = poForcedMode != null ? poForcedMode : getSharedPreferences("app", MODE_PRIVATE).getString("po_mode", null);
+        if (m == null && poStart != null) return poStart;
+        return "https://pocketoption.com/en/cabinet/" + ("real".equals(m) ? "quick-high-low/" : "demo-quick-high-low/");
+    }
     boolean poLoaded = false;
     int notifyId = 100;
 
@@ -148,6 +158,9 @@ public class MainActivity extends Activity {
                     : url.matches(".*/cabinet/(quick-high-low|high-low|digital|forex).*") ? "real" : null;
                 if (mode != null && !mode.equals(lastPoMode)) {
                     lastPoMode = mode;
+                    // Stored on the phone right away (user 14.11.2026: after a restart the real chart opened) – the next
+                    // start opens this account even before the engine has loaded.
+                    getSharedPreferences("app", MODE_PRIVATE).edit().putString("po_mode", mode).apply();
                     signals.evaluateJavascript("window.LocalEngine && window.LocalEngine.act({action:'settings',patch:{po_last_mode:'" + mode + "'}})", null);
                 }
             }
@@ -228,7 +241,7 @@ public class MainActivity extends Activity {
         setContentView(root);
         signals.loadUrl(APP_BASE + "index.html");
         // PocketOption loads once the app has said demo or real (setPoStart); fallback after 5 s.
-        root.postDelayed(() -> { if (po.getUrl() == null) po.loadUrl(poStart != null ? poStart : PO_URL); }, 5000);
+        root.postDelayed(() -> { if (po.getUrl() == null) po.loadUrl(startUrl()); }, 5000);
 
         handleAction(getIntent()); // app was started from a notification button
 
@@ -351,7 +364,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (!dblToggle) return;
                 show(po);
-                if (po.getUrl() == null) po.loadUrl(poStart != null ? poStart : PO_URL);
+                if (po.getUrl() == null) po.loadUrl(startUrl());
             });
         }
 
@@ -363,7 +376,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 show(po);
                 if (poLoaded && po.getUrl() != null && po.getUrl().contains("/cabinet")) switchPo(name);
-                else { pendingPoName = name; if (po.getUrl() == null) po.loadUrl(poStart != null ? poStart : PO_URL); }
+                else { pendingPoName = name; if (po.getUrl() == null) po.loadUrl(startUrl()); }
             });
         }
 
@@ -394,7 +407,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 show(po);
                 pendingPoName = name;
-                if (po.getUrl() == null) po.loadUrl(poStart != null ? poStart : PO_URL);
+                if (po.getUrl() == null) po.loadUrl(startUrl());
                 else po.postDelayed(po::reload, 700); // give the server a moment to store the chart settings
             });
         }
@@ -402,7 +415,7 @@ public class MainActivity extends Activity {
         // Open the PocketOption tab without switching an asset (e.g. to log in).
         @JavascriptInterface
         public void showPocketOption() {
-            runOnUiThread(() -> { show(po); if (po.getUrl() == null) po.loadUrl(poStart != null ? poStart : PO_URL); });
+            runOnUiThread(() -> { show(po); if (po.getUrl() == null) po.loadUrl(startUrl()); });
         }
 
         @JavascriptInterface
@@ -494,11 +507,15 @@ public class MainActivity extends Activity {
         }
 
         // Demo or real trading page to open PocketOption with.
+        // Setting po_start_mode from the app: 'demo' / 'real' = always that account, 'last' = the one used last (startUrl).
+        @JavascriptInterface
+        public void setPoStartMode(String mode) { poForcedMode = "demo".equals(mode) || "real".equals(mode) ? mode : null; }
+
         @JavascriptInterface
         public void setPoStart(String url) {
             if (url == null || !url.matches("https://(m\\.)?pocketoption\\.com/.*")) return;
             poStart = url;
-            runOnUiThread(() -> { if (po.getUrl() == null) po.loadUrl(url); });
+            runOnUiThread(() -> { if (po.getUrl() == null) po.loadUrl(startUrl()); });
         }
 
         // Text of the floating back button in the selected language.

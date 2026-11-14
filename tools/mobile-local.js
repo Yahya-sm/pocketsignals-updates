@@ -52,6 +52,7 @@ window.poSwitchScript = name => {
 let lastPoStart = null;
 const sendPoStart = () => {
   const url = require('./po-switch').poStartUrl(engine.settings);
+  try { window.AndroidApp && window.AndroidApp.setPoStartMode && window.AndroidApp.setPoStartMode(engine.settings.po_start_mode || 'last'); } catch {}
   if (url !== lastPoStart && window.AndroidApp && window.AndroidApp.setPoStart) { lastPoStart = url; window.AndroidApp.setPoStart(url); }
 };
 engine.on('state', sendPoStart);

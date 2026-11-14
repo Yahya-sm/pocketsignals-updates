@@ -117,7 +117,8 @@ function tradeScript(sw, dir, allowReal, lang) {
 // po_last_mode is remembered from the page the user was on last.
 function poStartUrl(settings, host = 'https://pocketoption.com') {
   const mode = settings.po_start_mode === 'demo' || settings.po_start_mode === 'real' ? settings.po_start_mode : settings.po_last_mode;
-  return host + (mode === 'demo' ? '/en/cabinet/demo-quick-high-low/' : '/en/cabinet/quick-high-low/');
+  // Unknown → demo (user 14.11.2026: a restart must never land on the real account by itself).
+  return host + (mode === 'real' ? '/en/cabinet/quick-high-low/' : '/en/cabinet/demo-quick-high-low/');
 }
 
 // 'demo' / 'real' for a PocketOption trading page URL, otherwise null.
