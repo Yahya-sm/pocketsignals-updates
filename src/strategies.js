@@ -103,10 +103,10 @@ const DEFAULTS = {
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
-  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_period: 14, ls_flat_adx: 23 },
+  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_tf: 'M5', ls_flat_period: 14, ls_flat_adx: 23 },
   // Same + market weather filters (see S.n_lsweather); tested on OTC around the clock, so OTC and all hours on by default.
   n_lsweather: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5,
-    lw_trend_on: true, lw_ema: 50, lw_slope_min: 0, lw_adx_on: true, lw_adx_period: 14, lw_adx_min: 23, lw_atr_on: true, lw_atr_period: 14, lw_atr_max: 1 },
+    lw_trend_on: true, lw_ema: 50, lw_slope_min: 0, lw_adx_on: true, lw_adx_tf: 'M5', lw_adx_period: 14, lw_adx_min: 23, lw_atr_on: true, lw_atr_period: 14, lw_atr_max: 1 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
     tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20, tp_first: true, tp_return_max: 50 },
@@ -955,7 +955,9 @@ const S = {
     if (d > 0 ? Math.min(st[i], st[i - 1]) >= z : Math.max(st[i], st[i - 1]) <= 100 - z) return null;
     // Flat market = no signals (user 14.11.2026): ADX on M5 below ls_flat_adx → the market stands still, skip.
     if (p.ls_flat_on === true) {
-      const f5 = x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : I.resample(x.c, 5), fa = I.adx(f5, Number(p.ls_flat_period) || 14)[f5.length - 1];
+      // ls_flat_tf: timeframe of the ADX (user 14.11.2026: "I trade on M2, not M5"), M1–M5, default M5.
+      const ft = parseInt(String(p.ls_flat_tf || 'M5').slice(1), 10) || 5, src = x.ctx?.M1 && x.ctx.M1.length >= x.c.length ? x.ctx.M1 : x.c;
+      const f5 = ft === 5 && x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : ft === 1 ? src : I.resample(src, ft), fa = I.adx(f5, Number(p.ls_flat_period) || 14)[f5.length - 1];
       if (!fa || fa.adx < (Number(p.ls_flat_adx) || 23)) return null;
     }
     if (!useLevel) return Object.assign(sig(d, 75, L(`пин-бар M${pm}, Stochastic разворачивается ${d > 0 ? 'вверх' : 'вниз'}`, `M${pm}-Pinbar, Stochastic dreht ${d > 0 ? 'nach oben' : 'nach unten'}`, `M${pm} pin bar, Stochastic turning ${d > 0 ? 'up' : 'down'}`)), { noFlip: true });
@@ -975,7 +977,8 @@ const S = {
       if (Math.sign(slope) === d || Math.abs(slope) < (Number(p.lw_slope_min) || 0)) return null; // only against the move
     }
     if (p.lw_adx_on !== false) {
-      const m5 = x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : I.resample(c, 5), a5 = I.adx(m5, Number(p.lw_adx_period) || 14)[m5.length - 1];
+      const at = parseInt(String(p.lw_adx_tf || 'M5').slice(1), 10) || 5, src = x.ctx?.M1 && x.ctx.M1.length >= c.length ? x.ctx.M1 : c; // ADX timeframe (14.11.2026)
+      const m5 = at === 5 && x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : at === 1 ? src : I.resample(src, at), a5 = I.adx(m5, Number(p.lw_adx_period) || 14)[m5.length - 1];
       if (!a5 || a5.adx < (Number(p.lw_adx_min) || 23)) return null;
     }
     if (p.lw_atr_on !== false) {
@@ -1525,7 +1528,7 @@ const HELP = {
 LABELS.n_levelstoch = { ...(LABELS.n_levelstoch || {}),
   ls_stoch_k: L('Stochastic: период %K', 'Stochastic: Periode %K', 'Stochastic %K period'), ls_stoch_slow: L('Stochastic: замедление', 'Stochastic: Glättung', 'Stochastic slowing'),
   ls_stoch_d: L('Stochastic: период %D', 'Stochastic: Periode %D', 'Stochastic %D period'), ls_atr_period: L('ATR: период', 'ATR: Periode', 'ATR period'),
-  ls_flat_on: L('Не торговать во флэте', 'Nicht im Seitwärtsmarkt handeln', 'No trading in a flat market'), ls_flat_period: L('ADX: период', 'ADX: Periode', 'ADX period'),
+  ls_flat_on: L('Не торговать во флэте', 'Nicht im Seitwärtsmarkt handeln', 'No trading in a flat market'), ls_flat_period: L('ADX: период', 'ADX: Periode', 'ADX period'), ls_flat_tf: L('ADX: таймфрейм', 'ADX: Zeitrahmen', 'ADX timeframe'),
   ls_flat_adx: L('ADX M5 не ниже (иначе флэт)', 'ADX M5 mindestens (sonst seitwärts)', 'ADX M5 at least (else flat)') };
 // Pin bar + Stochastic: settings by indicator and a description of the signal indicators (user 14.11.2026).
 GROUPS.n_levelstoch = [
@@ -1533,7 +1536,7 @@ GROUPS.n_levelstoch = [
   { title: L('Пин-бар и ATR', 'Pinbar und ATR', 'Pin bar and ATR'), desc: L('Таймфрейм пин-бара, размер свечей в ATR.', 'Zeitrahmen des Pinbars, Kerzengröße in ATR.', 'Pin bar timeframe, candle size in ATR.'), keys: ['ls_tf', 'ls_atr_period', 'ls_big_atr'] },
   { title: L('Уровень M15 (по желанию)', 'M15-Level (optional)', 'M15 level (optional)'), desc: L('Отскок от уровня поддержки / сопротивления M15.', 'Abprall an M15-Unterstützung / Widerstand.', 'Bounce off an M15 support / resistance.'), keys: ['ls_level', 'ls_touches', 'ls_zone_atr', 'ls_saw'] },
   { title: L('Время и рынок', 'Zeit und Markt', 'Time and market'), desc: L('Часы торговли (UTC) и пропуск OTC.', 'Handelszeiten (UTC) und OTC auslassen.', 'Trading hours (UTC) and skip OTC.'), keys: ['ls_hour_from', 'ls_hour_to', 'ls_no_otc'] },
-  { title: L('Флэт — рынок без силы (ADX M5)', 'Seitwärts – Markt ohne Kraft (ADX M5)', 'Flat – market without strength (ADX M5)'), desc: L('Если ADX на M5 ниже порога, рынок топчется на месте — сигналов нет.', 'ADX auf M5 unter der Schwelle = Markt tritt auf der Stelle, keine Signale.', 'ADX on M5 below the threshold = market standing still, no signals.'), keys: ['ls_flat_on', 'ls_flat_period', 'ls_flat_adx'] },
+  { title: L('Флэт — рынок без силы (ADX M5)', 'Seitwärts – Markt ohne Kraft (ADX M5)', 'Flat – market without strength (ADX M5)'), desc: L('Если ADX на M5 ниже порога, рынок топчется на месте — сигналов нет.', 'ADX auf M5 unter der Schwelle = Markt tritt auf der Stelle, keine Signale.', 'ADX on M5 below the threshold = market standing still, no signals.'), keys: ['ls_flat_on', 'ls_flat_tf', 'ls_flat_period', 'ls_flat_adx'] },
 ];
 HELP.n_levelstoch = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
   L('Как работает: на закрытой свече выбранного таймфрейма (по умолчанию M5) ищет пин-бар — длинная тень не меньше двух тел и половины свечи, — пришедший с другой стороны, без больших свечей перед ним. Сигнал, когда Stochastic в крайней зоне разворачивается в сторону пин-бара. По желанию — только от уровня M15.', 'So funktioniert es: auf der geschlossenen Kerze des gewählten Zeitrahmens (Standard M5) ein Pinbar – langer Docht mindestens zwei Körper und die halbe Kerze –, von der Gegenseite kommend, ohne große Kerzen davor. Signal, wenn der Stochastic in der Extremzone in Pinbar-Richtung dreht. Optional nur an einem M15-Level.', 'How it works: on the closed candle of the chosen timeframe (default M5) a pin bar – long wick at least two bodies and half the candle – coming from the other side, with no big candles before it. Signal when the Stochastic in the extreme zone turns the pin bar way. Optionally only at an M15 level.'),
@@ -1543,18 +1546,42 @@ HELP.n_levelstoch = [{ title: L('Описание стратегии', 'Strategi
 LABELS.n_lsweather = { ...LABELS.n_levelstoch,
   lw_trend_on: L('Только против движения (EMA)', 'Nur gegen die Bewegung (EMA)', 'Only against the move (EMA)'), lw_ema: L('EMA: период', 'EMA: Periode', 'EMA period'),
   lw_slope_min: L('Мин. наклон EMA (ATR за 10 свечей)', 'Min. EMA-Neigung (ATR über 10 Kerzen)', 'Min EMA slope (ATR over 10 candles)'),
-  lw_adx_on: L('Фильтр ADX M5', 'ADX-M5-Filter', 'ADX M5 filter'), lw_adx_period: L('ADX: период', 'ADX: Periode', 'ADX period'), lw_adx_min: L('ADX M5 не ниже', 'ADX M5 mindestens', 'ADX M5 at least'),
+  lw_adx_on: L('Фильтр ADX M5', 'ADX-M5-Filter', 'ADX M5 filter'), lw_adx_period: L('ADX: период', 'ADX: Periode', 'ADX period'), lw_adx_tf: L('ADX: таймфрейм', 'ADX: Zeitrahmen', 'ADX timeframe'), lw_adx_min: L('ADX M5 не ниже', 'ADX M5 mindestens', 'ADX M5 at least'),
   lw_atr_on: L('Фильтр всплеска ATR', 'ATR-Spitzenfilter', 'ATR spike filter'), lw_atr_period: L('ATR фильтра: период', 'Filter-ATR: Periode', 'Filter ATR period'),
   lw_atr_max: L('ATR / средний ATR не выше', 'ATR / mittlerer ATR höchstens', 'ATR / average ATR at most') };
 GROUPS.n_lsweather = [...GROUPS.n_levelstoch.filter(g => !g.keys.includes('ls_flat_on')), // its flat filter is "Weather 2"
   { title: L('Погода 1: EMA — против движения', 'Wetter 1: EMA – gegen die Bewegung', 'Weather 1: EMA – against the move'), desc: L('Сигнал только против наклона EMA (разворот после движения). По тренду — пропуск.', 'Signal nur gegen die EMA-Neigung (Umkehr nach einer Bewegung).', 'Signal only against the EMA slope (reversal after a move).'), keys: ['lw_trend_on', 'lw_ema', 'lw_slope_min'] },
-  { title: L('Погода 2: ADX M5 — рынок живой', 'Wetter 2: ADX M5 – Markt lebt', 'Weather 2: ADX M5 – market alive'), desc: L('При ADX на M5 ниже порога рынок вялый — пропуск.', 'ADX auf M5 unter der Schwelle = träger Markt, auslassen.', 'ADX on M5 below the threshold = dull market, skip.'), keys: ['lw_adx_on', 'lw_adx_period', 'lw_adx_min'] },
+  { title: L('Погода 2: ADX M5 — рынок живой', 'Wetter 2: ADX M5 – Markt lebt', 'Weather 2: ADX M5 – market alive'), desc: L('При ADX на M5 ниже порога рынок вялый — пропуск.', 'ADX auf M5 unter der Schwelle = träger Markt, auslassen.', 'ADX on M5 below the threshold = dull market, skip.'), keys: ['lw_adx_on', 'lw_adx_tf', 'lw_adx_period', 'lw_adx_min'] },
   { title: L('Погода 3: ATR — без скачков', 'Wetter 3: ATR – ohne Sprünge', 'Weather 3: ATR – no spikes'), desc: L('ATR сейчас / средний за 100 свечей. Выше порога — всплеск, пропуск.', 'ATR jetzt / Mittel über 100 Kerzen. Darüber = Spitze, auslassen.', 'ATR now / average over 100 candles. Above = spike, skip.'), keys: ['lw_atr_on', 'lw_atr_period', 'lw_atr_max'] },
 ];
 HELP.n_lsweather = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
   L('Копия «Пин-бар 1 + Stochastic» с тремя фильтрами «погоды рынка»: 1) сделка только против движения (наклон EMA 50), 2) ADX на M5 не ниже 23 — рынок живой, 3) ATR не выше среднего — без резких скачков. Каждый фильтр выключается отдельно, чтобы сравнить.', 'Kopie von „Pinbar 1 + Stochastic“ mit drei Marktwetter-Filtern: 1) nur gegen die Bewegung (EMA-50-Neigung), 2) ADX M5 mindestens 23, 3) ATR nicht über dem Mittel. Jeder Filter einzeln abschaltbar.', 'Copy of "Pin bar 1 + Stochastic" with three market weather filters: 1) only against the move (EMA 50 slope), 2) ADX M5 at least 23, 3) ATR not above average. Each filter can be switched off.'),
   L('Проверка 14.11.2026 на 18 OTC-парах (около 9500 минут): все сигналы 53 %, с тремя фильтрами 67 % за 4 мин и 64 % за 5 мин (94 сделки, обе половины данных одинаково). Данных мало — сначала демо.', 'Test 14.11.2026 auf 18 OTC-Paaren (etwa 9500 Minuten): alle Signale 53 %, mit drei Filtern 67 % bei 4 Min, 64 % bei 5 Min (94 Trades, beide Hälften gleich). Wenig Daten – zuerst Demo.', 'Test 14.11.2026 on 18 OTC pairs (about 9500 minutes): all signals 53 %, with the three filters 67 % at 4 min, 64 % at 5 min (94 trades, both halves alike). Little data – demo first.'),
 ] }];
+// Recommendation tables (user 14.11.2026: "a table to look at any time"): per pin-bar timeframe the best expiry and ADX
+// threshold, ADX on the same timeframe. History 14.11.2026: 18 OTC pairs, about 9500 M1 candles, all hours; chosen by
+// the lower 95 % bound with at least 20 trades. Settings: pin-bar timeframe, ADX timeframe = the same, ADX threshold.
+{
+  const cols = [L('ТФ', 'ZR', 'TF'), L('Экспирация', 'Ablauf', 'Expiry'), L('ADX (на этом ТФ)', 'ADX (auf diesem ZR)', 'ADX (this TF)'), L('Винрейт', 'Trefferquote', 'Win rate'), L('Сделок', 'Trades', 'Trades')];
+  const off = L('выкл', 'aus', 'off'), m = n => L(n + ' мин', n + ' Min', n + ' min'), few = L('мало данных', 'zu wenig Daten', 'too little data');
+  const rec = (rows, note) => ({ title: L('Таблица: таймфрейм → экспирация → ADX', 'Tabelle: Zeitrahmen → Ablauf → ADX', 'Table: timeframe → expiry → ADX'), cols, rows, note });
+  HELP.n_levelstoch.unshift(rec([
+    ['M1', m(4), '≥ 28', '60 %', '57'],
+    ['M2', m(4), '≥ 28', '76 %', '33'],
+    ['M2', m(2), '≥ 30', '58 %', '33'],
+    ['M3', m(5), '≥ 28', '65 %', '23'],
+    ['M4', m(5), off, '60 %', '52'],
+    ['M5', m(5), '≥ 25', '68 %', '22'],
+  ], L('История 14.11.2026: 18 OTC-пар, около 9500 минутных свечей. Ставьте «ADX: таймфрейм» = таймфрейму пин-бара. M2: при ADX ≥ 35 — 92 % за 4 мин и 67 % за 2 мин, но всего 24 сделки. Окупаемость при выплате 80 % — 55,6 %. Сделок мало, цифры ориентировочные.', 'Historie 14.11.2026: 18 OTC-Paare, etwa 9500 M1-Kerzen. „ADX: Zeitrahmen“ = Zeitrahmen des Pinbars. M2: ADX ≥ 35 — 92 % bei 4 Min, 67 % bei 2 Min, nur 24 Trades. Break-even bei 80 % Auszahlung 55,6 %. Wenige Trades, Richtwerte.', 'History 14.11.2026: 18 OTC pairs, about 9500 M1 candles. Set "ADX timeframe" = pin-bar timeframe. M2: ADX ≥ 35 gives 92 % at 4 min, 67 % at 2 min, only 24 trades. Break-even at 80 % payout 55.6 %. Few trades, rough values.')));
+  HELP.n_lsweather.unshift(rec([
+    ['M1', m(4), '≥ 23', '62 %', '29'],
+    ['M2', m(4), off, '73 %', '30'],
+    ['M2', m(2), off, '60 %', '30'],
+    ['M3', m(4) , off, '64 %', '22'],
+    ['M4', m(5), off, '74 %', '23'],
+    ['M5', m(5), few, '—', '17'],
+  ], L('История 14.11.2026, фильтры EMA и ATR включены. «выкл» — блок «Погода 2: ADX» можно выключить: EMA и ATR уже отсекают слабый рынок, ADX сверху сделок почти не добавляет к выигрышу. Сделок мало, цифры ориентировочные.', 'Historie 14.11.2026, EMA- und ATR-Filter an. „aus“ — „Wetter 2: ADX“ kann aus: EMA und ATR filtern schon den schwachen Markt. Wenige Trades, Richtwerte.', 'History 14.11.2026, EMA and ATR filters on. "off" — "Weather 2: ADX" can be off: EMA and ATR already filter the weak market. Few trades, rough values.')));
+}
 for (const s of LAB.CATALOG.filter(s => s.impl)) {
   DEFAULTS[s.id] = { expiry: LAB.EXPIRY_SEC[s.impl], ...LAB.PARAMS[s.impl] };
   S[s.id] = LAB.STRAT[s.id];

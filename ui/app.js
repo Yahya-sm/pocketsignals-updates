@@ -515,7 +515,7 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'] };
+const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'] };
 const CHOICE_TEXT = { ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry' };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
