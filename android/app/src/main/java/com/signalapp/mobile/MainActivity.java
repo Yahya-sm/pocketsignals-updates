@@ -69,14 +69,16 @@ public class MainActivity extends Activity {
     // balance label "QT Demo" / "QT Real" – and store it.
     static final String ACCOUNT_JS = "(function(){try{if(/\\/cabinet\\/demo-/.test(location.pathname))return 'demo';"
         + "var t=(document.body&&document.body.innerText||'').slice(0,4000);"
-        + "if(/QT\\s*Demo|Demo\\s*account|Демо[- ]?сч/i.test(t))return 'demo';if(/QT\\s*Real|Real\\s*account|Реальн/i.test(t))return 'real';}catch(e){}return '';})()";
+        // Only "demo" is read from the text: words like "Реальный счёт" also stand in the demo page's menus and stored
+        // "real" by mistake (user 14.11.2026: still real). Real is taken only from the address (doUpdateVisitedHistory).
+        + "if(/QT\\s*Demo/i.test(t))return 'demo';}catch(e){}return '';})()";
     void watchPoAccount() {
         po.postDelayed(new Runnable() { public void run() {
             String u = po.getUrl();
             if (u != null && u.contains("pocketoption.com") && u.contains("/cabinet"))
                 po.evaluateJavascript(ACCOUNT_JS, v -> {
                     String m = v == null ? "" : v.replace("\"", "");
-                    if (m.equals("demo") || m.equals("real")) { lastPoMode = m; savePoMode(m, "Seite"); }
+                    if (m.equals("demo")) { lastPoMode = m; savePoMode(m, "Seite"); }
                 });
             po.postDelayed(this, 10000);
         } }, 10000);
