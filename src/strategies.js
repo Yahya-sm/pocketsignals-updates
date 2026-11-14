@@ -28,6 +28,7 @@ const META = {
   n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
   n_levelstoch: [L('Пин-бар + Stochastic (уровень M15 — по желанию)', 'Pinbar + Stochastic (M15-Level optional)', 'Pin bar + Stochastic (M15 level optional)'), 'rev'],
+  n_lsweather: [L('Пин-бар + Stochastic + погода рынка', 'Pinbar + Stochastic + Marktwetter', 'Pin bar + Stochastic + market weather'), 'rev'],
 };
 // Strategy Lab (13.11.2026): the built logics of src/lab.js run as normal strategies (names are not translated).
 const LAB = require('./lab');
@@ -102,6 +103,9 @@ const DEFAULTS = {
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
   n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5 },
+  // Same + market weather filters (see S.n_lsweather); tested on OTC around the clock, so OTC and all hours on by default.
+  n_lsweather: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5,
+    lw_trend_on: true, lw_ema: 50, lw_slope_min: 0, lw_adx_on: true, lw_adx_period: 14, lw_adx_min: 23, lw_atr_on: true, lw_atr_period: 14, lw_atr_max: 1 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
     tp_bars_max: 5, tp_imp_atr: 2, tp_room_atr: 0.5, tp_candle_atr: 1.5, tp_ema: 20, tp_first: true, tp_return_max: 50 },
@@ -535,7 +539,7 @@ function liveMode(name, settings) {
   if (name === 'n_sharp' && p.bot) return 'both';
   // Only the last fully closed candle counts – unless the early V-reversal is on (then also inside the forming candle).
   if (name === 'n_levelrev') return p.lr_b_early ? 'both' : 'closed';
-  if (name === 'n_deeprev' || name === 'n_strongtrend' || name === 'n_trendpull' || name === 'n_levelstoch' || name === 'n_bbrsi') return 'closed';
+  if (name === 'n_deeprev' || name === 'n_strongtrend' || name === 'n_trendpull' || name === 'n_levelstoch' || name === 'n_lsweather' || name === 'n_bbrsi') return 'closed';
   return 'legacy';
 }
 
@@ -952,6 +956,28 @@ const S = {
     return Object.assign(sig(d, 75, d > 0
       ? L(`пин-бар M5 от поддержки M15 (${zone.n} касания), Stochastic разворачивается вверх`, `M5-Pinbar an M15-Unterstützung (${zone.n} Berührungen), Stochastic dreht nach oben`, `M5 pin bar at M15 support (${zone.n} touches), Stochastic turning up`)
       : L(`пин-бар M5 от сопротивления M15 (${zone.n} касания), Stochastic разворачивается вниз`, `M5-Pinbar an M15-Widerstand (${zone.n} Berührungen), Stochastic dreht nach unten`, `M5 pin bar at M15 resistance (${zone.n} touches), Stochastic turning down`)), { noFlip: true });
+  },
+  // Copy of pin bar + Stochastic with "market weather" filters (user 14.11.2026; history test on 18 OTC pairs: all signals 53 %,
+  // against EMA50 + ADX M5 ≥ 23 + ATR ≤ average 67 % at 4 min, n 94, same in both halves). Each filter can be switched off.
+  n_lsweather(x, p) {
+    const r = S.n_levelstoch(x, p); if (!r) return null;
+    const c = x.c, i = x.last, d = r.dir;
+    if (p.lw_trend_on !== false) {
+      const per = Number(p.lw_ema) || 50, e = I.ema(c.map(k => k.close), per), a = I.atr(c, 14)[i];
+      if (e[i] == null || e[i - 10] == null || !(a > 0)) return null;
+      const slope = (e[i] - e[i - 10]) / a; // EMA move over 10 candles in ATR
+      if (Math.sign(slope) === d || Math.abs(slope) < (Number(p.lw_slope_min) || 0)) return null; // only against the move
+    }
+    if (p.lw_adx_on !== false) {
+      const m5 = x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : I.resample(c, 5), a5 = I.adx(m5, Number(p.lw_adx_period) || 14)[m5.length - 1];
+      if (!a5 || a5.adx < (Number(p.lw_adx_min) || 23)) return null;
+    }
+    if (p.lw_atr_on !== false) {
+      const at = I.atr(c, Number(p.lw_atr_period) || 14); let s = 0, n = 0;
+      for (let j = Math.max(0, i - 100); j < i; j++) if (at[j] > 0) { s += at[j]; n++; }
+      if (!n || !(at[i] > 0) || at[i] / (s / n) > (Number(p.lw_atr_max) || 1)) return null;
+    }
+    return r;
   },
   n_adxonly(x, p) {
     const i = x.last, n = Number(p.ax_period) || 14, lv = Number(p.ax_level) || 25;
@@ -1488,7 +1514,7 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market'];
 
 LABELS.n_levelstoch = { ...(LABELS.n_levelstoch || {}),
   ls_stoch_k: L('Stochastic: период %K', 'Stochastic: Periode %K', 'Stochastic %K period'), ls_stoch_slow: L('Stochastic: замедление', 'Stochastic: Glättung', 'Stochastic slowing'),
@@ -1503,6 +1529,22 @@ GROUPS.n_levelstoch = [
 HELP.n_levelstoch = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
   L('Как работает: на закрытой свече выбранного таймфрейма (по умолчанию M5) ищет пин-бар — длинная тень не меньше двух тел и половины свечи, — пришедший с другой стороны, без больших свечей перед ним. Сигнал, когда Stochastic в крайней зоне разворачивается в сторону пин-бара. По желанию — только от уровня M15.', 'So funktioniert es: auf der geschlossenen Kerze des gewählten Zeitrahmens (Standard M5) ein Pinbar – langer Docht mindestens zwei Körper und die halbe Kerze –, von der Gegenseite kommend, ohne große Kerzen davor. Signal, wenn der Stochastic in der Extremzone in Pinbar-Richtung dreht. Optional nur an einem M15-Level.', 'How it works: on the closed candle of the chosen timeframe (default M5) a pin bar – long wick at least two bodies and half the candle – coming from the other side, with no big candles before it. Signal when the Stochastic in the extreme zone turns the pin bar way. Optionally only at an M15 level.'),
   L('Индикаторы сигнала: Stochastic (%K, замедление, %D, зона), ATR (большие свечи, ширина зоны уровня), свинги M15 (уровень, по желанию), часы UTC. Скользящие и MACD не используются.', 'Indikatoren des Signals: Stochastic (%K, Glättung, %D, Zone), ATR (große Kerzen, Level-Zone), M15-Swings (Level, optional), UTC-Stunden. Keine gleitenden Durchschnitte, kein MACD.', 'Signal indicators: Stochastic (%K, slowing, %D, zone), ATR (big candles, level zone), M15 swings (level, optional), UTC hours. No moving averages, no MACD.'),
+] }];
+// Pin bar + Stochastic + market weather: same settings plus three filters, each in its own group (user 14.11.2026).
+LABELS.n_lsweather = { ...LABELS.n_levelstoch,
+  lw_trend_on: L('Только против движения (EMA)', 'Nur gegen die Bewegung (EMA)', 'Only against the move (EMA)'), lw_ema: L('EMA: период', 'EMA: Periode', 'EMA period'),
+  lw_slope_min: L('Мин. наклон EMA (ATR за 10 свечей)', 'Min. EMA-Neigung (ATR über 10 Kerzen)', 'Min EMA slope (ATR over 10 candles)'),
+  lw_adx_on: L('Фильтр ADX M5', 'ADX-M5-Filter', 'ADX M5 filter'), lw_adx_period: L('ADX: период', 'ADX: Periode', 'ADX period'), lw_adx_min: L('ADX M5 не ниже', 'ADX M5 mindestens', 'ADX M5 at least'),
+  lw_atr_on: L('Фильтр всплеска ATR', 'ATR-Spitzenfilter', 'ATR spike filter'), lw_atr_period: L('ATR фильтра: период', 'Filter-ATR: Periode', 'Filter ATR period'),
+  lw_atr_max: L('ATR / средний ATR не выше', 'ATR / mittlerer ATR höchstens', 'ATR / average ATR at most') };
+GROUPS.n_lsweather = [...GROUPS.n_levelstoch,
+  { title: L('Погода 1: EMA — против движения', 'Wetter 1: EMA – gegen die Bewegung', 'Weather 1: EMA – against the move'), desc: L('Сигнал только против наклона EMA (разворот после движения). По тренду — пропуск.', 'Signal nur gegen die EMA-Neigung (Umkehr nach einer Bewegung).', 'Signal only against the EMA slope (reversal after a move).'), keys: ['lw_trend_on', 'lw_ema', 'lw_slope_min'] },
+  { title: L('Погода 2: ADX M5 — рынок живой', 'Wetter 2: ADX M5 – Markt lebt', 'Weather 2: ADX M5 – market alive'), desc: L('При ADX на M5 ниже порога рынок вялый — пропуск.', 'ADX auf M5 unter der Schwelle = träger Markt, auslassen.', 'ADX on M5 below the threshold = dull market, skip.'), keys: ['lw_adx_on', 'lw_adx_period', 'lw_adx_min'] },
+  { title: L('Погода 3: ATR — без скачков', 'Wetter 3: ATR – ohne Sprünge', 'Weather 3: ATR – no spikes'), desc: L('ATR сейчас / средний за 100 свечей. Выше порога — всплеск, пропуск.', 'ATR jetzt / Mittel über 100 Kerzen. Darüber = Spitze, auslassen.', 'ATR now / average over 100 candles. Above = spike, skip.'), keys: ['lw_atr_on', 'lw_atr_period', 'lw_atr_max'] },
+];
+HELP.n_lsweather = [{ title: L('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
+  L('Копия «Пин-бар + Stochastic» с тремя фильтрами «погоды рынка»: 1) сделка только против движения (наклон EMA 50), 2) ADX на M5 не ниже 23 — рынок живой, 3) ATR не выше среднего — без резких скачков. Каждый фильтр выключается отдельно, чтобы сравнить.', 'Kopie von „Pinbar + Stochastic“ mit drei Marktwetter-Filtern: 1) nur gegen die Bewegung (EMA-50-Neigung), 2) ADX M5 mindestens 23, 3) ATR nicht über dem Mittel. Jeder Filter einzeln abschaltbar.', 'Copy of "Pin bar + Stochastic" with three market weather filters: 1) only against the move (EMA 50 slope), 2) ADX M5 at least 23, 3) ATR not above average. Each filter can be switched off.'),
+  L('Проверка 14.11.2026 на 18 OTC-парах (около 9500 минут): все сигналы 53 %, с тремя фильтрами 67 % за 4 мин и 64 % за 5 мин (94 сделки, обе половины данных одинаково). Данных мало — сначала демо.', 'Test 14.11.2026 auf 18 OTC-Paaren (etwa 9500 Minuten): alle Signale 53 %, mit drei Filtern 67 % bei 4 Min, 64 % bei 5 Min (94 Trades, beide Hälften gleich). Wenig Daten – zuerst Demo.', 'Test 14.11.2026 on 18 OTC pairs (about 9500 minutes): all signals 53 %, with the three filters 67 % at 4 min, 64 % at 5 min (94 trades, both halves alike). Little data – demo first.'),
 ] }];
 for (const s of LAB.CATALOG.filter(s => s.impl)) {
   DEFAULTS[s.id] = { expiry: LAB.EXPIRY_SEC[s.impl], ...LAB.PARAMS[s.impl] };
