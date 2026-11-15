@@ -9,7 +9,7 @@ const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
 const LAB = require('./lab');
 // 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
-const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15']; // + its copy with market weather filters (14.11.2026)
+const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_emastart']; // + its copy with market weather filters (14.11.2026)
 const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
@@ -134,6 +134,14 @@ class Engine extends EventEmitter {
       s.strategies = [...new Set([...(s.strategies || []), 'n_trend15'])];
       if (!(s.strat_tfs || {}).n_trend15) s.strat_tfs = { ...s.strat_tfs, n_trend15: ['S15'] };
       s.t15_1411 = true; writeJson(this.settingsFile, s);
+    }
+    // 15.11.2026: new "Начало движения: наклон EMA" (n_emastart) – favourite + switched on once, entry M1.
+    if (!this.settings.es_1511) {
+      const s = this.settings;
+      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_emastart'])];
+      s.strategies = [...new Set([...(s.strategies || []), 'n_emastart'])];
+      if (!(s.strat_tfs || {}).n_emastart) s.strat_tfs = { ...s.strat_tfs, n_emastart: ['M1'] };
+      s.es_1511 = true; writeJson(this.settingsFile, s);
     }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
@@ -490,7 +498,7 @@ class Engine extends EventEmitter {
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
     const st = strategies.paramsFor('n_strongtrend', this.settings), en = this.enabledStrategies();
-    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || en.includes('n_lsweather') || en.includes('n_trend15') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
+    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || en.includes('n_lsweather') || en.includes('n_trend15') || en.includes('n_emastart') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
       list.forEach((a, i) => {
         const have = this.ctxCandles.get(a.symbol);
         if (have && Date.now() - have.at < 55000) return;

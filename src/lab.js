@@ -108,7 +108,7 @@ Object.assign(PARAMS, {
 const MA_ON = ['impulse', 'fractal', 'pro_bot', 'candle_bot', 'spring', 'pressure', 'correction', 'double_strike'];
 const PERIODS = { impulse: { rsi_period: 7 }, range: { range_ema: 20 }, overheat: { adx_period: 14, atr_pct_window: 200 }, mini_vip: { vip_ema_fast: 9, vip_ema_slow: 21, rsi_period: 14 },
   pro_bot: { trend_ema: 50, entry_ema: 20, adx_period: 14 }, meanrev: { bb_period: 20, adx_period: 14 }, volatility: { atr_fast: 5, atr_slow: 50 }, spring: { atr_slow: 50 }, smart_money: {}, smart_money_5m: {} };
-for (const [k, p] of Object.entries(PARAMS)) Object.assign(p, PERIODS[k] || {}, k === 'neuro' ? {} : { atr_period: 14 }, { ma_filter: MA_ON.includes(k), ma_fast: 20, ma_slow: 50 });
+for (const [k, p] of Object.entries(PARAMS)) Object.assign(p, PERIODS[k] || {}, k === 'neuro' ? {} : { atr_period: 14 }, { ma_filter: MA_ON.includes(k), ma_fast: 20, ma_slow: 50, ma_slope: 0 });
 const EXPIRY_SEC = { impulse: 60, range: 60, fractal: 120, trap: 60, overheat: 60 };
 Object.assign(EXPIRY_SEC, { mini_vip: 60, pro_bot: 60, candle_bot: 60, meanrev: 120, ludo: 15, fun5s: 5, volatility: 25, scanner: 60, smart_money: 60, smart_money_5m: 300, spring: 60, pressure: 60, correction: 60, double_strike: 60, neuro: 60 });
 // Catalog id → parameter set (impl) and run logic (when they differ).
@@ -145,6 +145,7 @@ const PARAM_LABELS = {
   trend_ema: L('EMA тренда на 5M: период', 'Trend-EMA auf 5M: Periode', 'Trend EMA on 5M period'), entry_ema: L('EMA отката: период', 'Rücksetzer-EMA: Periode', 'Pullback EMA period'),
   bb_period: L('Боллинджер: период', 'Bollinger: Periode', 'Bollinger period'), atr_fast: L('Короткий ATR: период', 'Kurzer ATR: Periode', 'Short ATR period'), atr_slow: L('Длинный ATR: период', 'Langer ATR: Periode', 'Long ATR period'),
   ma_filter: L('Подтверждение скользящими EMA 20/50', 'Bestätigung durch EMA 20/50', 'Confirmation by EMA 20/50'),
+  ma_slope: L('Мин. наклон медленной EMA по сигналу, % от ATR за 5 свечей (0 = выкл)', 'Min. Neigung der langsamen EMA in Signalrichtung, % eines ATR über 5 Kerzen (0 = aus)', 'Min slope of the slow EMA with the signal, % of an ATR over 5 candles (0 = off)'),
   ma_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'), ma_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
   prev_same_dir: L('Прошлая свеча того же цвета', 'Vorkerze gleiche Farbe', 'Previous candle same colour'),
   prev_range_atr: L('Прошлая свеча не меньше, ×ATR', 'Vorkerze mindestens, ×ATR', 'Previous candle at least, ×ATR'),
@@ -239,6 +240,7 @@ const T = {
   low_confidence: v => L(`уверенность мала (вверх ${v.p} %)`, `Sicherheit gering (aufwärts ${v.p} %)`, `low confidence (up ${v.p} %)`),
   confident: v => L(`уверенность ${v.p} %`, `Sicherheit ${v.p} %`, `confidence ${v.p} %`),
   ma_against: v => L(`EMA ${v.f} / EMA ${v.s} против сигнала`, `EMA ${v.f} / EMA ${v.s} gegen das Signal`, `EMA ${v.f} / EMA ${v.s} against the signal`),
+  ma_slope_low: v => L(`наклон EMA ${v.p} % < ${v.m} %`, `EMA-Neigung ${v.p} % < ${v.m} %`, `EMA slope ${v.p} % < ${v.m} %`),
   ma_confirmed: v => L(`EMA ${v.f} / EMA ${v.s} подтверждают`, `EMA ${v.f} / EMA ${v.s} bestätigen`, `EMA ${v.f} / EMA ${v.s} confirm`),
   prev_against: () => L('прошлая свеча в другую сторону — это качели, не импульс', 'Vorkerze in die Gegenrichtung – Schaukel, kein Impuls', 'previous candle the other way – a whipsaw, not an impulse'),
   single_spike: v => L(`одиночный всплеск: прошлая свеча ${v.r}×ATR`, `Einzelspitze: Vorkerze ${v.r}×ATR`, `single spike: previous candle ${v.r}×ATR`),
@@ -623,6 +625,14 @@ function run(logic, c, p, asset) {
     if (!(ef > 0 && es > 0) || (out.dir > 0 ? ef <= es : ef >= es)) { out.reasons = out.reasons.slice(0, 2); out.stages[2] = 'FAIL'; out.rejects.push({ code: 'ma_against', v: { f: p.ma_fast || 20, s: p.ma_slow || 50 } }); out.status = 'NO_TRADE'; out.stage = 3; return out; }
     out.reasons.push({ code: 'ma_confirmed', v: { f: p.ma_fast || 20, s: p.ma_slow || 50 } });
   }
+  // EMA slope % (user 15.11.2026): the slow EMA moved at least ma_slope % of an ATR over the last 5 candles in the signal
+  // direction (100 % = one ATR). Works with or without the 20/50 confirmation. 0 = off.
+  if (Number(p.ma_slope) > 0) {
+    const es = I.ema(c.map(x => x.close), Number(p.ma_slow) || 50), a = I.atr(c, 14)[i];
+    const sp = es[i] != null && es[i - 5] != null && a > 0 ? (es[i] - es[i - 5]) * out.dir / a * 100 : -Infinity;
+    out.feats.ema_slope_pct = sp;
+    if (sp < Number(p.ma_slope)) { out.reasons = out.reasons.slice(0, 2); out.stages[2] = 'FAIL'; out.rejects.push({ code: 'ma_slope_low', v: { p: Number.isFinite(sp) ? Math.round(sp) : 0, m: Number(p.ma_slope) } }); out.status = 'NO_TRADE'; out.stage = 3; return out; }
+  }
   out.score = Math.max(0, Math.min(100, out.score || 0));
   out.status = 'SIGNAL';
   return out;
@@ -695,7 +705,7 @@ function backtest(c, id, opt = {}) {
 
 // ---------- settings grouped by indicator (user 14.11.2026): one folded block per indicator ----------
 const IND_GROUPS = [
-  { title: L('EMA — скользящие средние', 'EMA – gleitende Durchschnitte', 'EMA – moving averages'), desc: L('Направление и подтверждение тренда.', 'Richtung und Trendbestätigung.', 'Direction and trend confirmation.'), keys: ['ma_filter', 'ma_fast', 'ma_slow', 'vip_ema_fast', 'vip_ema_slow', 'trend_ema', 'entry_ema', 'range_ema', 'max_slope_atr', 'pullback_atr'] },
+  { title: L('EMA — скользящие средние', 'EMA – gleitende Durchschnitte', 'EMA – moving averages'), desc: L('Направление и подтверждение тренда.', 'Richtung und Trendbestätigung.', 'Direction and trend confirmation.'), keys: ['ma_filter', 'ma_fast', 'ma_slow', 'ma_slope', 'vip_ema_fast', 'vip_ema_slow', 'trend_ema', 'entry_ema', 'range_ema', 'max_slope_atr', 'pullback_atr'] },
   { title: L('RSI — осциллятор', 'RSI – Oszillator', 'RSI – oscillator'), desc: L('Импульс и перекупленность / перепроданность.', 'Impuls und überkauft / überverkauft.', 'Momentum and overbought / oversold.'), keys: ['rsi_period', 'rsi_hi', 'rsi_lo', 'rsi_call', 'rsi_put'] },
   { title: L('ADX / DI — сила тренда', 'ADX / DI – Trendstärke', 'ADX / DI – trend strength'), desc: L('Есть ли тренд и куда он направлен.', 'Gibt es einen Trend und wohin.', 'Is there a trend and which way.'), keys: ['adx_period', 'adx_min', 'adx_max', 'forex_adx'] },
   { title: L('ATR — волатильность', 'ATR – Volatilität', 'ATR – volatility'), desc: L('Размер свечей, допуски и «нормальная» волатильность.', 'Kerzengröße, Toleranzen und „normale“ Volatilität.', 'Candle size, tolerances and "normal" volatility.'), keys: ['atr_period', 'atr_fast', 'atr_slow', 'atr_pct_window', 'atr_pct_lo', 'atr_pct_hi', 'squeeze', 'min_squeeze', 'expansion_atr', 'max_expansion'] },
