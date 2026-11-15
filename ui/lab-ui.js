@@ -174,8 +174,13 @@
           ${c.params ? `<h4>${t('cat_params')}</h4><div class="params">${Object.entries(c.params).map(([k, v]) => `<label class="row"><span>${esc(tr(((state.settings.allStrategies.find(a => a.key === c.id) || {}).labels || {})[k]) || k)}</span>${typeof v === 'boolean' ? `<input type="checkbox" class="sw" data-labp="${c.id}" data-k="${esc(k)}" ${v ? 'checked' : ''}>` : `<input type="number" step="any" data-labp="${c.id}" data-k="${esc(k)}" value="${esc(v)}">`}</label>`).join('')}</div>` : ''}
           <p class="hint">${t('cat_note_wr')}</p></div>` : ''}</div>`;
     };
-    const legacyHtml = legacy.map(s => `<div class="catitem"><div class="cathead">${favBtn(s.key)}<div class="catname"><b>${esc(tr(s.names))}</b><small>${esc(s.key)}</small></div>
-      <div class="catright"><input type="checkbox" class="sw" data-caton="${s.key}" ${on.has(s.key) ? 'checked' : ''}></div></div></div>`).join('');
+    // Old strategies (pin bars, market, trend M5): same status badge, win rate and n= as the lab ones (user 15.11.2026),
+    // from the lasting per-strategy tally (engine._labStats) – kept while the strategy is switched off.
+    const legacyHtml = legacy.map(s => {
+      const sg = ((L.stats || {})[s.key] || {}).signals || { w: 0, n: 0 }, vd = verdict(sg, 80);
+      return `<div class="catitem"><div class="cathead">${favBtn(s.key)}<div class="catname"><b>${esc(tr(s.names))}</b><small>${esc(s.key)}</small></div>
+      <div class="catright"><span class="tag">${t(on.has(s.key) ? 'cat_impl' : 'cat_off')}</span><span class="num v-${vd.v}">${vd.ci ? pct(vd.ci.rate) + ' %' : '–'} <small>n=${sg.n}</small></span><input type="checkbox" class="sw" data-caton="${s.key}" ${on.has(s.key) ? 'checked' : ''}></div></div></div>`;
+    }).join('');
     setHtml(el, `<p class="hint">${t('cat_note_wr')}</p>${legacyHtml}${L.catalog.map(item).join('')}`);
   }
 

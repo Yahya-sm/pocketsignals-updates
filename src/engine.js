@@ -701,6 +701,7 @@ class Engine extends EventEmitter {
       const diff = k.close - s.entryPrice;
       s.result = diff === 0 ? 'DRAW' : (diff > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS';
       s.exitPrice = k.close; changed = true;
+      this._tally(s);
       if (s.paper && !s.paper.result && s.paper.price != null) { const dp = k.close - s.paper.price; s.paper.result = dp === 0 ? 'DRAW' : (dp > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS'; s.paper.close = k.close; }
       if (s.im) this._logImpulse(s);
       if (s.entryLive != null) { const dz = k.close - s.entryLive; s.zoneResult = dz === 0 ? 'DRAW' : (dz > 0) === (s.dir === 'CALL') ? 'WIN' : 'LOSS'; }
@@ -847,6 +848,33 @@ class Engine extends EventEmitter {
     const t = this.ticks.get(s.symbol), price = t && t.length ? t[t.length - 1][1] : s.entryPrice;
     s.paper = { at: Math.floor(Date.now() / 1000), price, delay: Math.round(Date.now() / 1000 - s.created / 1000) };
     writeJson(this.signalsFile, this.signals); this.emit('state');
+  }
+
+  // Lasting per-strategy signal results (user 15.11.2026: the Catalog shows win rate / n for every strategy, kept when the
+  // strategy is switched off). The signals list keeps only the newest 300, so results are also counted here:
+  // data/strat-stats.json {strategy: {w, n, last: [1/0 newest first, ≤ 50]}}. Seeded once from the stored signals.
+  _tallyLoad() {
+    if (this.stratTally) return;
+    this.stratTallyFile = path.join(DATA, 'strat-stats.json');
+    this.stratTally = readJson(this.stratTallyFile, null);
+    if (!this.stratTally) {
+      this.stratTally = {};
+      for (const s of this.signals.slice().reverse()) this._tally(s, true);
+      writeJson(this.stratTallyFile, this.stratTally);
+    }
+  }
+  _tally(s, seeding) {
+    if (!seeding) this._tallyLoad();
+    if (!s || s.manual || !s.strategy || (s.result !== 'WIN' && s.result !== 'LOSS')) return;
+    const b = (this.stratTally[s.strategy] ||= { w: 0, n: 0, last: [] });
+    b.n++; if (s.result === 'WIN') b.w++; b.last.unshift(s.result === 'WIN' ? 1 : 0); if (b.last.length > 50) b.last.length = 50;
+    if (!seeding) writeJson(this.stratTallyFile, this.stratTally);
+  }
+  _labStats() {
+    this._tallyLoad();
+    const st = LAB.statsFor(this.signals);
+    for (const [k, b] of Object.entries(this.stratTally)) if (!st[k] || !st[k].signals || st[k].signals.n <= b.n) (st[k] ||= {}).signals = b;
+    return st;
   }
 
   updateSettings(patch) {
@@ -1014,7 +1042,7 @@ class Engine extends EventEmitter {
       why: strategies.whyHour(), // "Why (last hour)": found / filtered / delivered per strategy
       lab: {
         catalog: LAB.CATALOG.map(c => ({ ...c, params: c.impl ? strategies.paramsFor(c.id, this.settings) : null })),
-        decisions: LAB.lastDecisions(), stats: LAB.statsFor(this.signals),
+        decisions: LAB.lastDecisions(), stats: this._labStats(),
         limits: LAB.manualLimits(this.signals, this.settings, this.settings.account === 'REAL' ? 'REAL' : 'DEMO'),
         paramLog: this.paramLog.slice(0, 100), risk: { ...LAB.RISK_DEFAULTS, ...LAB.COMMON, ...Object.fromEntries(Object.keys({ ...LAB.RISK_DEFAULTS, ...LAB.COMMON }).filter(k => this.settings[k] != null).map(k => [k, this.settings[k]])) },
         account: this.settings.account === 'REAL' ? 'REAL' : 'DEMO', mode: this.settings.trade_mode || 'SIGNAL_ONLY',
