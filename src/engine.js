@@ -152,6 +152,12 @@ class Engine extends EventEmitter {
       for (const k of ['n_sharp', 'n_deeprev']) if (!(s.strat_tfs || {})[k]) s.strat_tfs = { ...s.strat_tfs, [k]: ['M1'] };
       s.deep_1611 = true; writeJson(this.settingsFile, s);
     }
+    // 16.11.2026: Pin bar 1 gave no signals on OTC (skip OTC + 7–21 UTC) – OTC and all hours on once, also in saved settings.
+    if (!this.settings.ls_otc_1611) {
+      const s = this.settings, ss = s.strategy_settings || {};
+      s.strategy_settings = { ...ss, n_levelstoch: { ...(ss.n_levelstoch || {}), ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24 } };
+      s.ls_otc_1611 = true; writeJson(this.settingsFile, s);
+    }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
     this.paramLog = readJson(this.paramLogFile, []); // who, when, what: old → new (parameters and mode/account switches)

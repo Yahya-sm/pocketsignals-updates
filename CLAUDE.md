@@ -205,3 +205,5 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 15.11.2026: n_emastart help table (TF -> slope -> expiry) from scratchpad emastart-grid.js; all 45-53 %, no edge.
 
 - 16.11.2026: n_sharp and n_deeprev restored (KEEP + migration deep_1611: favourite + on, M1).
+
+- 16.11.2026: Pin bar 1 (n_levelstoch) defaults ls_no_otc false, hours 0-24 (gave 0 signals on OTC); migration ls_otc_1611 writes the same into saved strategy_settings once.

@@ -105,7 +105,7 @@ const DEFAULTS = {
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
-  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: true, ls_hour_from: 7, ls_hour_to: 21, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_tf: 'M5', ls_flat_period: 14, ls_flat_adx: 23 },
+  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_tf: 'M5', ls_flat_period: 14, ls_flat_adx: 23 },
   // Same + market weather filters (see S.n_lsweather); tested on OTC around the clock, so OTC and all hours on by default.
   n_lsweather: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5,
     lw_trend_on: true, lw_ema: 50, lw_slope_min: 0, lw_slope_pct: 0, lw_adx_on: true, lw_adx_tf: 'M5', lw_adx_period: 14, lw_adx_min: 23, lw_atr_on: true, lw_atr_period: 14, lw_atr_max: 1 },
