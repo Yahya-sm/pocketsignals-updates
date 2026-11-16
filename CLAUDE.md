@@ -203,3 +203,5 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 15.11.2026: new strategy n_emastart 'Начало движения: наклон EMA' (KEEP, migration es_1511: favourite + on, M1). es_mode START = slope of es_ma es_period on es_tf over es_bars candles (% of ATR) crossed es_slope on this trend candle, price on that side, optional ADX/freshness; BOUNCE/TREND delegate to S.n_trend15 with es_* mapped (tr_slope_pct = es_slope). History (M1 entry, M5 trend, 12 pairs): all variants 47-51 % at 2-5 min, no edge; START 50 best 51 %.
 
 - 15.11.2026: n_emastart help table (TF -> slope -> expiry) from scratchpad emastart-grid.js; all 45-53 %, no edge.
+
+- 16.11.2026: n_sharp and n_deeprev restored (KEEP + migration deep_1611: favourite + on, M1).
