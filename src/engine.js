@@ -158,6 +158,22 @@ class Engine extends EventEmitter {
       s.strategy_settings = { ...ss, n_levelstoch: { ...(ss.n_levelstoch || {}), ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24 } };
       s.ls_otc_1611 = true; writeJson(this.settingsFile, s);
     }
+    // 17.11.2026: the user's chosen settings – set once, only keys that are not set yet; the 4 strategies switched on;
+    // old n_sharp keys (follow_move, min_adx, sharp_tr_min) removed.
+    if (!this.settings.user_1711) {
+      const s = this.settings, ss = { ...(s.strategy_settings || {}) };
+      const want = {
+        n_sharp: { sharp_on_trend: true, sharp_on_rev: false, sharp_expiry: 60, sharp_exp_adapt: true, sharp_tr_deep: 8, sharp_tr_opp: 1, sharp_tr_atr: 3, sharp_tr_new: 3, sharp_tr_adx: 25, sharp_tr_far: 1.5, sharp_tr_di: false, sharp_rv_adx: 0 },
+        n_levelstoch: { ls_tf: 'M2', ls_m5_on: true, ls_m5_body: 0.5, expiry: 360 },
+        n_deeprev: { dr_sell: true, dr_use_trend: false, dr_use_flat: false, dr_bear: 3, dr_late_atr: 0, dr_room: 0 },
+        n_emastart: { es_tf: 'M3', es_period: 34, es_bars: 2, es_slope: 60, es_ma: 'EMA', es_mode: 'START', es_side: true, es_saw: 3, expiry: 180 },
+      };
+      for (const [k, v] of Object.entries(want)) { const cur = { ...(ss[k] || {}) }; for (const [a, b] of Object.entries(v)) if (!(a in cur)) cur[a] = b; ss[k] = cur; }
+      if (ss.n_sharp) for (const a of ['follow_move', 'min_adx', 'sharp_tr_min']) delete ss.n_sharp[a];
+      s.strategy_settings = ss;
+      s.strategies = [...new Set([...(s.strategies || []), ...Object.keys(want)])];
+      s.user_1711 = true; writeJson(this.settingsFile, s);
+    }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
     this.paramLog = readJson(this.paramLogFile, []); // who, when, what: old → new (parameters and mode/account switches)

@@ -56,9 +56,9 @@ const MKT_LEVELS = [null, { atr: 0.8, adx: 15, big: 0 }, { atr: 1, adx: 20, big:
 const DEFAULTS = {
   // 04.11.2026 (user): the series of candles is only the setup; the signal is the Stochastic turning out of its zone
   // (%K crosses 20 upwards after a fall / 80 downwards after a rise) within sharp_wait candles after the series.
-  n_sharp: { sharp_expiry: 180, ...FILTERS, follow_move: false, sharp_min: 4, sharp_rsi: false, sharp_mirror: true,
+  n_sharp: { sharp_expiry: 180, flat_pips: 0, sharp_on_rev: true, sharp_on_trend: false, sharp_rv_adx: 0, sharp_tr_adx: 25, sharp_min: 4, sharp_rsi: false, sharp_mirror: true,
     sharp_stoch: true, sharp_low: 20, sharp_high: 80, sharp_wait: 10, sharp_k: 14, sharp_ks: 3, sharp_k_late: 20, sharp_rsi_back: 10,
-    sharp_trig: 'STOCH', sharp_exp_adapt: false, sharp_ax_on: false, sharp_ax_min: 20, sharp_ax_bars: 3, sharp_ax_prev: 25, sharp_ax_exp: 300, ...SHARP_BOT },
+    sharp_trig: 'STOCH', sharp_exp_adapt: false, sharp_tr_deep: 6, sharp_tr_opp: 0, sharp_tr_atr: 3, sharp_tr_new: 3, sharp_tr_far: 1.5, sharp_tr_di: false, ...SHARP_BOT },
   // Reversal at a level (user's prompt of 28.10.2026): structure first (support/resistance from the history), the side
   // decides the direction (at resistance only PUT, at support only CALL), then model A (pin bar from the level) or
   // model B (vertical impulse into the level → big opposite candle). SD = average candle range of lr_sd_period candles.
@@ -82,7 +82,7 @@ const DEFAULTS = {
   n_deeprev: { expiry: 180, dr_buy: true, dr_sell: false, dr_min_conf: 6, dr_touches: 2, dr_zone_atr: 0.5, dr_near_atr: 0.7,
     dr_use_fall: true, dr_bear: 5, dr_imp_atr: 3, dr_use_pattern: true, dr_use_break: true, dr_break_atr: 1.2,
     dr_use_rsi: true, dr_rsi_lo: 30, dr_use_cross: true, dr_use_trend: true, dr_use_flat: true, dr_flat_atr: 3,
-    dr_use_spike: true, dr_spike: 3, dr_use_m1: true },
+    dr_use_spike: true, dr_spike: 3, dr_use_m1: true, dr_late_atr: 0, dr_room: 0 },
   n_ma25: { m25_expiry: 120, ...FILTERS, no_countertrend: false, room_check: false, room_min: 1, m25_fast: 2, m25_slow: 5, m25_fast_type: 'SMA', m25_slow_type: 'SMA', m25_buy: true, m25_sell: true, m25_live: false, m25_vol: 0,
     m25_quiet: 0, m25_gap: 0, m25_trend: 0, m25_body: 0, m25_rsi: false, m25_rsi_max: 70 },
   n_stochenv: { ...REV, env_period: 20, env_pct: 0.1, stoch_k: 5, stoch_zone: 20 },
@@ -105,9 +105,9 @@ const DEFAULTS = {
   n_impulse: { expiry: 60, im_atr: 1, im_sec: 30, im_back: 25, im_no_otc: false, im_dir: 'WITH' },
   n_bbrsi: { expiry: 300, bb_period: 20, bb_mult: 3, bb_rsi: 2, bb_adx: 25 },
   // From the user's written prompt, 07.11.2026 (see S.n_levelstoch).
-  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_tf: 'M5', ls_flat_period: 14, ls_flat_adx: 23 },
+  n_levelstoch: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_level_tf: 'PIN', ls_m5_on: false, ls_m5_body: 1, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5, ls_flat_on: true, ls_flat_tf: 'M5', ls_flat_period: 14, ls_flat_adx: 23 },
   // Same + market weather filters (see S.n_lsweather); tested on OTC around the clock, so OTC and all hours on by default.
-  n_lsweather: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5,
+  n_lsweather: { expiry: 300, ls_stoch_k: 3, ls_stoch_slow: 1, ls_stoch_d: 1, ls_atr_period: 14, ls_level: false, ls_level_tf: 'PIN', ls_m5_on: false, ls_m5_body: 1, ls_tf: 'M5', ls_no_otc: false, ls_hour_from: 0, ls_hour_to: 24, ls_touches: 2, ls_zone_atr: 0.5, ls_saw: 3, ls_stoch_zone: 20, ls_big_atr: 1.5,
     lw_trend_on: true, lw_ema: 50, lw_slope_min: 0, lw_slope_pct: 0, lw_adx_on: true, lw_adx_tf: 'M5', lw_adx_period: 14, lw_adx_min: 23, lw_atr_on: true, lw_atr_period: 14, lw_atr_max: 1 },
   // Entry with the trend once the pullback has ended (see S.n_trendpull).
   n_trendpull: { ...TREND, expiry: 120, min_adx: 0, room_check: false, tp_buy: true, tp_sell: true, tp_right: 2, tp_depth_min: 38.2, tp_depth_max: 61.8,
@@ -354,11 +354,9 @@ const GROUPS = {
     { title: L('Правило', 'Regel', 'Rule'), desc: L('CALL: свеча закрылась ниже нижней линии Bollinger и RSI 2 ниже порога. PUT — зеркально (выше верхней, RSI 2 выше 100 − порог). Только когда ADX ниже предела (флэт); 0 = без ADX. Больше отклонение и меньше порог — строже.', 'CALL: Kerze schließt unter dem unteren Bollinger-Band und RSI 2 unter der Schwelle. PUT gespiegelt (über dem oberen, RSI 2 über 100 − Schwelle). Nur wenn ADX unter der Grenze (Seitwärts); 0 = ohne ADX. Größere Abweichung, kleinere Schwelle = strenger.', 'CALL: candle closes below the lower Bollinger band and RSI 2 is below the threshold. PUT mirrored (above the upper band, RSI 2 above 100 − threshold). Only when ADX is below the limit (flat); 0 = no ADX. Bigger deviation, smaller threshold = stricter.'), keys: ['expiry', 'bb_period', 'bb_mult', 'bb_rsi', 'bb_adx'] },
   ],
   n_sharp: [
-    { title: L('Серия свечей', 'Kerzenserie', 'Candle series'), desc: L('Сколько свечей подряд нужно и сколько ждать после серии. Больше свечей и меньше ожидание — строже.', 'Wie viele Kerzen in Folge und wie lange nach der Serie gewartet wird. Mehr Kerzen, kürzere Wartezeit = strenger.', 'How many candles in a row and how long to wait after the series. More candles, shorter wait = stricter.'), keys: ['sharp_expiry', 'sharp_min', 'sharp_wait', 'sharp_mirror'] },
-    { title: L('Стохастик', 'Stochastik', 'Stochastic'), desc: L('Сигнал, когда %K выходит из зоны. Последняя настройка запрещает поздний сигнал.', 'Signal, wenn %K die Zone verlässt. Die letzte Einstellung sperrt späte Signale.', 'Signal when %K leaves the zone. The last setting blocks late signals.'), keys: ['sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late'] },
-    { title: L('RSI', 'RSI', 'RSI'), desc: L('Фильтр RSI и запрет сигнала, когда RSI уже далеко ушёл от экстремума.', 'RSI-Filter und Sperre, wenn der RSI schon weit vom Extrem entfernt ist.', 'RSI filter and a block when RSI is already far from its extreme.'), keys: ['sharp_rsi', 'sharp_rsi_back'] },
-    { title: L('Опция: рост ADX', 'Option: steigender ADX', 'Option: rising ADX'), desc: L('Сигнал только если ADX был сильным, ослаб и снова растёт. Пока опция выключена, стратегия работает как обычно. Своя экспирация действует только с опцией.', 'Signal nur, wenn der ADX stark war, nachließ und wieder steigt. Aus = die Strategie arbeitet wie gewohnt. Die eigene Ablaufzeit gilt nur mit der Option.', 'Signal only if ADX was strong, weakened and rises again. Off = the strategy works as usual. Its own expiry applies only with the option.'), keys: ['sharp_ax_on', 'sharp_ax_min', 'sharp_ax_bars', 'sharp_ax_prev', 'sharp_ax_exp'] },
-    { title: L('Опции: триггер и экспирация', 'Optionen: Auslöser und Ablaufzeit', 'Options: trigger and expiry'), desc: L('Что даёт сигнал: Stochastic, RSI или любой из них. Адаптивная экспирация: тихий рынок 2 мин, обычный 3, широкий 5, но ближний уровень впереди сокращает её до 1–3 мин. Пороги пока предположения.', 'Was das Signal auslöst: Stochastic, RSI oder eines von beiden. Adaptive Ablaufzeit: ruhiger Markt 2 Min, normal 3, breit 5; ein nahes Level voraus kürzt auf 1–3 Min. Die Schwellen sind Annahmen.', 'What triggers the signal: Stochastic, RSI or either. Adaptive expiry: quiet market 2 min, normal 3, wide 5; a near level ahead cuts it to 1–3 min. The thresholds are guesses.'), keys: ['sharp_trig', 'sharp_exp_adapt'] },
+    { title: L('Режим', 'Modus', 'Mode'), desc: L('Можно включить один блок или оба. Блоки работают независимо, у каждого свои настройки и свой ADX. Если оба дали сигнал в разные стороны — сигнала нет. Выключенный блок прячется.', 'Ein Block oder beide. Die Blöcke arbeiten unabhängig, jeder mit eigenen Einstellungen und eigenem ADX. Widersprechen sie sich, kommt kein Signal.', 'One block or both. The blocks work independently, each with its own settings and ADX. If they point opposite ways there is no signal.'), keys: ['sharp_on_trend', 'sharp_on_rev', 'sharp_expiry', 'sharp_exp_adapt', 'flat_pips'] },
+    { title: L('📈 По тренду', '📈 Mit dem Trend', '📈 With the trend'), desc: L('После глубокого падения начинается сильный рост (или после сильного роста — падение). Сигнал по новому движению, пока цена не ушла далеко.', 'Nach tiefem Fall beginnt ein starker Anstieg (oder umgekehrt). Signal mit der neuen Bewegung, solange der Preis nicht weit weg ist.', 'After a deep fall a strong rise starts (or the other way). Signal with the new move while price is still close.'), keys: ['sharp_tr_deep', 'sharp_tr_opp', 'sharp_tr_atr', 'sharp_tr_new', 'sharp_tr_adx', 'sharp_tr_far', 'sharp_tr_di'] },
+    { title: L('↩ На разворот', '↩ Umkehr', '↩ Reversal'), desc: L('После серии свечей ждём, когда стохастик или RSI выйдет из зоны, и даём сигнал в обратную сторону. ADX не больше — движение ослабло.', 'Nach einer Kerzenserie wird gewartet, bis Stochastik oder RSI die Zone verlässt; Signal in Gegenrichtung. ADX höchstens = Bewegung schwächer.', 'After a candle run, wait for Stochastic or RSI to leave its zone; signal the other way. ADX at most = move weakened.'), keys: ['sharp_min', 'sharp_wait', 'sharp_mirror', 'sharp_rv_adx', 'sharp_trig', 'sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late', 'sharp_rsi', 'sharp_rsi_back'] },
   ],
   n_stochenv: [
     { title: L('Envelopes', 'Envelopes', 'Envelopes'), desc: L('Линии вокруг средней. Больше отклонение — строже.', 'Linien um den Durchschnitt. Größere Abweichung = strenger.', 'Lines around the average. Bigger deviation = stricter.'), keys: ['env_period', 'env_pct'] },
@@ -439,7 +437,7 @@ const GROUPS = {
       desc: L('Поддержка из разворотных точек M15 и M5. Без чёткого уровня сигнала нет (это правило не выключается). Больше касаний = надёжнее уровень.',
         'Unterstützung aus Wendepunkten von M15 und M5. Ohne klares Level kein Signal (nicht abschaltbar). Mehr Berührungen = verlässlicher.',
         'Support from M15 and M5 swing points. No clear level = no signal (cannot be switched off). More touches = more reliable.'),
-      keys: ['dr_touches', 'dr_zone_atr', 'dr_near_atr'] },
+      keys: ['dr_touches', 'dr_zone_atr', 'dr_near_atr', 'dr_late_atr', 'dr_room'] },
     { title: L('3 · Падение и реакция (M5)', '3 · Fall und Reaktion (M5)', '3 · Fall and reaction (M5)'),
       desc: L('Перед уровнем 5+ медвежьих свечей подряд или импульс в ATR. Затем реакция: длинная нижняя тень, молот, бычье поглощение или закрытие обратно выше поддержки. Сильная медвежья свеча, закрывшаяся под уровнем, = пробой, сигнала нет.',
         'Vor dem Level 5+ rote Kerzen in Folge oder ein Impuls in ATR. Dann Reaktion: langer unterer Docht, Hammer, bullisches Engulfing oder Schluss zurück über der Unterstützung. Starke rote Kerze unter dem Level = Bruch, kein Signal.',
@@ -495,6 +493,80 @@ const cross = (a, b, i) => {
   return a[i - 1] <= b[i - 1] && a[i] > b[i] ? 1 : a[i - 1] >= b[i - 1] && a[i] < b[i] ? -1 : 0;
 };
 const arr = (n, v) => Array(n).fill(v);
+function sharpTrend(x, p) {
+  // 17.11.2026 (user): after a deep run (>= sharp_tr_deep candles one way, >= sharp_tr_atr ATR) a new move starts the
+  // other way: exactly sharp_tr_new candles, price at most sharp_tr_far ATR from the extreme. Signal with the new move.
+  // Own ADX "at least" = sharp_tr_adx; sharp_tr_di also wants the ADX lines on the new side and ADX rising.
+  const c = x.c, i = x.last, r = runLength(c, i), K = Number(p.sharp_tr_new) || 3;
+  const ax = x.adx[i], amin = Number(p.sharp_tr_adx) || 0; if (amin && (!ax || ax.adx < amin)) return null; // own ADX: at least
+  if (r.n !== K) return null;
+  // Deep move (any candle colours, what matters is a big move): the last W candles before the new move, at most
+  // sharp_tr_opp of them coloured the other way, from their high to the turn's low (or low to high) >= sharp_tr_atr ATR,
+  // and the extreme is at the turn.
+  const e = i - K, W = Number(p.sharp_tr_deep) || 6, opp = Number(p.sharp_tr_opp) || 0;
+  if (e - W < 0 || I.dirOf(c[e]) !== -r.d) return null;
+  let top = r.d > 0 ? -Infinity : Infinity, bot = r.d > 0 ? Infinity : -Infinity, o = 0;
+  for (let j = e - W + 1; j <= e; j++) { top = r.d > 0 ? Math.max(top, c[j].high) : Math.min(top, c[j].low); if (I.dirOf(c[j]) === r.d) o++; }
+  if (o > opp) return null;
+  for (let j = e - W + 1; j <= i; j++) bot = r.d > 0 ? Math.min(bot, c[j].low) : Math.max(bot, c[j].high);
+  let atTurn = false; for (let j = e - 2; j <= i; j++) if ((r.d > 0 ? c[j].low : c[j].high) === bot) atTurn = true;
+  if (!atTurn) return null;
+  const a = I.atr(c, 14)[i]; if (!(a > 0)) return null;
+  const depth = Math.abs(top - bot) / a;
+  if (depth < (Number(p.sharp_tr_atr) || 0)) return null;
+  let ext = r.d > 0 ? Infinity : -Infinity; for (let j = i - K; j <= i; j++) ext = r.d > 0 ? Math.min(ext, c[j].low) : Math.max(ext, c[j].high);
+  const far = (c[i].close - ext) * r.d / a; if (Number(p.sharp_tr_far) && far > Number(p.sharp_tr_far)) return null;
+  if (p.sharp_tr_di) { const D = I.adx(c, 14), d1 = D[i], d0 = D[i - 1]; if (!d1 || !d0 || (d1.pdi - d1.mdi) * r.d <= 0 || d1.adx <= d0.adx) return null; }
+  return Object.assign(sig(r.d, 75, r.d > 0
+    ? L(`после падения за ${W} свечей (${depth.toFixed(1)} ATR) начался рост: ${K} зелёных`, `nach Fall über ${W} Kerzen (${depth.toFixed(1)} ATR) beginnt Anstieg: ${K} grüne`, `after a fall over ${W} candles (${depth.toFixed(1)} ATR) a rise started: ${K} green`)
+    : L(`после роста за ${W} свечей (${depth.toFixed(1)} ATR) началось падение: ${K} красных`, `nach Anstieg über ${W} Kerzen (${depth.toFixed(1)} ATR) beginnt Fall: ${K} rote`, `after a rise over ${W} candles (${depth.toFixed(1)} ATR) a fall started: ${K} red`),
+    p.sharp_exp_adapt ? adaptiveExpiry(x, r.d) : p.sharp_expiry), { noFlip: true, follow: true });
+}
+function sharpRev(x, p) {
+  // "На разворот" block: series, then Stochastic/RSI leaves its zone → signal against the series. Own ADX: at most.
+  { const ax = x.adx[x.last], amax = Number(p.sharp_rv_adx) || 0; if (amax && ax && ax.adx > amax) return null; }
+  const min = p.sharp_min || 4;
+  if (p.sharp_stoch !== false) {
+    // Trigger: %K crosses the zone line on the last closed candle (from below 20 to ≥ 20 → CALL, from above 80 to ≤ 80 → PUT),
+    // and a series of ≥ sharp_min candles against that direction ended within the last sharp_wait candles.
+    const i = x.last, st = I.stoch(x.c, Number(p.sharp_k) || 14, Number(p.sharp_ks) || 3, 3).k;
+    const lo = Number(p.sharp_low) || 20, hi = Number(p.sharp_high) || 80, k0 = st[i - 1], k1 = st[i];
+    if (k0 === null || k1 === null) return null;
+    const trig = p.sharp_trig || 'STOCH';
+    let dir = trig === 'RSI' ? 0 : k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0, byRsi = false;
+    if (!dir && trig !== 'STOCH') {
+      const rc = x.rsi(14), r0 = rc[i - 1], r1 = rc[i];
+      if (r0 != null && r1 != null) { dir = r0 < lo && r1 >= lo ? 1 : r0 > hi && r1 <= hi ? -1 : 0; byRsi = !!dir; }
+    }
+    if (!dir || (!p.sharp_mirror && dir < 0)) return null;
+    let best = 0;
+    for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) {
+      const r = runLength(x.c, j); if (r.d === -dir && r.n > best) best = r.n;
+    }
+    if (best < min) return null;
+    // Not late (user, 07.11.2026): %K at most sharp_k_late points past its line, RSI at most sharp_rsi_back points off its
+    // extreme of the last sharp_wait candles. 0 = off.
+    const kLate = Number(p.sharp_k_late) || 0, rBack = Number(p.sharp_rsi_back) || 0;
+    if (kLate && !byRsi && (dir > 0 ? k1 - lo : hi - k1) > kLate) return null;
+    if (rBack) {
+      const rs = x.rsi(14); let ext = rs[i];
+      for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) if (rs[j] != null) ext = dir > 0 ? Math.min(ext, rs[j]) : Math.max(ext, rs[j]);
+      if (rs[i] == null || Math.abs(rs[i] - ext) > rBack) return null;
+    }
+    if (p.sharp_rsi) { const r = x.rsi(14)[i]; if (dir > 0 ? r > 45 : r < 55) return null; }
+    const res = Object.assign(sig(dir, 70 + (best - min) * 8, dir > 0
+      ? L(`${best} красных свечей, стохастик вышел вверх из зоны ${lo}`, `${best} rote Kerzen, Stochastik verlässt die ${lo}-Zone nach oben`, `${best} red candles, Stochastic turned up out of the ${lo} zone`)
+      : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_exp_adapt ? adaptiveExpiry(x, dir) : p.sharp_expiry), { noFlip: true });
+    if (byRsi) res.reason = { ru: res.reason.ru.replace('стохастик', 'RSI'), de: res.reason.de.replace('Stochastik', 'RSI'), en: res.reason.en.replace('Stochastic', 'RSI') };
+    return res;
+  }
+  const { d, n } = runLength(x.c, x.last);
+  if (n < min || (!p.sharp_mirror && d > 0)) return null;
+  if (p.sharp_rsi) { const r = x.rsi(14)[x.last]; if (d < 0 ? r > 35 : r < 65) return null; }
+  return sig(-d, 70 + (n - min) * 8, d < 0
+    ? L(`${n} красных свечей подряд`, `${n} rote Kerzen in Folge`, `${n} red candles in a row`)
+    : L(`${n} зелёных свечей подряд`, `${n} grüne Kerzen in Folge`, `${n} green candles in a row`), p.sharp_expiry);
+}
 function runLength(c, end) {
   const d = I.dirOf(c[end]); if (!d) return { d: 0, n: 0 };
   let n = 0; while (end - n >= 0 && I.dirOf(c[end - n]) === d) n++;
@@ -642,6 +714,12 @@ function deepRev(m1, m5, m15, p, dir, on) {
   const trig = ru ? Math.min(rc.high, loc) : Math.max(rc.low, loc);
   const m1ok = ru ? m1[i1].close > trig && m1[i1 - 1].close <= trig : m1[i1].close < trig && m1[i1 - 1].close >= trig;
   if (on('dr_use_m1') && !m1ok) return { why: 'нет пробоя на M1' };
+  // 17.11.2026 (user: "not a reversal but the end of the move, it is at support"): the level is found by the extreme of the
+  // last 4 M5 candles, so the price may already have left it. Not late: the current price at most dr_late_atr M5-ATR from
+  // the level; room: at least dr_room average M1 candles to the next level ahead (no PUT into support). 0 = off.
+  const late = (ru ? m1[i1].close - Lv : Lv - m1[i1].close) / atr5, room = roomAhead(m1, i1, dir).dist;
+  if (Number(p.dr_late_atr) && late > Number(p.dr_late_atr)) return { why: `поздно: цена ушла от уровня на ${late.toFixed(1)} ATR` };
+  if (Number(p.dr_room) && room < Number(p.dr_room)) return { why: `впереди ${ru ? 'сопротивление' : 'поддержка'} близко` };
   // Confidence 1–10.
   let conf = 5 + (div ? 1 : 0) + (rsiExt && (ru ? rmin < lvlR - 5 : rmin > lvlR + 5) ? 1 : 0) + (lvl.n >= 3 ? 1 : 0)
     + (pats.some(t => /поглощение/.test(t)) ? 1 : 0) + (!strongTrend ? 1 : 0) - (pats.length ? 0 : 2) - (m1ok ? 0 : 2);
@@ -661,67 +739,18 @@ function deepRev(m1, m5, m15, p, dir, on) {
   const txt = lines.join(' · ');
   const s = sig(dir, conf * 10, L(txt, txt, txt), Number(p.expiry) || 180);
   s.bar = rc.time; // one signal per M5 reaction candle
+  s.drLate = +late.toFixed(2); s.drRoom = Number.isFinite(room) ? +room.toFixed(2) : 99; // for tests
   return s;
 }
 
 const S = {
   n_sharp(x, p) {
     if (p.bot) return botSig(BP.sharpSeries(x.c, x.last, p)); // Telegram-bot logic
-    const min = p.sharp_min || 4;
-    if (p.sharp_stoch !== false) {
-      // Trigger: %K crosses the zone line on the last closed candle (from below 20 to ≥ 20 → CALL, from above 80 to ≤ 80 → PUT),
-      // and a series of ≥ sharp_min candles against that direction ended within the last sharp_wait candles.
-      const i = x.last, st = I.stoch(x.c, Number(p.sharp_k) || 14, Number(p.sharp_ks) || 3, 3).k;
-      const lo = Number(p.sharp_low) || 20, hi = Number(p.sharp_high) || 80, k0 = st[i - 1], k1 = st[i];
-      if (k0 === null || k1 === null) return null;
-      // Trigger of choice (user, 07.11.2026): Stochastic, RSI 14 or either of them leaving the same zone.
-      const trig = p.sharp_trig || 'STOCH';
-      let dir = trig === 'RSI' ? 0 : k0 < lo && k1 >= lo ? 1 : k0 > hi && k1 <= hi ? -1 : 0, byRsi = false;
-      if (!dir && trig !== 'STOCH') {
-        const rc = x.rsi(14), r0 = rc[i - 1], r1 = rc[i];
-        if (r0 != null && r1 != null) { dir = r0 < lo && r1 >= lo ? 1 : r0 > hi && r1 <= hi ? -1 : 0; byRsi = !!dir; }
-      }
-      if (!dir || (!p.sharp_mirror && dir < 0)) return null;
-      let best = 0;
-      for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) {
-        const r = runLength(x.c, j); if (r.d === -dir && r.n > best) best = r.n;
-      }
-      if (best < min) return null;
-      // Not late (user, 07.11.2026): %K at most sharp_k_late points past its line, RSI at most sharp_rsi_back points off its
-      // extreme of the last sharp_wait candles. 0 = off.
-      const kLate = Number(p.sharp_k_late) || 0, rBack = Number(p.sharp_rsi_back) || 0;
-      if (kLate && !byRsi && (dir > 0 ? k1 - lo : hi - k1) > kLate) return null;
-      if (rBack) {
-        const rs = x.rsi(14); let ext = rs[i];
-        for (let j = i; j >= Math.max(1, i - (Number(p.sharp_wait) || 10)); j--) if (rs[j] != null) ext = dir > 0 ? Math.min(ext, rs[j]) : Math.max(ext, rs[j]);
-        if (rs[i] == null || Math.abs(rs[i] - ext) > rBack) return null;
-      }
-      if (p.sharp_rsi) { const r = x.rsi(14)[i]; if (dir > 0 ? r > 45 : r < 55) return null; }
-      // ADX option: at least sharp_ax_min and rising over sharp_ax_bars candles; with sharp_ax_prev the last 15 candles
-      // had a strong ADX that then weakened by at least 3 points before this rise.
-      if (p.sharp_ax_on) {
-        const A = I.adx(x.c, 14), a = A[i], b = A[i - (Number(p.sharp_ax_bars) || 3)];
-        if (!a || !b || a.adx < (Number(p.sharp_ax_min) || 0) || a.adx <= b.adx) return null;
-        const prev = Number(p.sharp_ax_prev) || 0;
-        if (prev) {
-          let top = 0, topAt = -1;
-          for (let j = i - 15; j < i; j++) if (A[j] && A[j].adx > top) { top = A[j].adx; topAt = j; }
-          let low = Infinity; for (let j = topAt; j >= 0 && j < i; j++) if (A[j]) low = Math.min(low, A[j].adx);
-          if (top < prev || low > top - 3 || a.adx <= low) return null;
-        }
-      }
-      const res = Object.assign(sig(dir, 70 + (best - min) * 8, dir > 0
-        ? L(`${best} красных свечей, стохастик вышел вверх из зоны ${lo}`, `${best} rote Kerzen, Stochastik verlässt die ${lo}-Zone nach oben`, `${best} red candles, Stochastic turned up out of the ${lo} zone`)
-        : L(`${best} зелёных свечей, стохастик вышел вниз из зоны ${hi}`, `${best} grüne Kerzen, Stochastik verlässt die ${hi}-Zone nach unten`, `${best} green candles, Stochastic turned down out of the ${hi} zone`), p.sharp_exp_adapt ? adaptiveExpiry(x, dir) : p.sharp_ax_on ? (Number(p.sharp_ax_exp) || p.sharp_expiry) : p.sharp_expiry), { noFlip: true });
-      if (byRsi) res.reason = { ru: res.reason.ru.replace('стохастик', 'RSI'), de: res.reason.de.replace('Stochastik', 'RSI'), en: res.reason.en.replace('Stochastic', 'RSI') };
-      return res;
-    }
-    const { d, n } = runLength(x.c, x.last);
-    if (n < min || (!p.sharp_mirror && d > 0)) return null;
-    if (p.sharp_rsi) { const r = x.rsi(14)[x.last]; if (d < 0 ? r > 35 : r < 65) return null; }
-    return sig(-d, 70 + (n - min) * 8, d < 0
-      ? L(`${n} красных свечей подряд`, `${n} rote Kerzen in Folge`, `${n} red candles in a row`)
-      : L(`${n} зелёных свечей подряд`, `${n} grüne Kerzen in Folge`, `${n} green candles in a row`), p.sharp_expiry);
+    // 17.11.2026 (user): two independent blocks that can run together. When both fire in opposite directions there
+    // is no signal (unclear situation); the same direction gives one signal.
+    const tr = p.sharp_on_trend ? sharpTrend(x, p) : null, rv = p.sharp_on_rev !== false ? sharpRev(x, p) : null;
+    if (tr && rv) return tr.dir === rv.dir ? tr : null;
+    return tr || rv;
   },
   n_levelrev(x, p) {
     // Diagnosis: a test sets globalThis.__lrWhy = [] to collect why there was no signal.
@@ -937,20 +966,22 @@ const S = {
     const pm = parseInt(String(p.ls_tf || 'M5').slice(1), 10) || 5;
     let m5;
     if (x.tfMin === 1) { if (pm > 1 && (lastT + 60) % (pm * 60)) return null; m5 = pm === 1 ? x.c : I.resample(x.c, pm); } else if (x.tfMin === pm) m5 = x.c; else return null;
-    const useLevel = p.ls_level === true, m15 = x.ctx?.M15;
-    if (m5.length < 20 || (useLevel && (!m15 || m15.length < 30))) return null;
+    // Level (user 17.11.2026): by default on the pin bar's own timeframe ("pin bar on M1 → M1 level"), or M15 as before.
+    const useLevel = p.ls_level === true, lvM15 = p.ls_level_tf === 'M15', m15 = lvM15 ? x.ctx?.M15 : null;
+    if (m5.length < 20 || (useLevel && lvM15 && (!m15 || m15.length < 30))) return null;
     const h = new Date(lastT * 1000).getUTCHours(); if (h < Number(p.ls_hour_from) || h >= Number(p.ls_hour_to)) return null;
     const i = m5.length - 1, k = m5[i], atr = I.atr(m5, Number(p.ls_atr_period) || 14)[i]; if (!(atr > 0)) return null;
     const rr = k.high - k.low, body = Math.abs(k.close - k.open), lower = Math.min(k.open, k.close) - k.low, upper = k.high - Math.max(k.open, k.close);
     const d = lower >= 2 * body && lower >= 0.5 * rr && lower > upper ? 1 : upper >= 2 * body && upper >= 0.5 * rr && upper > lower ? -1 : 0;
     if (!d || !(rr > 0)) return null;
     const zw = (Number(p.ls_zone_atr) || 0.5) * atr, tip = d > 0 ? k.low : k.high;
-    const zone = useLevel ? swingZones(m15, d > 0 ? -1 : 1, zw, 0).filter(z => z.n >= (Number(p.ls_touches) || 2) && tip >= z.lo - zw && tip <= z.hi + zw && (d > 0 ? k.close >= z.lo : k.close <= z.hi))[0] : { n: 0, lo: tip, hi: tip };
+    const lv = lvM15 ? m15 : m5.slice(0, i), lvName = lvM15 ? 'M15' : 'M' + pm; // the pin bar itself is not part of its level
+    const zone = useLevel ? swingZones(lv,d > 0 ? -1 : 1, zw, 0).filter(z => z.n >= (Number(p.ls_touches) || 2) && tip >= z.lo - zw && tip <= z.hi + zw && (d > 0 ? k.close >= z.lo : k.close <= z.hi))[0] : { n: 0, lo: tip, hi: tip };
     if (!zone) return null;
     for (let j = i - 3; j < i; j++) if (Math.abs(m5[j].close - m5[j].open) >= (Number(p.ls_big_atr) || 1.5) * atr) return null;
     if ((m5[i - 1].close - m5[i - 4].close) * d >= 0) return null; // must come from the other side
     if (useLevel) { const mid = (zone.lo + zone.hi) / 2; let saw = 0;
-      for (let j = Math.max(1, m15.length - 30); j < m15.length; j++) if ((m15[j].close - mid) * (m15[j - 1].close - mid) < 0) saw++;
+      for (let j = Math.max(1, lv.length - 30); j < lv.length; j++) if ((lv[j].close - mid) * (lv[j - 1].close - mid) < 0) saw++;
       if (saw > (Number(p.ls_saw) || 3)) return null; }
     const st = I.stoch(m5, Number(p.ls_stoch_k) || 3, Number(p.ls_stoch_slow) || 1, Number(p.ls_stoch_d) || 1).k, z = Number(p.ls_stoch_zone) || 20;
     if (st[i] == null || st[i - 1] == null || (st[i] - st[i - 1]) * d <= 0) return null;
@@ -962,10 +993,17 @@ const S = {
       const f5 = ft === 5 && x.ctx?.M5 && x.ctx.M5.length >= 40 ? x.ctx.M5 : ft === 1 ? src : I.resample(src, ft), fa = I.adx(f5, Number(p.ls_flat_period) || 14)[f5.length - 1];
       if (!fa || fa.adx < (Number(p.ls_flat_adx) || 23)) return null;
     }
+    // M5 confirms (user 17.11.2026, his manual way): the M5 candle that contains the pin bar's close already goes the
+    // signal's way and is still small (body at most ls_m5_body average M5 candles) = the start of the move.
+    if (p.ls_m5_on === true) {
+      const src = x.ctx?.M1 && x.ctx.M1.length >= x.c.length ? x.ctx.M1 : x.tfMin === 1 ? x.c : null; if (!src) return null;
+      const r5 = I.resample(src, 5), q = r5[r5.length - 1], a5 = I.atr(r5, 14)[r5.length - 1];
+      if (!q || !(a5 > 0) || (q.close - q.open) * d <= 0 || Math.abs(q.close - q.open) > (Number(p.ls_m5_body) || 1) * a5) return null;
+    }
     if (!useLevel) return Object.assign(sig(d, 75, L(`пин-бар M${pm}, Stochastic разворачивается ${d > 0 ? 'вверх' : 'вниз'}`, `M${pm}-Pinbar, Stochastic dreht ${d > 0 ? 'nach oben' : 'nach unten'}`, `M${pm} pin bar, Stochastic turning ${d > 0 ? 'up' : 'down'}`)), { noFlip: true });
     return Object.assign(sig(d, 75, d > 0
-      ? L(`пин-бар M5 от поддержки M15 (${zone.n} касания), Stochastic разворачивается вверх`, `M5-Pinbar an M15-Unterstützung (${zone.n} Berührungen), Stochastic dreht nach oben`, `M5 pin bar at M15 support (${zone.n} touches), Stochastic turning up`)
-      : L(`пин-бар M5 от сопротивления M15 (${zone.n} касания), Stochastic разворачивается вниз`, `M5-Pinbar an M15-Widerstand (${zone.n} Berührungen), Stochastic dreht nach unten`, `M5 pin bar at M15 resistance (${zone.n} touches), Stochastic turning down`)), { noFlip: true });
+      ? L(`пин-бар M${pm} от поддержки ${lvName} (${zone.n} касания), Stochastic разворачивается вверх`, `M${pm}-Pinbar an ${lvName}-Unterstützung (${zone.n} Berührungen), Stochastic dreht nach oben`, `M${pm} pin bar at ${lvName} support (${zone.n} touches), Stochastic turning up`)
+      : L(`пин-бар M${pm} от сопротивления ${lvName} (${zone.n} касания), Stochastic разворачивается вниз`, `M${pm}-Pinbar an ${lvName}-Widerstand (${zone.n} Berührungen), Stochastic dreht nach unten`, `M${pm} pin bar at ${lvName} resistance (${zone.n} touches), Stochastic turning down`)), { noFlip: true });
   },
   // Copy of pin bar + Stochastic with "market weather" filters (user 14.11.2026; history test on 18 OTC pairs: all signals 53 %,
   // against EMA50 + ADX M5 ≥ 23 + ATR ≤ average 67 % at 4 min, n 94, same in both halves). Each filter can be switched off.
@@ -1444,7 +1482,7 @@ function evaluate(candlesByTf, enabled, settings) {
       let mode = 'trend';
       // The Stochastic trigger of n_sharp already gives the direction of the turn: "follow the move" must not flip it
       // (user, 04.11.2026: Stochastic turned up from 20, the card said PUT).
-      if (META[name][1] === 'rev' && s.noFlip) { mode = 'reversal'; if (!s.noReason) s.reason = addText(s.reason, EXPECT.reversal); }
+      if (META[name][1] === 'rev' && s.noFlip) { mode = s.follow ? 'follow' : 'reversal'; if (!s.noReason) s.reason = addText(s.reason, EXPECT[mode]); }
       else if (META[name][1] === 'rev') {
         mode = p.follow_move ? 'follow' : 'reversal';
         if (p.follow_move) s.dir = -s.dir;
@@ -1595,7 +1633,8 @@ LABELS.n_levelstoch = { ...(LABELS.n_levelstoch || {}),
 GROUPS.n_levelstoch = [
   { title: L('Stochastic — осциллятор', 'Stochastic – Oszillator', 'Stochastic – oscillator'), desc: L('Разворот линии Stochastic из зоны перепроданности / перекупленности.', 'Wende der Stochastic-Linie aus der Extremzone.', 'Stochastic line turning out of the extreme zone.'), keys: ['ls_stoch_k', 'ls_stoch_slow', 'ls_stoch_d', 'ls_stoch_zone'] },
   { title: L('Пин-бар и ATR', 'Pinbar und ATR', 'Pin bar and ATR'), desc: L('Таймфрейм пин-бара, размер свечей в ATR.', 'Zeitrahmen des Pinbars, Kerzengröße in ATR.', 'Pin bar timeframe, candle size in ATR.'), keys: ['ls_tf', 'ls_atr_period', 'ls_big_atr'] },
-  { title: L('Уровень M15 (по желанию)', 'M15-Level (optional)', 'M15 level (optional)'), desc: L('Отскок от уровня поддержки / сопротивления M15.', 'Abprall an M15-Unterstützung / Widerstand.', 'Bounce off an M15 support / resistance.'), keys: ['ls_level', 'ls_touches', 'ls_zone_atr', 'ls_saw'] },
+  { title: L('Только у уровня (по желанию)', 'Nur am Level (optional)', 'Only at a level (optional)'), desc: L('Сигнал только если пин-бар появился у поддержки или сопротивления, а не посреди графика. Уровень — место, где цена уже разворачивалась несколько раз. Сигналов станет намного меньше.', 'Signal nur, wenn die Pinbar an einer Unterstützung oder einem Widerstand entsteht. Viel weniger Signale.', 'Signal only when the pin bar forms at a support or resistance. Far fewer signals.'), keys: ['ls_level', 'ls_level_tf', 'ls_touches', 'ls_zone_atr', 'ls_saw'] },
+  { title: L('Подтверждение M5 (по желанию)', 'M5-Bestätigung (optional)', 'M5 confirmation (optional)'), desc: L('Сигнал только если текущая 5-минутная свеча уже идёт в сторону сигнала и ещё маленькая — начало движения.', 'Signal nur, wenn die laufende 5-Minuten-Kerze schon in Signalrichtung läuft und noch klein ist.', 'Signal only if the current 5-minute candle already goes the signal way and is still small.'), keys: ['ls_m5_on', 'ls_m5_body'] },
   { title: L('Время и рынок', 'Zeit und Markt', 'Time and market'), desc: L('Часы торговли (UTC) и пропуск OTC.', 'Handelszeiten (UTC) und OTC auslassen.', 'Trading hours (UTC) and skip OTC.'), keys: ['ls_hour_from', 'ls_hour_to', 'ls_no_otc'] },
   { title: L('Флэт — рынок без силы (ADX M5)', 'Seitwärts – Markt ohne Kraft (ADX M5)', 'Flat – market without strength (ADX M5)'), desc: L('Если ADX на M5 ниже порога, рынок топчется на месте — сигналов нет.', 'ADX auf M5 unter der Schwelle = Markt tritt auf der Stelle, keine Signale.', 'ADX on M5 below the threshold = market standing still, no signals.'), keys: ['ls_flat_on', 'ls_flat_tf', 'ls_flat_period', 'ls_flat_adx'] },
 ];

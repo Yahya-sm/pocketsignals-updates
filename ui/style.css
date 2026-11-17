@@ -344,7 +344,7 @@ body.compact .mrow, body.compact .mempty { border-radius: 14px; background: rgba
 .trendtfs { flex-wrap: wrap; } .trendtfs .tfs { padding: 6px 0 0; }
 
 /* Compact signal card with price hint (user, 07.11.2026) */
-.sig .pairmeta .m5 { margin-left: 2px; }
+.sig .pairmeta .m5 { margin-left: 2px; flex: none; }
 .sig-now { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 8px 0 4px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sig-now .timer { margin: 0; font-size: 16px; }
 .pricehint:empty { display: none; }

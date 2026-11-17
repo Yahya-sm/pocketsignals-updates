@@ -186,17 +186,20 @@ function statTiles(list, mine) {
 function visibleSignals() {
   const list = state.signals.filter(isVisible).filter(s => !window.labFilter || window.labFilter(s));
   const pinned = pins.map(id => list.find(s => s.id === id)).filter(Boolean);
-  // Starred first, then by remaining validity, shortest on top (Strategy Lab, 13.11.2026; not by win rate).
-  // Entry window over (lab) → behind the signals that can still be entered.
-  const left = s => { const now = Date.now() / 1000; return s.expiresAt && s.expiresAt > now ? s.expiresAt - now : s.entryTime + s.expiry - now + (s.expiresAt ? 1e4 : 0); };
-  const rest = list.filter(s => !pins.includes(s.id)).sort((a, b) => left(a) - left(b) || (b.created || 0) - (a.created || 0));
+  // 17.11.2026 (user): newest signals on top; signals that came together (same 30 s) best first: with the M5 direction
+  // above "M5 откат", then a still small move (start of the move), then strength.
+  const sec = s => { const c = Number(s.created) || 0; return c > 1e12 ? c / 1000 : c; };
+  const score = s => { const tdir = miniTrendDir(s); return (tdir === s.dir ? 100 : tdir && tdir !== 'flat' ? -100 : 0) - Math.min(50, Math.max(0, Number(s.live && s.live.off != null ? s.live.off : s.entryOff) || 0) * 40) + (Number(s.strength) || 0) / 10; };
+  const rest = list.filter(s => !pins.includes(s.id)).sort((a, b) => Math.floor(sec(b) / 30) - Math.floor(sec(a) / 30) || score(b) - score(a) || sec(b) - sec(a));
   return [...pinned, ...rest];
 }
 // Trend badge; clicking it opens the pair in PocketOption on the trend timeframe.
 const m5Badge = (s, plain) => {
   if (!state.settings.show_m5 || !s.trends) return '';
-  if (plain) return s.trends.map(({ tf, dir }) => `<span class="m5 ${dir}">${tf} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</span>`).join('');
-  return s.trends.map(({ tf, dir }) => `<button class="m5 ${dir}" data-po="${esc(s.id)}" data-potf="${tf}" title="${t('m5_title', { tf })} – ${t('open_tf')}">${tf} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</button>`).join('');
+  // 17.11.2026 (user): signal against the trend of that timeframe = "M5 откат"; with the trend the arrow stays as before.
+  const lab = (tf, dir) => (dir === 'CALL' || dir === 'PUT') && (s.dir === 'CALL' || s.dir === 'PUT') && dir !== s.dir ? `${tf} ${t('pullback')}` : `${tf} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}`;
+  if (plain) return s.trends.map(({ tf, dir }) => `<span class="m5 ${dir}">${lab(tf, dir)}</span>`).join('');
+  return s.trends.map(({ tf, dir }) => `<button class="m5 ${dir}" data-po="${esc(s.id)}" data-potf="${tf}" title="${t('m5_title', { tf })} – ${t('open_tf')}">${lab(tf, dir)}</button>`).join('');
 };
 const resultBadge = s => (s.result ? `<span class="res ${s.result}">${I18N.de['res_' + s.result] ? t('res_' + s.result) : s.result}</span>` : '');
 
@@ -228,7 +231,7 @@ function renderLive() {
       <span class="grip" title="${t('drag')}">⋮⋮</span>
       <button class="star${pins.includes(s.id) ? ' on' : ''}" data-pin="${esc(s.id)}" title="${t('pin')}">${pins.includes(s.id) ? '★' : '☆'}</button>
       <span class="md">${s.dir === 'CALL' ? '▲' : '▼'} ${s.dir}</span>
-      <span class="mi"><b>${esc(s.name)} ${m5Badge(s)}</b><small>${esc(tr(s.strategyName))} · ${fmtExp(s.expiry)}</small></span>
+      <span class="mi"><b>${esc(s.name)} ${m5Badge(s)}</b><small>${esc(cardName(tr(s.strategyName)))} · ${fmtExp(s.expiry)}</small></span>
       <button class="tag mtf" data-po="${esc(s.id)}" data-potf="${s.tf || 'M1'}" title="${t('open_tf')}">${s.tf || 'M1'}</button>
       ${isDone(s) && s.result ? resultBadge(s) : `<span class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</span>`}
     </div>`).join('') || `<div class="mempty" data-expand="1"><span class="grip">⋮⋮</span><img src="icon.png" width="18" height="18" alt="">${t('waiting')}</div>`;
@@ -266,14 +269,34 @@ function miniCandles(s, tf) {
 }
 // Trend badge next to the pair (user 09.11.2026): follows the chart's timeframe tab, direction = slope of the chart's
 // yellow EMA line over the last 3 candles. Falls back to the old trend badge when the signal has no chart data.
+// Short strategy name on the signal card (user 17.11.2026: "Пин-бар 2 + Stochastic (погода рынка)" → "Пин-бар 2",
+// "Глубокое падение/рост → отскок" → "Глубокое падение").
+const cardName = n => String(n || '').split(' + ')[0].replace(/\s*\([^)]*\)\s*$/, '').split(' → ')[0].split('/')[0].trim() || String(n || '');
+// Mode tag on the card for "Глубокое падение" (user 17.11.2026: it can trade with the trend or the reversal – say which).
+// Taken from the reason text the engine adds ("движение продолжится" / "ожидается разворот").
+function cardMode(s) {
+  if (s.strategy !== 'n_sharp') return '';
+  const r = String((s.reason && (s.reason.ru || s.reason.en)) || s.reason || '');
+  const m = /продолжится|continues|geht weiter/.test(r) ? 'follow' : /разворот|rebound|Rücksprung/.test(r) ? 'rev' : '';
+  return m ? `<span class="m5 ${m === 'follow' ? 'CALL' : 'flat'}" style="flex:none">${t(m === 'follow' ? 'mode_follow' : 'mode_rev')}</span>` : '';
+}
+// Direction of the card's chart (yellow EMA over the last 3 candles); M5 trend badge or null without chart data.
+function miniTrendDir(s) {
+  const tf = cardTf.get(s.id), canSwitch = !!(s.m1 && Array.isArray(s.m1.k) && s.m1.k.length > 10);
+  const k = tf && canSwitch ? miniCandles(s, tf) : Array.isArray(s.m5) ? s.m5 : null;
+  if (!k || k.length < 6) { const m = (s.trends || []).find(x => x.tf === 'M5'); return m ? m.dir : null; }
+  let e = k[0][3]; const ema = k.map((q, i) => (e = i ? q[3] * 0.2 + e * 0.8 : q[3]));
+  const n = ema.length - 1; return ema[n] > ema[n - 3] ? 'CALL' : ema[n] < ema[n - 3] ? 'PUT' : 'flat';
+}
 function miniTrendBadge(s) {
   const tf = cardTf.get(s.id), canSwitch = !!(s.m1 && Array.isArray(s.m1.k) && s.m1.k.length > 10);
   const k = tf && canSwitch ? miniCandles(s, tf) : Array.isArray(s.m5) ? s.m5 : null;
   if (!k || k.length < 6) return m5Badge(s, true);
-  let e = k[0][3]; const ema = k.map((q, i) => (e = i ? q[3] * 0.2 + e * 0.8 : q[3]));
-  const n = ema.length - 1, dir = ema[n] > ema[n - 3] ? 'CALL' : ema[n] < ema[n - 3] ? 'PUT' : 'flat';
+  const dir = miniTrendDir(s);
   const cur = tf && canSwitch ? tf : (s.miniTf || 'M5');
-  return `<span class="m5 ${dir}">${esc(cur)} ${dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</span>`;
+  // 17.11.2026 (user): signal against this timeframe's direction = "M5 откат".
+  const pull = (dir === 'CALL' || dir === 'PUT') && (s.dir === 'CALL' || s.dir === 'PUT') && dir !== s.dir;
+  return `<span class="m5 ${dir}">${esc(cur)} ${pull ? t('pullback') : dir === 'CALL' ? '▲' : dir === 'PUT' ? '▼' : '◆'}</span>`;
 }
 function m5Chart(s) {
   const tf = cardTf.get(s.id), canSwitch = !!(s.m1 && Array.isArray(s.m1.k) && s.m1.k.length > 10);
@@ -302,7 +325,7 @@ function card(s) {
     <div class="sig-top">
       <button class="star${pinned ? ' on' : ''}" data-pin="${esc(s.id)}" title="${t('pin')}">${pinned ? '★' : '☆'}</button>
       <div class="pairbox"><div class="pair">${esc(s.name)}</div>
-        <div class="pairmeta">${esc(tr(s.strategyName))} · ${s.tf || 'M1'} ${miniTrendBadge(s)}</div></div>
+        <div class="pairmeta" style="display:flex;align-items:center;gap:4px;white-space:nowrap;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(cardName(tr(s.strategyName)))}</span>${cardMode(s)}${miniTrendBadge(s)}<span style="flex:none">· ${s.tf || 'M1'}</span></div></div>
       ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}"><span class="arrow">${s.dir === 'CALL' ? '▲' : '▼'}</span>${s.dir}</div>`}
     </div>
     <div class="sig-now"><div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
@@ -528,10 +551,17 @@ function oneTest(T, key) {
     ${open ? `<div class="tests-b">${body}${T.note ? `<small>${cell(T.note)}</small>` : ''}</div>` : ''}</div>`;
 }
 // Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
+// Settings that work against the chosen way of trading are hidden (user 17.11.2026).
+function hiddenParams(x) {
+  if (x.key !== 'n_sharp') return [];
+  return [...(x.params.sharp_on_rev === false ? ['sharp_min', 'sharp_wait', 'sharp_mirror', 'sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late', 'sharp_rsi', 'sharp_rsi_back', 'sharp_trig', 'sharp_rv_adx'] : []),
+    ...(!x.params.sharp_on_trend ? ['sharp_tr_deep', 'sharp_tr_opp', 'sharp_tr_atr', 'sharp_tr_new', 'sharp_tr_far', 'sharp_tr_di', 'sharp_tr_adx'] : [])];
+}
 function paramRows(x) {
-  const row = k => k in x.params ? `<label class="prow"><span>${esc(x.labels && x.labels[k] ? tr(x.labels[k]) : paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
+  const hid = hiddenParams(x);
+  const row = k => k in x.params && !hid.includes(k) ? `<label class="prow"><span>${esc(x.labels && x.labels[k] ? tr(x.labels[k]) : paramLabel(k))}</span>${paramInput(x.key, k, x.params[k])}</label>` : '';
   // Every block is folded (user, 07.11.2026); only the open block's rows are drawn. Same open/closed state as the tables.
-  const used = new Set((x.groups || []).flatMap(g => g.keys)), rest = Object.keys(x.params).filter(k => !used.has(k));
+  const used = new Set((x.groups || []).flatMap(g => g.keys)), rest = Object.keys(x.params).filter(k => !used.has(k) && !hid.includes(k));
   const fold = (title, desc, keys, id) => {
     const body = keys.map(row).join(''); if (!body) return '';
     const key = `${x.key}:p${id}`, open = openTests.has(key);
@@ -540,8 +570,8 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'] };
-const CHOICE_TEXT = { ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start' };
+const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'] };
+const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start' };
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
   if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : CHOICE_TEXT[o] ? t(CHOICE_TEXT[o]) : o}</option>`).join('')}</select>`;
@@ -560,14 +590,14 @@ function renderStrategies(s) {
   $('#strats').innerHTML = list.map(x => `<div class="strat${openStrats.has(x.key) ? ' open' : ''}">
     <div class="strat-head"><input type="checkbox" class="sw" data-strat="${x.key}" ${s.strategies.includes(x.key) ? 'checked' : ''}>
       <button class="favstar on" data-favstrat="${x.key}" title="${t('fav_remove')}">★</button>
-      <button class="strat-name" data-open="${x.key}">${esc(tr(x.names || x.name))}<small>${x.tfs.join(' · ')} · ${x.type === 'rev' ? (x.params.follow_move ? t('follow') : t('reversal')) : t('trend')}</small></button>
+      <button class="strat-name" data-open="${x.key}">${esc(tr(x.names || x.name))}<small>${x.tfs.join(' · ')} · ${x.key === 'n_sharp' ? [x.params.sharp_on_trend ? t('follow') : '', x.params.sharp_on_rev !== false ? t('reversal') : ''].filter(Boolean).join(' + ') || '—' : x.type === 'rev' ? (x.params.follow_move ? t('follow') : t('reversal')) : t('trend')}</small></button>
       <button class="strat-arrow" data-open="${x.key}">${openStrats.has(x.key) ? '▴' : '▾'}</button></div>
     <div class="strat-body">
       <div class="tfs">${TFS.map(t => `<label><input type="checkbox" data-tf="${x.key}" value="${t}" ${x.tfs.includes(t) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
       <label class="prow"><span>🔔 ${t('sound_pick')}</span><select data-sound="${x.key}">${(window.SOUND_KEYS || []).map(k => `<option value="${k}"${soundOf(x.key) === k ? ' selected' : ''}>${t('snd_' + k)}</option>`).join('')}</select></label>
-      ${(x.presets || []).length ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
+      ${(x.presets || []).length && !(x.key === 'n_sharp' && x.params.sharp_on_rev === false) ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
         `<button class="chip${(x.activePresets || []).includes(n) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${(x.activePresets || []).includes(n) ? '✓ ' : ''}${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
-      ${testTable(x)}
+      ${x.key === 'n_sharp' && x.params.sharp_on_rev === false ? '' : testTable(x)}
       ${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('fav_empty')}</p>`;
