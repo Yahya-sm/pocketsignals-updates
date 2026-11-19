@@ -181,6 +181,12 @@ class Engine extends EventEmitter {
       s.strat_tfs = { ...s.strat_tfs }; for (const n of ['n_run', 'n_pin']) if (!s.strat_tfs[n]) s.strat_tfs[n] = ['M1'];
       s.runpin_1911 = true; writeJson(this.settingsFile, s);
     }
+    // 19.11.2026 (user chose "stricter"): pin bar tail ≥ 50 %, no early signal – written once into saved settings too.
+    if (!this.settings.pin_strict_1911) {
+      const s = this.settings, ss = { ...(s.strategy_settings || {}) };
+      ss.n_pin = { ...(ss.n_pin || {}), pn_tail: 50, pn_early: 0 };
+      s.strategy_settings = ss; s.pin_strict_1911 = true; writeJson(this.settingsFile, s);
+    }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
     this.paramLog = readJson(this.paramLogFile, []); // who, when, what: old → new (parameters and mode/account switches)

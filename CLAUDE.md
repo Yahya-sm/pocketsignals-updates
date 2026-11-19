@@ -214,3 +214,4 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 
 - 19.11.2026 (2): n_run saw filter rs_chaos 0.4 / rs_chaos_n 12 (user: signals on alternating red/green): share of colour changes on M1 and M5 over the window, 0 = off. raw_pb: 36 -> 9 signals/day, win rate not better (43/35/46/50 %). Latency tile clamped at 0 (PC clock ~7 s behind PO showed -7 s).
 - 19.11.2026 (3): n_run saw filter switch rs_chaos_on (default on; off hides rs_chaos/rs_chaos_n).
+- 19.11.2026 (4): n_pin stricter at the user's choice: defaults pn_tail 50, pn_early 0 (closed candle only); migration pin_strict_1911 writes both into saved settings once. raw_pb: 74 -> 33 signals/day, 51/52/53/52 % (was 51/53/53/52) – no edge either way.
