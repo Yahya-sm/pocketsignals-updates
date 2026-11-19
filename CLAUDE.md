@@ -216,3 +216,5 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 19.11.2026 (3): n_run saw filter switch rs_chaos_on (default on; off hides rs_chaos/rs_chaos_n).
 - 19.11.2026 (4): n_pin stricter at the user's choice: defaults pn_tail 50, pn_early 0 (closed candle only); migration pin_strict_1911 writes both into saved settings once. raw_pb: 74 -> 33 signals/day, 51/52/53/52 % (was 51/53/53/52) – no edge either way.
 - 19.11.2026 (5): 'signal N candles after the EMA cross' – n_run rs_cross_after, Ludo NEW ludo_cross_after (0 = on the cross candle; >0: cross N candles ago, all candles since in signal colour, no cross back). raw_pb, series 2: Ludo 451 -> 198/day ~49 %; n_run (saw filter on) 80 -> 39/day, 51/56/54/51 % but halves 45-49 vs 56-63 – not stable.
+
+- 19.11.2026 (6): strategies.js x.tfMin — для таймфреймов S5/S15/S30 теперь в минутах (S15 = 0.25), раньше S15 считалось 15 минутами → адаптивная экспирация давала 45 мин. Не выпущено.

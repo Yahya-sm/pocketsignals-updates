@@ -1616,7 +1616,7 @@ function evaluate(candlesByTf, enabled, settings) {
     const sets = chosen.length ? chosen.map(pr => ({ p: { ...base, ...pr.values }, pr })) : [{ p: base, pr: null }];
     for (const tf of settings.strat_tfs?.[name] || ['M1']) {
       const c = candlesByTf[tf]; if (!c || c.length < 60) continue;
-      const x = (ctxs[tf] ??= ctx(c)); x.tfMin = parseInt(tf.slice(1), 10) || 1;
+      const x = (ctxs[tf] ??= ctx(c)); x.tfMin = (parseInt(tf.slice(1), 10) || 1) / (tf[0] === 'S' ? 60 : 1); // S15 = 0.25 min, not 15 (19.11.2026: gave 45-min expiries)
       x.ctx = candlesByTf.ctx; x.otc = !!candlesByTf.otc; x.asset = candlesByTf.asset; // higher timeframes from their own history (M5/M15), for multi-timeframe strategies
       // Lab strategies have their own three stages, risk checks run in the engine; no general filters here.
       if (LAB.STRAT[name]) {
