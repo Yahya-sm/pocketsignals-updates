@@ -9,7 +9,7 @@ const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
 const LAB = require('./lab');
 // 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
-const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_emastart', 'n_sharp', 'n_deeprev']; // + its copy with market weather filters (14.11.2026)
+const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_emastart', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin']; // + its copy with market weather filters (14.11.2026)
 const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
@@ -173,6 +173,13 @@ class Engine extends EventEmitter {
       s.strategy_settings = ss;
       s.strategies = [...new Set([...(s.strategies || []), ...Object.keys(want)])];
       s.user_1711 = true; writeJson(this.settingsFile, s);
+    }
+    // 19.11.2026: new n_run / n_pin – favourites only (not switched on), entry TF M1.
+    if (!this.settings.runpin_1911) {
+      const s = this.settings;
+      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_run', 'n_pin'])];
+      s.strat_tfs = { ...s.strat_tfs }; for (const n of ['n_run', 'n_pin']) if (!s.strat_tfs[n]) s.strat_tfs[n] = ['M1'];
+      s.runpin_1911 = true; writeJson(this.settingsFile, s);
     }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
@@ -529,7 +536,7 @@ class Engine extends EventEmitter {
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
     const st = strategies.paramsFor('n_strongtrend', this.settings), en = this.enabledStrategies();
-    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || en.includes('n_lsweather') || en.includes('n_trend15') || en.includes('n_emastart') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
+    if (en.includes('n_deeprev') || en.includes('n_levelstoch') || en.includes('n_lsweather') || en.includes('n_trend15') || en.includes('n_emastart') || en.includes('n_run') || en.includes('n_pin') || (en.includes('n_strongtrend') && (st.st_use_m5 || st.st_use_m15))) {
       list.forEach((a, i) => {
         const have = this.ctxCandles.get(a.symbol);
         if (have && Date.now() - have.at < 55000) return;
@@ -597,7 +604,10 @@ class Engine extends EventEmitter {
       this.trendCandles.set(h.asset + '|' + req.tf, { at: Date.now(), candles: this._withLive(h.asset, c, req.tf * 60) });
       return;
     }
-    const nowMin = Math.floor(Date.now() / 60000) * 60;
+    // Server clock (19.11.2026): offset = max over pairs (last tick time − PC time), limited to ±60 s.
+    const tk = this.ticks.get(h.asset);
+    if (tk && tk.length) { this._clk = this._clk || {}; this._clk[h.asset] = tk[tk.length - 1][0] * 1000 - Date.now(); strategies.setClockOffset(Math.max(-60000, Math.min(60000, Math.max(...Object.values(this._clk))))); }
+    const nowMin = Math.floor(strategies.serverNow() / 60) * 60;
     const hist = h.data
       .map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close }))
       .sort((a, b) => a.time - b.time);

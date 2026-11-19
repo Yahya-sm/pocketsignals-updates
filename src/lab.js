@@ -92,7 +92,7 @@ Object.assign(PARAMS, {
   pro_bot: { adx_min: 20, min_body_atr: 0.6, min_closes: 3, pullback_atr: 0.3, break_atr: 0.2 },
   candle_bot: { sec_from: 45, sec_to: 50, min_closes: 3, max_opposite_wick_pct: 50, min_level_distance_atr: 0.5 },
   meanrev: { adx_max: 20, atr_pct_lo: 20, atr_pct_hi: 80, bb_mult: 2, max_body_atr: 1, wick_pct: 50 },
-  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30 },
+  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30, ludo_new: false, ser_body_atr: 0, ludo_cross: true, ludo_ma: true, ludo_fast: 5, ludo_slow: 21, ludo_exp: 60 },
   fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
   volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
   scanner: {},
@@ -145,6 +145,13 @@ const PARAM_LABELS = {
   trend_ema: L('EMA тренда на 5M: период', 'Trend-EMA auf 5M: Periode', 'Trend EMA on 5M period'), entry_ema: L('EMA отката: период', 'Rücksetzer-EMA: Periode', 'Pullback EMA period'),
   bb_period: L('Боллинджер: период', 'Bollinger: Periode', 'Bollinger period'), atr_fast: L('Короткий ATR: период', 'Kurzer ATR: Periode', 'Short ATR period'), atr_slow: L('Длинный ATR: период', 'Langer ATR: Periode', 'Long ATR period'),
   ma_filter: L('Подтверждение скользящими EMA 20/50', 'Bestätigung durch EMA 20/50', 'Confirmation by EMA 20/50'),
+  ludo_new: L('Новый режим (M1, экспирация 60 с); выкл = старый режим (5-секундные свечи, 15 с)', 'Neuer Modus (M1, Ablauf 60 s); aus = alter Modus (5-Sekunden-Kerzen, 15 s)', 'New mode (M1, 60 s expiry); off = old mode (5-second candles, 15 s)'),
+  ser_body_atr: L('Тело каждой свечи серии минимум, ATR (0 = выкл)', 'Körper jeder Serienkerze mindestens, ATR (0 = aus)', 'Body of every series candle at least, ATR (0 = off)'),
+  ludo_cross: L('Сигнал на пересечении EMA (выкл = сигнал по серии свечей)', 'Signal bei EMA-Kreuzung (aus = Signal durch die Kerzenserie)', 'Signal on the EMA cross (off = signal by the candle series)'),
+  ludo_ma: L('Подтверждение скользящими EMA', 'Bestätigung durch EMAs', 'Confirmation by EMAs'),
+  ludo_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'),
+  ludo_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
+  ludo_exp: L('Экспирация нового режима, с', 'Ablauf im neuen Modus, s', 'Expiry in the new mode, s'),
   ma_slope: L('Мин. наклон медленной EMA по сигналу, % от ATR за 5 свечей (0 = выкл)', 'Min. Neigung der langsamen EMA in Signalrichtung, % eines ATR über 5 Kerzen (0 = aus)', 'Min slope of the slow EMA with the signal, % of an ATR over 5 candles (0 = off)'),
   ma_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'), ma_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
   prev_same_dir: L('Прошлая свеча того же цвета', 'Vorkerze gleiche Farbe', 'Previous candle same colour'),
@@ -208,7 +215,11 @@ const T = {
   calm: v => L(`шум ${v.c} %`, `Rauschen ${v.c} %`, `noise ${v.c} %`),
   no_series: v => L(`серия ${v.n} — мало`, `Serie ${v.n} – zu kurz`, `series ${v.n} – too short`),
   counter_move: () => L('контрдвижение больше половины серии', 'Gegenbewegung über die Hälfte der Serie', 'counter move over half the series'),
-  series: v => L(`серия ${v.n} в одну сторону`, `Serie ${v.n} in eine Richtung`, `series of ${v.n} one way`),
+  ser_small: v => L(`мелкая свеча в серии: тело ${v.b} ATR < ${v.m}`, `kleine Kerze in der Serie: Körper ${v.b} ATR < ${v.m}`, `small candle in the series: body ${v.b} ATR < ${v.m}`),
+  ludo_series: v => L(`серия: ${v.n} ${v.c} свечи M1 подряд, каждая от ${v.b} ATR`, `Serie: ${v.n} Kerzen M1 in Folge, jede ab ${v.b} ATR`, `series: ${v.n} M1 candles in a row, each from ${v.b} ATR`),
+  no_ema_cross: v => L(`нет пересечения EMA ${v.f} / EMA ${v.s} на этой свече`, `keine Kreuzung EMA ${v.f} / EMA ${v.s} auf dieser Kerze`, `no EMA ${v.f} / EMA ${v.s} cross on this candle`),
+  ema_cross: v => L(`EMA ${v.f} пересекла EMA ${v.s} ${v.d}`, `EMA ${v.f} kreuzt EMA ${v.s} ${v.d === 'вверх' ? 'nach oben' : 'nach unten'}`, `EMA ${v.f} crossed EMA ${v.s} ${v.d === 'вверх' ? 'up' : 'down'}`),
+  series: v => L(`серия ${v.n} в одну сторону`,`Serie ${v.n} in eine Richtung`, `series of ${v.n} one way`),
   direction_holds: () => L('направление сохраняется', 'Richtung hält', 'direction holds'),
   no_squeeze: v => L(`нет сжатия (${v.n} свечей)`, `keine Kompression (${v.n} Kerzen)`, `no squeeze (${v.n} candles)`),
   squeeze: v => L(`сжатие ${v.n} свечей`, `Kompression ${v.n} Kerzen`, `squeeze ${v.n} candles`),
@@ -386,6 +397,33 @@ const MORE = {
     if (back > 0.5 * mv) return fail(1, 'counter_move');
     pass(1, 'series', { n: st }); out.dir = d;
     pass(2, 'direction_holds'); out.score = Math.round(50 + 10 * Math.min(3, st - p.min_series) + 20 * (1 - ch));
+  },
+  // Ludo NEW mode (user 19.11.2026): M1 closed candle. Chaos and series (+ optional body) are filters on the candle itself;
+  // with ludo_cross the trigger is the EMA fast/slow cross on this candle, without it the old series logic on M1.
+  ludo_m1({ c, p, i, a, k, fail, pass, out }) {
+    const win = Math.max(3, Number(p.window) || 20), ch = chaosShare(c, i, win); out.feats.chaos = ch;
+    if (ch > Number(p.max_chaos)) return fail(0, 'chaos', { c: f0(ch * 100) });
+    pass(0, 'calm', { c: f0(ch * 100) });
+    const st = streak(c, i), d = dirOf(k), need = Math.max(1, Number(p.min_series) || 4);
+    if (!d || st < need) return fail(1, 'no_series', { n: st });
+    const ser = c.slice(i - st + 1, i + 1), mv = Math.abs(ser[ser.length - 1].close - ser[0].open), back = Math.max(...ser.map(x => oppWickPct(x, d) / 100 * rng(x)));
+    if (back > 0.5 * mv) return fail(1, 'counter_move');
+    const minB = Math.min(...ser.map(body)) / a, sb = Number(p.ser_body_atr) || 0;
+    if (sb > 0 && minB < sb) return fail(1, 'ser_small', { b: f1(minB), m: sb });
+    pass(1, 'ludo_series', { n: st, c: d > 0 ? 'зелёных' : 'красных', b: f1(minB) }); out.dir = d;
+    const F = Number(p.ludo_fast) || 5, Sl = Number(p.ludo_slow) || 21;
+    if (p.ludo_cross || p.ludo_ma) {
+      const cl = closes(c), ef = I.ema(cl, F), es = I.ema(cl, Sl);
+      if (p.ludo_cross) {
+        if (ef[i - 1] == null || es[i - 1] == null || !((ef[i - 1] - es[i - 1]) * d <= 0 && (ef[i] - es[i]) * d > 0)) return fail(2, 'no_ema_cross', { f: F, s: Sl });
+        pass(2, 'ema_cross', { f: F, s: Sl, d: d > 0 ? 'вверх' : 'вниз' });
+      }
+      if (p.ludo_ma) {
+        if (d > 0 ? !(ef[i] > es[i]) : !(ef[i] < es[i])) return fail(2, 'ma_against', { f: F, s: Sl });
+        pass(2, 'ma_confirmed', { f: F, s: Sl });
+      }
+    } else pass(2, 'direction_holds');
+    out.score = Math.round(50 + 10 * Math.min(3, st - need) + 20 * (1 - ch));
   },
   volatility({ c, p, i, a, k, fail, pass, out }) {
     const a5 = I.atr(c, p.atr_fast || 5), a50 = I.atr(c, p.atr_slow || 50); let sq = 0;
@@ -660,13 +698,20 @@ for (const s of CATALOG.filter(s => s.impl)) {
     // Fresh data: the last closed candle must have closed at most STALE seconds ago (live only; backtests call run()).
     const step = x.last > 0 ? x.c[x.last].time - x.c[x.last - 1].time : 60, age = Date.now() / 1000 - (x.c[x.last].time + (step > 0 && step < 60 ? step : 60));
     if (STALE.sec > 0 && age > STALE.sec) { note(s.id, asset, { status: 'STALE_DATA', stage: 0, rejects: [{ code: 'stale', v: { s: f1(age) } }] }); return null; }
-    const p = { ...PARAMS[s.impl], ...(user || {}), forex };
-    const r = run(s.logic || s.impl, x.c, p, asset);
+    let p = { ...PARAMS[s.impl], ...(user || {}), forex }, logic = s.logic || s.impl, cc = x.c;
+    // Ludo NEW mode (19.11.2026): M1 candles (own TF M1, or ctx M1 when the strategy still runs on S5), own EMA block.
+    const ludoNew = s.impl === 'ludo' && p.ludo_new;
+    if (ludoNew) {
+      cc = step >= 60 ? x.c : x.ctx && x.ctx.M1;
+      if (!cc || cc.length < 2) { note(s.id, asset, { status: 'NO_DATA', stage: 0, rejects: [{ code: 'no_data', v: { n: 0 } }] }); return null; }
+      logic = 'ludo_m1'; p = { ...p, ma_filter: false, ma_slope: 0 };
+    }
+    const r = run(logic, cc, p, asset);
     note(s.id, asset, r);
     if (r.status !== 'SIGNAL') return null;
     const why = joinL(r.reasons.map(q => T[q.code](q.v)));
     return {
-      dir: r.dir, strength: r.score, reason: why, expiry: Number(user && user.expiry) || EXPIRY_SEC[s.impl], noFlip: true, bar: x.c[x.last].time,
+      dir: r.dir, strength: r.score, reason: why, expiry: ludoNew ? (Number(p.ludo_exp) || 60) : Number(user && user.expiry) || EXPIRY_SEC[s.impl], noFlip: true, bar: ludoNew ? cc[cc.length - 1].time : x.c[x.last].time,
       lab: { id: s.id, v: VERSION, score: r.score, stages: r.stages, reasons: r.reasons.map(q => q.code), feats: roundFeats(r.feats), type: s.asset_type },
     };
   };

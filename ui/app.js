@@ -553,6 +553,14 @@ function oneTest(T, key) {
 // Settings as plain rows, or in blocks (title + what the block decides) when the strategy defines groups.
 // Settings that work against the chosen way of trading are hidden (user 17.11.2026).
 function hiddenParams(x) {
+  if (x.key === 'n_run') { // a switched-off mode hides its settings except its own switch (19.11.2026)
+    const g = { rs_m_run: ['rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_cross', 'rs_cross_fast', 'rs_cross_slow'],
+      rs_m_zone: ['rs_z_tf', 'rs_z_exp', 'rs_z_buy', 'rs_z_sell', 'rs_z_n', 'rs_z_touch', 'rs_z_width', 'rs_z_gap'],
+      rs_m_pull: ['rs_p_tf', 'rs_p_exp', 'rs_p_buy', 'rs_p_sell', 'rs_p_trend', 'rs_p_max', 'rs_p_depth', 'rs_p_di', 'rs_p_adx'] };
+    const hid = Object.entries(g).flatMap(([k, keys]) => x.params[k] === false || (k !== 'rs_m_run' && !x.params[k]) ? keys : []);
+    if (x.params.rs_cross === false) hid.push('rs_cross_fast', 'rs_cross_slow');
+    return hid;
+  }
   if (x.key !== 'n_sharp') return [];
   return [...(x.params.sharp_on_rev === false ? ['sharp_min', 'sharp_wait', 'sharp_mirror', 'sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late', 'sharp_rsi', 'sharp_rsi_back', 'sharp_trig', 'sharp_rv_adx'] : []),
     ...(!x.params.sharp_on_trend ? ['sharp_tr_deep', 'sharp_tr_opp', 'sharp_tr_atr', 'sharp_tr_new', 'sharp_tr_far', 'sharp_tr_di', 'sharp_tr_adx'] : [])];
@@ -570,13 +578,20 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'] };
+const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'] };
 const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start' };
+// Step and minimum for the − / + buttons (19.11.2026). Known keys from the prompt; else 1 for whole numbers, 0.1 for fractions, min 0.
+const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
+  rs_z_n: [1, 1], rs_z_touch: [1, 2], rs_z_width: [0.1, 0.1], rs_z_gap: [1, 1], rs_p_trend: [1, 2], rs_p_max: [1, 1], rs_p_depth: [5, 5], rs_p_adx: [1, 0],
+  pn_imp_n: [1, 1], pn_big_n: [1, 1], pn_big_atr: [0.1, 0], pn_min_atr: [0.1, 0], pn_stop: [0.1, 0.1], pn_tail: [5, 0], pn_early: [1, 0],
+  max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0] };
+const numStep = (name, v) => NUM_STEP[name] || [Number.isInteger(v) ? 1 : 0.1, 0];
+const parseNum = s => Number(String(s).trim().replace(',', '.'));
 function paramInput(key, name, v) {
   const id = `data-sp="${key}" data-param="${name}"`;
   if (PARAM_CHOICES[name]) return `<select ${id}>${PARAM_CHOICES[name].map(o => `<option value="${o}"${o === v ? ' selected' : ''}>${o === 'STOCH' ? 'Stochastic' : CHOICE_TEXT[o] ? t(CHOICE_TEXT[o]) : o}</option>`).join('')}</select>`;
   if (typeof v === 'boolean') return `<input type="checkbox" class="sw" ${id} ${v ? 'checked' : ''}>`;
-  if (typeof v === 'number') return `<input type="number" step="any" ${id} value="${v}">`;
+  if (typeof v === 'number') { const [st, mn] = numStep(name, v); return `<span class="numbox"><button type="button" class="nb" data-nb="-1">−</button><input type="text" inputmode="decimal" data-num data-step="${st}" data-min="${mn}" ${id} value="${v}"><button type="button" class="nb" data-nb="1">+</button></span>`; }
   return `<input type="text" ${id} value="${esc(v)}">`;
 }
 function renderStrategies(s) {
@@ -690,6 +705,14 @@ function changeLang(l) {
   render();
 }
 
+// − / + next to number settings: step from data-step, never below data-min (19.11.2026).
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-nb]'); if (!b) return;
+  const inp = b.parentElement.querySelector('input[data-num]'); if (!inp) return;
+  const st = Number(inp.dataset.step) || 1, mn = Number(inp.dataset.min) || 0, cur = parseNum(inp.value);
+  const nv = Math.max(mn, Math.round(((Number.isFinite(cur) ? cur : mn) + st * Number(b.dataset.nb)) * 1000) / 1000);
+  inp.value = nv; inp.dispatchEvent(new Event('change', { bubbles: true }));
+});
 document.addEventListener('click', e => {
   // Mini view: a star toggles the pin; a click anywhere else on it opens the full window.
   if (document.body.classList.contains('compact')) {
@@ -804,8 +827,14 @@ document.addEventListener('change', e => {
     call({ action: 'settings', patch: { strat_sounds: map } });
   }
   if (el.dataset.sp) {
-    const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+    let v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+    if (el.dataset.num !== undefined) { // comma or point; below the minimum / not a number → minimum
+      const mn = Number(el.dataset.min) || 0, n = parseNum(el.value);
+      v = Number.isFinite(n) ? Math.max(mn, n) : mn; el.value = v;
+    }
     call({ action: 'strategy', name: el.dataset.sp, patch: { [el.dataset.param]: v } });
+    // A switch can show/hide other settings (n_run modes, n_sharp blocks): update the local copy and redraw at once.
+    if (el.type === 'checkbox') { const x = (state.settings.allStrategies || []).find(q => q.key === el.dataset.sp); if (x && x.params) { x.params[el.dataset.param] = v; renderStrategies(state.settings); } }
   }
   if (el.dataset.tf) {
     const tfs = [...document.querySelectorAll(`[data-tf="${el.dataset.tf}"]:checked`)].map(x => x.value);

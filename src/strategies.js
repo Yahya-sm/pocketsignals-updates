@@ -26,6 +26,8 @@ const META = {
   n_preclose: [L('🧪 Импульс: за 5 с до закрытия свечи', '🧪 Impuls: 5 s vor Kerzenschluss', '🧪 Impulse: 5 s before the candle closes'), 'trend'],
   n_fractal: [L('🧪 Пробой фрактала', '🧪 Fraktal-Ausbruch', '🧪 Fractal breakout'), 'trend'],
   n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
+  n_run: [L('Серия свечей по тренду', 'Kerzenserie mit dem Trend', 'Candle series with the trend'), 'trend'],
+  n_pin: [L('Разворот после импульса (пин-бар)', 'Umkehr nach Impuls (Pinbar)', 'Reversal after an impulse (pin bar)'), 'reversal'],
   n_emastart: [L('Начало движения: наклон EMA', 'Bewegungsbeginn: EMA-Neigung', 'Move start: EMA slope'), 'trend'],
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
   // Names start with 1 / 2 so the two are told apart at a glance (user 14.11.2026).
@@ -98,6 +100,10 @@ const DEFAULTS = {
   // 11.11.2026 (user's 1.0.199 list), experiments, untested live (no tick history):
   n_preclose: { expiry: 60, pc_sec: 5, pc_atr: 0.8, pc_back: 30 },
   n_fractal: { expiry: 120, fr_early: false, fr_far: 1.5, fr_lookback: 30 },
+  n_run: { rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_cross_fast: 5, rs_cross_slow: 21,
+    rs_m_zone: false, rs_z_tf: 'M5', rs_z_exp: 120, rs_z_buy: true, rs_z_sell: true, rs_z_n: 2, rs_z_touch: 2, rs_z_width: 0.5, rs_z_gap: 5,
+    rs_m_pull: false, rs_p_tf: 'M5', rs_p_exp: 120, rs_p_buy: true, rs_p_sell: true, rs_p_trend: 3, rs_p_max: 2, rs_p_depth: 50, rs_p_di: true, rs_p_adx: 0 },
+  n_pin: { expiry: 180, pn_tf: 'M1', pn_buy: true, pn_sell: true, pn_imp_n: 3, pn_big_n: 3, pn_big_atr: 0.8, pn_min_atr: 0, pn_stop: 0.5, pn_tail: 10, pn_early: 5 },
   n_emastart: { expiry: 120, es_mode: 'START', es_tf: 'M5', es_ma: 'EMA', es_period: 50, es_bars: 5, es_slope: 20, es_side: true, es_adx: 0, es_adx_period: 14, es_fresh: 0, es_fast: 20, es_pull: 6, es_ext: 1.5, es_confirm: true, es_buy: true, es_sell: true },
   n_market: { expiry: 120, rk_ma: 'EMA', rk_period: 50, rk_slope: 3, rk_slope_pct: 0, rk_fresh: 1 },
   n_serrev: { expiry: 60, sr_min: 3, sr_move: 1.5, sr_pause: 0.3, sr_ema: 9, sr_ema_on: true, sr_early: false, sr_adx: 0, sr_vol: 0, sr_big: 0 },
@@ -608,6 +614,8 @@ function liveMode(name, settings) {
   if (name === 'n_impulse') return 'live';
   if (name === 'n_adxonly' || name === 'n_serrev' || name === 'n_trend15' || name === 'n_market') return 'closed';
   if (name === 'n_preclose') return 'live';
+  if (name === 'n_run') return 'closed';
+  if (name === 'n_pin') return Number(p.pn_early) > 0 ? 'both' : 'closed';
   if (name === 'n_fractal') return p.fr_early ? 'both' : 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
@@ -741,6 +749,145 @@ function deepRev(m1, m5, m15, p, dir, on) {
   s.bar = rc.time; // one signal per M5 reaction candle
   s.drLate = +late.toFixed(2); s.drRoom = Number.isFinite(room) ? +room.toFixed(2) : 99; // for tests
   return s;
+}
+
+// ---------- 19.11.2026: server clock, n_run, n_pin ----------
+// PC clock may differ from PocketOption (seen 6 s): the engine sets the offset from the last ticks (±60 s).
+const CLOCK = { off: 0 };
+const setClockOffset = ms => { CLOCK.off = Number(ms) || 0; };
+const serverNow = () => (Date.now() + CLOCK.off) / 1000;
+const dirK = k => k.close > k.open ? 1 : k.close < k.open ? -1 : 0;
+const bodyK = k => Math.abs(k.close - k.open);
+const runLen = (c, e) => { const d = dirK(c[e]); if (!d) return 0; let n = 0; for (let j = e; j >= 0 && dirK(c[j]) === d; j--) n++; return n; };
+// Closed candles of the mode's TF. M5/M15 only at the close of that TF's candle; history of the higher TF if it has ≥ 30
+// candles and its last candle matches, else resampled from M1. null = not this minute / too little.
+function modeCandles(x, tf) {
+  const m1 = x.c, pm = parseInt(String(tf || 'M1').slice(1), 10) || 1;
+  if (!m1 || m1.length < 40) return null;
+  if (pm === 1) return m1;
+  const lastT = m1[m1.length - 1].time;
+  if ((lastT + 60) % (pm * 60) !== 0) return null;
+  const want = lastT + 60 - pm * 60, h = x.ctx && x.ctx['M' + pm];
+  if (h && h.length >= 30 && h[h.length - 1].time === want) return h;
+  const r = I.resample(m1, pm, false);
+  return r.length && r[r.length - 1].time === want ? r : null;
+}
+// Distance from close[i] to the nearest swing point against the signal (2 candles each side, last 120), in ATR; null = none.
+function roomPivot(c, i, d, a) {
+  let best = null;
+  for (let j = Math.max(2, i - 120); j <= i - 3; j++) {
+    const v = d > 0 ? c[j].high : c[j].low; let ok = true;
+    for (let q = j - 2; q <= j + 2; q++) if (q !== j && (d > 0 ? c[q].high >= v : c[q].low <= v)) { ok = false; break; }
+    if (!ok || (v - c[i].close) * d <= 0) continue;
+    const dist = Math.abs(v - c[i].close) / a; if (best == null || dist < best) best = dist;
+  }
+  return best;
+}
+const emaCrossAt = (c, i, d, f, s) => {
+  const cl = c.map(k => k.close), ef = I.ema(cl, f), es = I.ema(cl, s);
+  return ef[i - 1] != null && es[i - 1] != null && (ef[i - 1] - es[i - 1]) * d <= 0 && (ef[i] - es[i]) * d > 0;
+};
+function runTail(c, i, d, a, di) {
+  const room = roomPivot(c, i, d, a);
+  const rs = (room == null || room >= 4 ? 1.5 : room) * 60 + (di > 0 ? 40 : di < 0 ? -40 : 0);
+  const z = room == null ? L(' · зоны рядом нет', ' · keine Zone in der Nähe', ' · no zone nearby')
+    : L(` · до ${d > 0 ? 'сопротивления' : 'поддержки'} ${room.toFixed(1)} ATR`, ` · bis ${d > 0 ? 'Widerstand' : 'Unterstützung'} ${room.toFixed(1)} ATR`, ` · to ${d > 0 ? 'resistance' : 'support'} ${room.toFixed(1)} ATR`);
+  const dt = di > 0 ? L(', DI по сигналу', ', DI mit dem Signal', ', DI with the signal') : di < 0 ? L(', DI против', ', DI dagegen', ', DI against') : L('', '', '');
+  return { room, rs, z, dt };
+}
+const joinL3 = (...xs) => L(xs.map(v => v.ru).join(''), xs.map(v => v.de).join(''), xs.map(v => v.en).join(''));
+const diOf = (c, i, d) => { const ad = I.adx(c, 14)[i]; return ad ? { adx: ad.adx, di: (ad.pdi - ad.mdi) * d > 0 ? 1 : (ad.pdi - ad.mdi) * d < 0 ? -1 : 0 } : { adx: 0, di: 0 }; };
+function runSig(d, c, i, a, base, di, exp) {
+  const t = runTail(c, i, d, a, di);
+  const s = sig(d, Math.max(1, Math.min(99, Math.round(t.rs / 1.4))), joinL3(base, t.z, t.dt), exp);
+  return Object.assign(s, { noFlip: true, bar: c[i].time, roomScore: t.rs, room: t.room });
+}
+const colRu = (d, n) => d > 0 ? (n === 1 ? 'зелёная' : n < 5 ? 'зелёных' : 'зелёных') : (n === 1 ? 'красная' : 'красных');
+function runSeries(x, p) {
+  const c = modeCandles(x, p.rs_tf); if (!c) return null;
+  const i = c.length - 1, d = dirK(c[i]), a = I.atr(c, 14)[i]; if (!d || !(a > 0)) return null;
+  if (d > 0 ? p.rs_buy === false : p.rs_sell === false) return null;
+  const N = Math.max(2, Number(p.rs_min) || 4), rl = runLen(c, i), cross = !!p.rs_cross;
+  if (cross ? rl < N : rl !== N) return null;
+  const F = Number(p.rs_cross_fast) || 5, Sl = Number(p.rs_cross_slow) || 21;
+  if (cross && !emaCrossAt(c, i, d, F, Sl)) return null;
+  let mb = Infinity; for (let j = i - rl + 1; j <= i; j++) mb = Math.min(mb, bodyK(c[j]));
+  if (mb / a < (Number(p.rs_atr) || 0)) return null;
+  const g = diOf(c, i, d);
+  if (p.rs_adx_on !== false && g.di <= 0) return null;
+  if (Number(p.rs_adx_min) > 0 && g.adx < Number(p.rs_adx_min)) return null;
+  const room = roomPivot(c, i, d, a);
+  if (Number(p.rs_room) > 0 && room != null && room < Number(p.rs_room)) return null;
+  const TF = p.rs_tf || 'M1', w = d > 0 ? 'вверх' : 'вниз';
+  const base = L(`серия: ${rl} ${colRu(d, rl)} свечи ${TF} подряд, каждая от ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} пересекла EMA ${Sl} ${w}` : ''} → ${d > 0 ? 'рост' : 'падение'} по тренду`,
+    `Serie: ${rl} ${d > 0 ? 'grüne' : 'rote'} ${TF}-Kerzen in Folge, jede ab ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} kreuzt EMA ${Sl} ${d > 0 ? 'nach oben' : 'nach unten'}` : ''} → ${d > 0 ? 'Anstieg' : 'Fall'} mit dem Trend`,
+    `series: ${rl} ${d > 0 ? 'green' : 'red'} ${TF} candles in a row, each from ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} crossed EMA ${Sl} ${d > 0 ? 'up' : 'down'}` : ''} → ${d > 0 ? 'rise' : 'fall'} with the trend`);
+  return runSig(d, c, i, a, base, g.di, Number(p.expiry) || 120);
+}
+function runZone(x, p) {
+  const c = modeCandles(x, p.rs_z_tf || 'M5'); if (!c) return null;
+  const i = c.length - 1, d = dirK(c[i]), a = I.atr(c, 14)[i]; if (!d || !(a > 0)) return null;
+  if (d > 0 ? p.rs_z_buy === false : p.rs_z_sell === false) return null;
+  const n = Math.max(1, Number(p.rs_z_n) || 2); if (runLen(c, i) !== n) return null;
+  const s0 = i - n + 1; if (s0 < 10) return null;
+  const zw = (Number(p.rs_z_width) || 0.5) * a, gap = Math.max(1, Number(p.rs_z_gap) || 5), need = Math.max(2, Number(p.rs_z_touch) || 2);
+  const pts = [];
+  for (let j = 2; j <= s0 - 3; j++) {
+    const v = d > 0 ? c[j].low : c[j].high; let ok = true;
+    for (let q = j - 2; q <= j + 2; q++) if (q !== j && (d > 0 ? c[q].low < v : c[q].high > v)) { ok = false; break; }
+    if (ok) pts.push({ v, j });
+  }
+  pts.sort((u, w) => u.v - w.v);
+  const zones = [];
+  for (const pt of pts) {
+    const z = zones[zones.length - 1];
+    if (z && pt.v - z.lo <= zw) { if (z.js.every(j => Math.abs(j - pt.j) >= gap)) { z.hi = Math.max(z.hi, pt.v); z.js.push(pt.j); } }
+    else zones.push({ lo: pt.v, hi: pt.v, js: [pt.j] });
+  }
+  const ext = d > 0 ? Math.min(c[s0].low, c[s0 - 1].low) : Math.max(c[s0].high, c[s0 - 1].high);
+  const z = zones.find(z => z.js.length >= need && ext >= z.lo - zw && ext <= z.hi + zw); if (!z) return null;
+  const TF = p.rs_z_tf || 'M5';
+  const base = L(`от зоны ${d > 0 ? 'поддержки' : 'сопротивления'} ${TF} (${z.js.length} касаний): ${n} ${d > 0 ? 'зелёных' : 'красных'} свечи подряд`,
+    `von der ${d > 0 ? 'Unterstützungs' : 'Widerstands'}zone ${TF} (${z.js.length} Berührungen): ${n} ${d > 0 ? 'grüne' : 'rote'} Kerzen in Folge`,
+    `from the ${TF} ${d > 0 ? 'support' : 'resistance'} zone (${z.js.length} touches): ${n} ${d > 0 ? 'green' : 'red'} candles in a row`);
+  return runSig(d, c, i, a, base, diOf(c, i, d).di, Number(p.rs_z_exp) || 120);
+}
+function runPull(x, p) {
+  const c = modeCandles(x, p.rs_p_tf || 'M5'); if (!c) return null;
+  const i = c.length - 1, d = dirK(c[i]), a = I.atr(c, 14)[i]; if (!d || !(a > 0)) return null;
+  if (d > 0 ? p.rs_p_buy === false : p.rs_p_sell === false) return null;
+  let k = 0; for (let j = i - 1; j >= 0 && dirK(c[j]) === -d; j--) k++;
+  if (k < 1 || k > Math.max(1, Number(p.rs_p_max) || 2)) return null;
+  const e = i - 1 - k; if (e < 5 || dirK(c[e]) !== d) return null;
+  const t = runLen(c, e); if (t < Math.max(1, Number(p.rs_p_trend) || 3)) return null;
+  const mv = Math.abs(c[e].close - c[e - t + 1].open); if (!(mv > 0)) return null;
+  let far = 0; for (let j = e + 1; j < i; j++) far = Math.max(far, d > 0 ? c[e].close - c[j].low : c[j].high - c[e].close);
+  const depth = far / mv * 100; if (depth > (Number(p.rs_p_depth) || 50)) return null;
+  const g = diOf(c, i, d);
+  if (p.rs_p_di !== false && g.di <= 0) return null;
+  if (Number(p.rs_p_adx) > 0 && g.adx < Number(p.rs_p_adx)) return null;
+  const TF = p.rs_p_tf || 'M5';
+  const base = L(`откат по тренду ${TF}: ${t} свечей ${d > 0 ? 'вверх' : 'вниз'}, откат ${k} свечи на ${depth.toFixed(0)} %, свеча продолжения`,
+    `Rücklauf im Trend ${TF}: ${t} Kerzen ${d > 0 ? 'aufwärts' : 'abwärts'}, Rücklauf ${k} Kerzen um ${depth.toFixed(0)} %, Fortsetzungskerze`,
+    `pullback in the ${TF} trend: ${t} candles ${d > 0 ? 'up' : 'down'}, pullback of ${k} candles by ${depth.toFixed(0)} %, continuation candle`);
+  return runSig(d, c, i, a, base, g.di, Number(p.rs_p_exp) || 120);
+}
+// Pin bar check: candle q as the stop candle after an impulse of the colour of q−1.
+function pinAt(c, a, q, p) {
+  if (q < 2) return null;
+  const D = dirK(c[q - 1]); if (!D) return null;
+  let s0 = q - 1; while (s0 > 0 && dirK(c[s0 - 1]) === D) s0--;
+  const n = q - s0; if (n < Math.max(1, Number(p.pn_imp_n) || 3) || s0 < 20) return null;
+  const av = a[s0 - 1]; if (!(av > 0)) return null;
+  const ser = c.slice(s0, q), bigA = Number(p.pn_big_atr) ?? 0.8, big = ser.filter(k => bodyK(k) >= bigA * av);
+  if (big.length < Math.max(1, Number(p.pn_big_n) || 3)) return null;
+  const mb = big.reduce((s, k) => s + bodyK(k), 0) / big.length;
+  const mn = Number(p.pn_min_atr) || 0; if (mn > 0 && ser.some(k => bodyK(k) < mn * av)) return null;
+  const k = c[q], rg = k.high - k.low; if (!(rg > 0)) return null;
+  if (bodyK(k) > (Number(p.pn_stop) || 0.5) * mb) return null;
+  const tail = D > 0 ? k.high - Math.max(k.open, k.close) : Math.min(k.open, k.close) - k.low;
+  if (tail / rg * 100 < (Number(p.pn_tail) || 0)) return null;
+  return { D, n, big: big.length, stopPct: Math.round(bodyK(k) / mb * 100), tail: Math.round(tail / rg * 100) };
 }
 
 const S = {
@@ -1222,6 +1369,43 @@ const S = {
     const TF = 'M' + tm, nm = q.tr_ma + ' ' + q.tr_m5_ema, v = Math.abs(s1).toFixed(0);
     return Object.assign(sig(d, Math.min(99, Math.round(65 + Math.abs(s1) / 4)), L(`начало движения: ${nm} на ${TF} наклонилась ${d > 0 ? 'вверх' : 'вниз'} на ${v} %`, `Bewegungsbeginn: ${nm} auf ${TF} neigt sich ${d > 0 ? 'nach oben' : 'nach unten'} um ${v} %`, `move start: ${nm} on ${TF} sloped ${d > 0 ? 'up' : 'down'} by ${v} %`)), { noFlip: true, bar: m5[n].time });
   },
+  // Candle series with the trend (user 19.11.2026): three isolated modes, each with its own TF, expiry, CALL/PUT, filters.
+  // Two modes giving opposite directions on one candle = no signal.
+  n_run(x, p) {
+    const out = [];
+    if (p.rs_m_run !== false) { const r = runSeries(x, p); if (r) out.push(r); }
+    if (p.rs_m_zone) { const r = runZone(x, p); if (r) out.push(r); }
+    if (p.rs_m_pull) { const r = runPull(x, p); if (r) out.push(r); }
+    if (!out.length) return null;
+    if (out.some(r => r.dir !== out[0].dir)) return null;
+    return out[0];
+  },
+  // Reversal after an impulse (pin bar), user 19.11.2026. Early mode: the forming candle in its last pn_early s (server time).
+  n_pin(x, p) {
+    const tf = p.pn_tf || 'M1', pm = parseInt(tf.slice(1), 10) || 1, now = serverNow();
+    const m1 = x.c; if (!m1 || m1.length < 40) return null;
+    const early = Number(p.pn_early) || 0;
+    // Candles of the TF incl. the forming one (live) when early is on; else only closed.
+    const all = pm === 1 ? m1.slice() : I.resample(m1, pm, true);
+    let last = all.length - 1; const formingK = all[last].time + pm * 60 > now;
+    let q, left = 0;
+    if (formingK) {
+      left = all[last].time + pm * 60 - now;
+      if (early > 0 && left > 0 && left <= early) q = last; else { q = last - 1; }
+    } else q = last;
+    // A closed candle is checked only right after it closed (one scan per candle in 'both' mode is handled by noFlip/bar).
+    const c = all.slice(0, q + 1), a = I.atr(c, 14);
+    const at = j => pinAt(c, a, j, p);
+    const r = at(q); if (!r) return null;
+    const d = -r.D; if (d > 0 ? p.pn_buy === false : p.pn_sell === false) return null;
+    const back = Math.max(r.n, Math.ceil((Number(p.expiry) || 180) / 60 / pm));
+    for (let j = Math.max(21, q - back); j < q; j++) if (pinAt(c, a, j, p)) return null;
+    const isEarly = q === last && formingK, TF = 'M' + pm;
+    const txt = L(`${isEarly ? `⏰ за ${Math.round(left)} с до закрытия: ` : ''}импульс ${r.n} свечей ${r.D > 0 ? 'вверх' : 'вниз'} на ${TF} (${r.big} больших от ${p.pn_big_atr} ATR), свеча-остановка: тело ${r.stopPct} % от средних, хвост ${r.tail} % → разворот`,
+      `${isEarly ? `⏰ ${Math.round(left)} s vor Schluss: ` : ''}Impuls ${r.n} Kerzen ${r.D > 0 ? 'aufwärts' : 'abwärts'} auf ${TF} (${r.big} große ab ${p.pn_big_atr} ATR), Stoppkerze: Körper ${r.stopPct} % der großen, Docht ${r.tail} % → Umkehr`,
+      `${isEarly ? `⏰ ${Math.round(left)} s before the close: ` : ''}impulse of ${r.n} candles ${r.D > 0 ? 'up' : 'down'} on ${TF} (${r.big} big from ${p.pn_big_atr} ATR), stop candle: body ${r.stopPct} % of the big ones, wick ${r.tail} % → reversal`);
+    return Object.assign(sig(d, 75, txt), { noFlip: true, bar: c[q].time, expiry: Number(p.expiry) || 180, ...(isEarly ? { entry: c[q].time + pm * 60 } : {}) });
+  },
   n_serrev(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
     const body = k => Math.abs(k.close - k.open);
@@ -1599,7 +1783,7 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin'];
 // Move start: EMA slope (user 15.11.2026).
 LABELS.n_emastart = {
   es_mode: L('Режим сигнала', 'Signalart', 'Signal mode'), es_tf: L('Таймфрейм скользящей', 'Zeitrahmen des Durchschnitts', 'Moving average timeframe'),
@@ -1613,6 +1797,52 @@ LABELS.n_emastart = {
   es_ext: L('Вход не дальше … ATR от быстрой EMA', 'Einstieg höchstens … ATR von der schnellen EMA', 'Entry at most … ATR from the fast EMA'),
   es_confirm: L('Подтверждение на графике входа (режим «Тренд»)', 'Bestätigung im Einstiegschart (Modus „Trend“)', 'Confirmation on the entry chart ("Trend" mode)'),
   es_buy: L('Сигналы CALL', 'CALL-Signale', 'CALL signals'), es_sell: L('Сигналы PUT', 'PUT-Signale', 'PUT signals') };
+// 19.11.2026: candle series with the trend (3 modes) and reversal after an impulse (pin bar).
+const L3 = (r, d, e) => L(r, d, e);
+LABELS.n_run = {
+  rs_m_run: L3('Режим «серия свечей» включён', 'Modus „Kerzenserie“ an', '"Candle series" mode on'), rs_tf: L3('Таймфрейм свечей', 'Kerzen-Zeitrahmen', 'Candle timeframe'),
+  expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), rs_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), rs_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
+  rs_min: L3('Свечей одного цвета подряд', 'Kerzen einer Farbe in Folge', 'Candles of one colour in a row'),
+  rs_atr: L3('Тело каждой свечи серии минимум, ATR', 'Körper jeder Serienkerze mindestens, ATR', 'Body of every series candle at least, ATR'),
+  rs_adx_on: L3('DI по сигналу (обязательно)', 'DI mit dem Signal (Pflicht)', 'DI with the signal (required)'), rs_adx_min: L3('ADX не меньше (0 = выкл)', 'ADX mindestens (0 = aus)', 'ADX at least (0 = off)'),
+  rs_room: L3('До ближайшей зоны против сигнала не меньше … ATR (0 = выкл)', 'Bis zur nächsten Zone gegen das Signal mindestens … ATR (0 = aus)', 'To the nearest zone against the signal at least … ATR (0 = off)'),
+  rs_cross: L3('Сигнал на пересечении EMA (серия — только фильтр)', 'Signal bei EMA-Kreuzung (Serie nur Filter)', 'Signal on the EMA cross (series only a filter)'),
+  rs_cross_fast: L3('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'), rs_cross_slow: L3('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
+  rs_m_zone: L3('Режим «от зоны поддержки/сопротивления» включён', 'Modus „von der Zone“ an', '"From the zone" mode on'), rs_z_tf: L3('Таймфрейм свечей', 'Kerzen-Zeitrahmen', 'Candle timeframe'),
+  rs_z_exp: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), rs_z_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), rs_z_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
+  rs_z_n: L3('Свечей от зоны подряд (ровно)', 'Kerzen von der Zone in Folge (genau)', 'Candles off the zone in a row (exactly)'), rs_z_touch: L3('Касаний зоны минимум', 'Zonenberührungen mindestens', 'Zone touches at least'),
+  rs_z_width: L3('Ширина зоны, ATR', 'Zonenbreite, ATR', 'Zone width, ATR'), rs_z_gap: L3('Касания не ближе … свечей друг к другу', 'Berührungen mindestens … Kerzen auseinander', 'Touches at least … candles apart'),
+  rs_m_pull: L3('Режим «откат по тренду» включён', 'Modus „Rücklauf im Trend“ an', '"Pullback in trend" mode on'), rs_p_tf: L3('Таймфрейм свечей', 'Kerzen-Zeitrahmen', 'Candle timeframe'),
+  rs_p_exp: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), rs_p_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), rs_p_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
+  rs_p_trend: L3('Свечей тренда минимум', 'Trendkerzen mindestens', 'Trend candles at least'), rs_p_max: L3('Свечей отката максимум', 'Rücklaufkerzen höchstens', 'Pullback candles at most'),
+  rs_p_depth: L3('Глубина отката не больше, % от движения', 'Rücklauftiefe höchstens, % der Bewegung', 'Pullback depth at most, % of the move'),
+  rs_p_di: L3('DI по сигналу (обязательно)', 'DI mit dem Signal (Pflicht)', 'DI with the signal (required)'), rs_p_adx: L3('ADX не меньше (0 = выкл)', 'ADX mindestens (0 = aus)', 'ADX at least (0 = off)') };
+GROUPS.n_run = [
+  { title: L3('Режим: серия свечей', 'Modus: Kerzenserie', 'Mode: candle series'), desc: L3('Сигнал на N-й свече одного цвета подряд (ровно N). С пересечением EMA: триггер — пересечение на этой свече, серия ≥ N — фильтр.', 'Signal auf der N-ten Kerze einer Farbe (genau N). Mit EMA-Kreuzung: Auslöser = Kreuzung auf dieser Kerze, Serie ≥ N = Filter.', 'Signal on the N-th candle of one colour (exactly N). With EMA cross: trigger = cross on this candle, series ≥ N = filter.'), keys: ['rs_m_run', 'rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_cross', 'rs_cross_fast', 'rs_cross_slow'] },
+  { title: L3('Режим: от зоны поддержки/сопротивления', 'Modus: von der Zone', 'Mode: from the zone'), desc: L3('Серия ровно N свечей от зоны, где цена разворачивалась несколько раз. ADX не используется.', 'Serie von genau N Kerzen von einer Zone, an der der Preis mehrmals drehte. Kein ADX.', 'A series of exactly N candles off a zone where price turned several times. No ADX.'), keys: ['rs_m_zone', 'rs_z_tf', 'rs_z_exp', 'rs_z_buy', 'rs_z_sell', 'rs_z_n', 'rs_z_touch', 'rs_z_width', 'rs_z_gap'] },
+  { title: L3('Режим: откат по тренду', 'Modus: Rücklauf im Trend', 'Mode: pullback in trend'), desc: L3('Серия тренда, 1…N свечей отката не глубже порога, затем свеча в сторону тренда.', 'Trendserie, 1…N Rücklaufkerzen bis zur Tiefe, dann eine Kerze in Trendrichtung.', 'Trend series, 1…N pullback candles within the depth, then a candle with the trend.'), keys: ['rs_m_pull', 'rs_p_tf', 'rs_p_exp', 'rs_p_buy', 'rs_p_sell', 'rs_p_trend', 'rs_p_max', 'rs_p_depth', 'rs_p_di', 'rs_p_adx'] },
+];
+HELP.n_run = [{ title: L3('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
+  L3('Три независимых режима, у каждого свой таймфрейм, экспирация, CALL/PUT и фильтры. Если два режима на одной свече дали разные направления — сигнала нет. M5/M15 проверяются только в момент закрытия своей свечи. В причине — расстояние до ближайшей точки разворота против сигнала (в ATR) и DI. На истории (OTC): серия с запасом 2–4 ATR 51–56 %, зоны ≈ 50 %, откат M15 52–55 %. Это не доказательство.',
+    'Drei unabhängige Modi mit eigenem Zeitrahmen, Ablauf, CALL/PUT und Filtern. Geben zwei Modi auf einer Kerze verschiedene Richtungen – kein Signal. M5/M15 nur beim Schluss ihrer Kerze. Im Grund: Abstand zum nächsten Wendepunkt gegen das Signal (ATR) und DI. Historie (OTC): Serie mit 2–4 ATR Raum 51–56 %, Zonen ≈ 50 %, Rücklauf M15 52–55 %. Kein Beweis.',
+    'Three independent modes, each with its own TF, expiry, CALL/PUT and filters. Opposite directions on one candle = no signal. M5/M15 only at their candle close. The reason shows the distance to the nearest swing against the signal (ATR) and DI. History (OTC): series with 2–4 ATR room 51–56 %, zones ≈ 50 %, M15 pullback 52–55 %. Not proof.')] }];
+LABELS.n_pin = {
+  expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), pn_tf: L3('Таймфрейм', 'Zeitrahmen', 'Timeframe'), pn_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), pn_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
+  pn_imp_n: L3('Импульс: свечей одного цвета подряд, минимум', 'Impuls: Kerzen einer Farbe in Folge, mindestens', 'Impulse: candles of one colour in a row, at least'),
+  pn_big_n: L3('Из них больших, минимум', 'Davon große, mindestens', 'Of them big, at least'), pn_big_atr: L3('Большая = тело от … ATR', 'Groß = Körper ab … ATR', 'Big = body from … ATR'),
+  pn_min_atr: L3('Каждая свеча импульса не меньше … ATR (0 = выкл)', 'Jede Impulskerze mindestens … ATR (0 = aus)', 'Every impulse candle at least … ATR (0 = off)'),
+  pn_stop: L3('Свеча-остановка: тело не больше … × среднего тела больших', 'Stoppkerze: Körper höchstens … × mittlerer großer Körper', 'Stop candle: body at most … × average big body'),
+  pn_tail: L3('Хвост в сторону импульса, % от размера свечи-остановки', 'Docht in Impulsrichtung, % der Stoppkerze', 'Wick towards the impulse, % of the stop candle'),
+  pn_early: L3('Ранний сигнал: за … с до закрытия пин-бара (0 = только по закрытию)', 'Frühes Signal: … s vor Schluss der Pinbar (0 = nur beim Schluss)', 'Early signal: … s before the pin bar closes (0 = only at the close)') };
+GROUPS.n_pin = [
+  { title: L3('Общие', 'Allgemein', 'General'), desc: L3('', '', ''), keys: ['expiry', 'pn_tf', 'pn_buy', 'pn_sell'] },
+  { title: L3('Импульс', 'Impuls', 'Impulse'), desc: L3('Серия свечей одного цвета; размеры — от ATR до импульса.', 'Serie einer Farbe; Größen vom ATR vor dem Impuls.', 'A one-colour series; sizes from the ATR before the impulse.'), keys: ['pn_imp_n', 'pn_big_n', 'pn_big_atr', 'pn_min_atr'] },
+  { title: L3('Свеча-остановка', 'Stoppkerze', 'Stop candle'), desc: L3('Маленькое тело и хвост в сторону импульса. Сигнал — против импульса.', 'Kleiner Körper und Docht in Impulsrichtung. Signal gegen den Impuls.', 'Small body and a wick towards the impulse. Signal against the impulse.'), keys: ['pn_stop', 'pn_tail', 'pn_early'] },
+];
+HELP.n_pin = [{ title: L3('Таблица: результаты на истории', 'Tabelle: Ergebnisse der Historie', 'Table: history results'), body: [
+  L3('3 свечи / 3 больших / 0,8 ATR — 53–56 % на 1–2 мин (141–205 в день). Одна большая свеча — ≤ 50 %. Разворот после свечи ≥ 2 ATR — 42–48 %. Каждая ≥ 0,5 ATR — 52–54 % (126 в день). Это не вероятность успеха.',
+    '3 Kerzen / 3 große / 0,8 ATR – 53–56 % bei 1–2 Min (141–205 pro Tag). Eine große Kerze – ≤ 50 %. Umkehr nach Kerze ≥ 2 ATR – 42–48 %. Jede ≥ 0,5 ATR – 52–54 % (126 pro Tag). Keine Erfolgswahrscheinlichkeit.',
+    '3 candles / 3 big / 0.8 ATR – 53–56 % at 1–2 min (141–205 a day). One big candle – ≤ 50 %. Reversal after a candle ≥ 2 ATR – 42–48 %. Each ≥ 0.5 ATR – 52–54 % (126 a day). Not a success probability.')] }];
 GROUPS.n_emastart = [
   { title: L('Режим сигнала', 'Signalart', 'Signal mode'), desc: L('«Начало движения» — сигнал, когда наклон скользящей только что дорос до порога. «Отскок» — по наклону ждём отката к быстрой EMA. «Тренд» — сигнал, пока наклон держится (раз в 30 мин).', '„Bewegungsbeginn“ – Signal, wenn die Neigung gerade die Schwelle erreicht. „Abprall“ – mit der Neigung auf den Rücklauf zur schnellen EMA warten. „Trend“ – Signal, solange die Neigung hält (alle 30 Min).', '"Move start" – signal when the slope just reached the threshold. "Bounce" – with the slope, wait for a pullback to the fast EMA. "Trend" – signal while the slope holds (every 30 min).'), keys: ['es_mode', 'expiry', 'es_buy', 'es_sell'] },
   { title: L('Скользящая и наклон', 'Durchschnitt und Neigung', 'Moving average and slope'), desc: L('Наклон = на сколько линия сдвинулась за … свечей, в % от средней свечи (ATR).', 'Neigung = wie weit sich die Linie in … Kerzen bewegt hat, in % einer mittleren Kerze (ATR).', 'Slope = how far the line moved in … candles, in % of an average candle (ATR).'), keys: ['es_tf', 'es_ma', 'es_period', 'es_bars', 'es_slope', 'es_side', 'es_fresh'] },
@@ -1718,4 +1948,4 @@ for (const s of LAB.CATALOG.filter(s => s.impl)) {
   GROUPS[s.id] = LAB.groupsFor(DEFAULTS[s.id]);
   OWN_LOGIC.push(s.id);
 }
-module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, list: Object.keys(META) };
+module.exports = { whyHour, whyAdd, evaluate, NAMES, DEFAULTS, META, PRESETS, GROUPS, TESTS, HELP, LABELS, OWN_LOGIC, paramsFor, liveMode, setClockOffset, serverNow, list: Object.keys(META) };

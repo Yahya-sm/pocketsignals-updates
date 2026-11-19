@@ -515,3 +515,24 @@ html, body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, s
 #labFilters { flex-wrap: nowrap; } .chipsel { min-width: 0; max-width: 120px; } .latchip { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; flex: none; } .latchip small { font-size: 9px; } .latchip b { font-size: 11px; }
 
 .chipsel { max-width: 104px; } #labFilters .chip { padding-left: 10px; padding-right: 10px; }
+
+/* 19.11.2026: − / + number fields */
+.numbox { display: inline-flex; align-items: center; gap: 3px; }
+.numbox input { width: 64px; text-align: center; }
+.numbox .nb { width: 24px; height: 24px; padding: 0; border-radius: 8px; border: 1px solid var(--line, #263042); background: var(--card, #121826); color: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
+
+/* 19.11.2026: compact top of the signals screen */
+#labTop .seg.acct button { height: 22px; min-height: 22px; padding: 0 10px; font-size: 11px; line-height: 22px; }
+#labTop .toprow { margin: 0 0 2px; }
+#labTop .rktiles { gap: 3px; margin: 2px 0; }
+#labTop .rk { display: flex; align-items: baseline; gap: 4px; padding: 2px 6px; min-height: 0; font-size: 11px; line-height: 1.2; }
+#labTop .rk span, #labTop .rk small { font-size: 10px; white-space: nowrap; margin: 0; }
+#labTop .rk b { font-size: 12px; margin: 0; white-space: nowrap; }
+#labTop .rk .rkbar { display: none; }
+#stats.stats { display: flex; gap: 6px; padding: 1px 6px; margin: 2px 0; }
+#stats.stats .stat { display: flex; align-items: baseline; gap: 3px; padding: 1px 3px; flex-direction: row; }
+#stats.stats .stat b { font-size: 12px; } #stats.stats .stat span { font-size: 10px; }
+#labTop .rk { flex-direction: row; flex-wrap: wrap; border-radius: 8px; }
+#labTop .rk.dep small { margin-left: 2px; }
+@media (max-width: 699px) { #labTop .rk.opt { display: none; } }
+#labFilters { min-height: 0; margin: 0; justify-content: flex-end; }

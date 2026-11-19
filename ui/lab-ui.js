@@ -28,6 +28,8 @@
   let F = { type: 'all', exp: 'all', noRisk: false };
   try { F = { ...F, ...JSON.parse(localStorage.getItem('labF') || '{}') }; } catch {}
   const saveF = () => { try { localStorage.setItem('labF', JSON.stringify(F)); } catch {} };
+  // 19.11.2026: OTC/Forex/expiry filters are not shown on the main screen any more – reset to "all" so no hidden filter hides signals.
+  if (F.type !== 'all' || F.exp !== 'all') { F.type = 'all'; F.exp = 'all'; saveF(); }
   window.labFilter = s => {
     if (F.type === 'otc' && !s.otc) return false;
     if (F.type === 'forex' && s.otc) return false;
@@ -38,8 +40,7 @@
   function renderFilters() {
     const el = document.getElementById('labFilters'); if (!el) return;
     const chip = (k, v, label) => `<button class="chip${F[k] === v ? ' active' : ''}" data-lf="${k}" data-lv="${v}">${label}</button>`;
-    setHtml(el, `${chip('type', 'all', t('all'))}${chip('type', 'otc', 'OTC')}${chip('type', 'forex', 'Forex')}
-      <select class="chipsel" data-lfsel="exp"><option value="all">${t('f_expiry')}</option>${[60, 120, 180, 300].map(s => `<option value="${s}"${F.exp === String(s) ? ' selected' : ''}>${fmtExp(s)}</option>`).join('')}</select>${(() => { const L = lab(), lat = L && L.latency, ok = lat != null && lat < ((L.stale_sec || 5) * 1000 + 60000); return `<span class="latchip ${lat == null ? '' : ok ? 'ok' : 'bad'}" title="${t('rk_lat')}"><small>${t('lat_short')}</small><b class="num">${lat == null ? '–' : (lat / 1000).toFixed(1) + ' s'}</b></span>`; })()}
+    void chip; setHtml(el, `${(() => { const L = lab(), lat = L && L.latency, ok = lat != null && lat < ((L.stale_sec || 5) * 1000 + 60000); return `<span class="latchip ${lat == null ? '' : ok ? 'ok' : 'bad'}" title="${t('rk_lat')}"><small>${t('lat_short')}</small><b class="num">${lat == null ? '–' : (lat / 1000).toFixed(1) + ' s'}</b></span>`; })()}
 `);
   }
 
@@ -85,7 +86,7 @@
     const d0 = new Date(); d0.setHours(0, 0, 0, 0);
     const all = tr.reduce((a, s) => a + tradeNet(s), 0), td = tr.filter(s => (s.trade.at || s.entryTime) * 1000 >= d0.getTime()).reduce((a, s) => a + tradeNet(s), 0);
     const col = v => v > 0 ? 'var(--call)' : v < 0 ? 'var(--put)' : 'inherit', sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
-    return `<div class="rk"><span>${t('rk_dep')} ${dep.toFixed(0)} Fr.</span><b class="num" style="color:${col(all)}">${(dep + all).toFixed(2)} Fr.</b><small style="color:${col(td)}">${t('rk_today')} ${sg(td)} · ${t('rk_total')} ${sg(all)}</small></div>`;
+    return `<div class="rk dep"><bclass="num" style="color:${col(all)}">${(dep + all).toFixed(2)} Fr.</b><small style="color:${col(td)}">${t('rk_today')} ${sg(td)} · ${t('rk_total')} ${sg(all)}</small></div>`;
   }
   // ---------- top: account + mode, risk tiles, banner ----------
   function renderTop() {
