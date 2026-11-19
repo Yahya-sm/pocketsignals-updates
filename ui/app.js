@@ -559,6 +559,7 @@ function hiddenParams(x) {
       rs_m_pull: ['rs_p_tf', 'rs_p_exp', 'rs_p_buy', 'rs_p_sell', 'rs_p_trend', 'rs_p_max', 'rs_p_depth', 'rs_p_di', 'rs_p_adx'] };
     const hid = Object.entries(g).flatMap(([k, keys]) => x.params[k] === false || (k !== 'rs_m_run' && !x.params[k]) ? keys : []);
     if (x.params.rs_cross === false) hid.push('rs_cross_fast', 'rs_cross_slow');
+    if (x.params.rs_chaos_on === false) hid.push('rs_chaos', 'rs_chaos_n');
     return hid;
   }
   if (x.key !== 'n_sharp') return [];
@@ -584,7 +585,7 @@ const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP:
 const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
   rs_z_n: [1, 1], rs_z_touch: [1, 2], rs_z_width: [0.1, 0.1], rs_z_gap: [1, 1], rs_p_trend: [1, 2], rs_p_max: [1, 1], rs_p_depth: [5, 5], rs_p_adx: [1, 0],
   pn_imp_n: [1, 1], pn_big_n: [1, 1], pn_big_atr: [0.1, 0], pn_min_atr: [0.1, 0], pn_stop: [0.1, 0.1], pn_tail: [5, 0], pn_early: [1, 0],
-  max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0] };
+  rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0] };
 const numStep = (name, v) => NUM_STEP[name] || [Number.isInteger(v) ? 1 : 0.1, 0];
 const parseNum = s => Number(String(s).trim().replace(',', '.'));
 function paramInput(key, name, v) {

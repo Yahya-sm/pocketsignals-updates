@@ -100,7 +100,7 @@ const DEFAULTS = {
   // 11.11.2026 (user's 1.0.199 list), experiments, untested live (no tick history):
   n_preclose: { expiry: 60, pc_sec: 5, pc_atr: 0.8, pc_back: 30 },
   n_fractal: { expiry: 120, fr_early: false, fr_far: 1.5, fr_lookback: 30 },
-  n_run: { rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_cross_fast: 5, rs_cross_slow: 21,
+  n_run: { rs_chaos_on: true, rs_chaos: 0.4, rs_chaos_n: 12, rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_cross_fast: 5, rs_cross_slow: 21,
     rs_m_zone: false, rs_z_tf: 'M5', rs_z_exp: 120, rs_z_buy: true, rs_z_sell: true, rs_z_n: 2, rs_z_touch: 2, rs_z_width: 0.5, rs_z_gap: 5,
     rs_m_pull: false, rs_p_tf: 'M5', rs_p_exp: 120, rs_p_buy: true, rs_p_sell: true, rs_p_trend: 3, rs_p_max: 2, rs_p_depth: 50, rs_p_di: true, rs_p_adx: 0 },
   n_pin: { expiry: 180, pn_tf: 'M1', pn_buy: true, pn_sell: true, pn_imp_n: 3, pn_big_n: 3, pn_big_atr: 0.8, pn_min_atr: 0, pn_stop: 0.5, pn_tail: 10, pn_early: 5 },
@@ -1372,6 +1372,15 @@ const S = {
   // Candle series with the trend (user 19.11.2026): three isolated modes, each with its own TF, expiry, CALL/PUT, filters.
   // Two modes giving opposite directions on one candle = no signal.
   n_run(x, p) {
+    // Saw filter (user 19.11.2026: signal came while candles alternate red/green): share of colour changes over the last
+    // rs_chaos_n candles on M1 and on M5 must not exceed rs_chaos (0 = off).
+    const ch = p.rs_chaos_on === false ? 0 : Number(p.rs_chaos) || 0;
+    if (ch > 0) {
+      const n = Math.max(5, Number(p.rs_chaos_n) || 12);
+      const share = c => { if (!c || c.length < n + 1) return 0; let k = 0; for (let j = c.length - n + 1; j < c.length; j++) { const a = dirK(c[j]), b = dirK(c[j - 1]); if (a && b && a !== b) k++; } return k / (n - 1); };
+      const m5 = x.ctx && x.ctx.M5 && x.ctx.M5.length > n ? x.ctx.M5 : I.resample(x.c, 5, false);
+      if (share(x.c) > ch || share(m5) > ch) return null;
+    }
     const out = [];
     if (p.rs_m_run !== false) { const r = runSeries(x, p); if (r) out.push(r); }
     if (p.rs_m_zone) { const r = runZone(x, p); if (r) out.push(r); }
@@ -1800,6 +1809,7 @@ LABELS.n_emastart = {
 // 19.11.2026: candle series with the trend (3 modes) and reversal after an impulse (pin bar).
 const L3 = (r, d, e) => L(r, d, e);
 LABELS.n_run = {
+  rs_chaos_on: L3('Фильтр пилы включён', 'Säge-Filter an', 'Saw filter on'), rs_chaos: L3('Пила: макс. доля смен цвета свечей M1 и M5 (0 = выкл)', 'Säge: max. Anteil Farbwechsel M1 und M5 (0 = aus)', 'Saw: max share of colour changes on M1 and M5 (0 = off)'), rs_chaos_n: L3('Пила: окно, свечей', 'Säge: Fenster, Kerzen', 'Saw: window, candles'),
   rs_m_run: L3('Режим «серия свечей» включён', 'Modus „Kerzenserie“ an', '"Candle series" mode on'), rs_tf: L3('Таймфрейм свечей', 'Kerzen-Zeitrahmen', 'Candle timeframe'),
   expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), rs_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), rs_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
   rs_min: L3('Свечей одного цвета подряд', 'Kerzen einer Farbe in Folge', 'Candles of one colour in a row'),
@@ -1818,6 +1828,7 @@ LABELS.n_run = {
   rs_p_depth: L3('Глубина отката не больше, % от движения', 'Rücklauftiefe höchstens, % der Bewegung', 'Pullback depth at most, % of the move'),
   rs_p_di: L3('DI по сигналу (обязательно)', 'DI mit dem Signal (Pflicht)', 'DI with the signal (required)'), rs_p_adx: L3('ADX не меньше (0 = выкл)', 'ADX mindestens (0 = aus)', 'ADX at least (0 = off)') };
 GROUPS.n_run = [
+  { title: L3('Фильтр пилы (все режимы)', 'Säge-Filter (alle Modi)', 'Saw filter (all modes)'), desc: L3('Нет сигнала, если свечи чередуются красная/зелёная. 0,4 = не больше 4 смен цвета из 10.', 'Kein Signal, wenn Kerzen rot/grün wechseln. 0,4 = höchstens 4 von 10 Wechseln.', 'No signal when candles alternate red/green. 0.4 = at most 4 changes in 10.'), keys: ['rs_chaos_on', 'rs_chaos', 'rs_chaos_n'] },
   { title: L3('Режим: серия свечей', 'Modus: Kerzenserie', 'Mode: candle series'), desc: L3('Сигнал на N-й свече одного цвета подряд (ровно N). С пересечением EMA: триггер — пересечение на этой свече, серия ≥ N — фильтр.', 'Signal auf der N-ten Kerze einer Farbe (genau N). Mit EMA-Kreuzung: Auslöser = Kreuzung auf dieser Kerze, Serie ≥ N = Filter.', 'Signal on the N-th candle of one colour (exactly N). With EMA cross: trigger = cross on this candle, series ≥ N = filter.'), keys: ['rs_m_run', 'rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_cross', 'rs_cross_fast', 'rs_cross_slow'] },
   { title: L3('Режим: от зоны поддержки/сопротивления', 'Modus: von der Zone', 'Mode: from the zone'), desc: L3('Серия ровно N свечей от зоны, где цена разворачивалась несколько раз. ADX не используется.', 'Serie von genau N Kerzen von einer Zone, an der der Preis mehrmals drehte. Kein ADX.', 'A series of exactly N candles off a zone where price turned several times. No ADX.'), keys: ['rs_m_zone', 'rs_z_tf', 'rs_z_exp', 'rs_z_buy', 'rs_z_sell', 'rs_z_n', 'rs_z_touch', 'rs_z_width', 'rs_z_gap'] },
   { title: L3('Режим: откат по тренду', 'Modus: Rücklauf im Trend', 'Mode: pullback in trend'), desc: L3('Серия тренда, 1…N свечей отката не глубже порога, затем свеча в сторону тренда.', 'Trendserie, 1…N Rücklaufkerzen bis zur Tiefe, dann eine Kerze in Trendrichtung.', 'Trend series, 1…N pullback candles within the depth, then a candle with the trend.'), keys: ['rs_m_pull', 'rs_p_tf', 'rs_p_exp', 'rs_p_buy', 'rs_p_sell', 'rs_p_trend', 'rs_p_max', 'rs_p_depth', 'rs_p_di', 'rs_p_adx'] },

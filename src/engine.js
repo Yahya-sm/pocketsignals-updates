@@ -1096,7 +1096,7 @@ class Engine extends EventEmitter {
         paramLog: this.paramLog.slice(0, 100), risk: { ...LAB.RISK_DEFAULTS, ...LAB.COMMON, ...Object.fromEntries(Object.keys({ ...LAB.RISK_DEFAULTS, ...LAB.COMMON }).filter(k => this.settings[k] != null).map(k => [k, this.settings[k]])) },
         account: this.settings.account === 'REAL' ? 'REAL' : 'DEMO', mode: this.settings.trade_mode || 'SIGNAL_ONLY',
         notify_strats: this.settings.notify_strats || [], stale_sec: Number(this.settings.stale_sec ?? 5),
-        latency: (() => { let best = null; for (const t of this.ticks.values()) { const x = t && t.length ? t[t.length - 1][0] : null; if (x) { const age = Date.now() - x * 1000; if (best === null || age < best) best = age; } } return best; })(),
+        latency: (() => { let best = null; for (const t of this.ticks.values()) { const x = t && t.length ? t[t.length - 1][0] : null; if (x) { const age = Math.max(0, Date.now() - x * 1000); if (best === null || age < best) best = age; } } return best; })(),
       },
       settings: {
         strategies: this.settings.strategies || [], favorites: this.settings.favorite_strategies || [],
