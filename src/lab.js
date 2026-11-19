@@ -92,7 +92,7 @@ Object.assign(PARAMS, {
   pro_bot: { adx_min: 20, min_body_atr: 0.6, min_closes: 3, pullback_atr: 0.3, break_atr: 0.2 },
   candle_bot: { sec_from: 45, sec_to: 50, min_closes: 3, max_opposite_wick_pct: 50, min_level_distance_atr: 0.5 },
   meanrev: { adx_max: 20, atr_pct_lo: 20, atr_pct_hi: 80, bb_mult: 2, max_body_atr: 1, wick_pct: 50 },
-  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30, ludo_new: false, ser_body_atr: 0, ludo_cross: true, ludo_ma: true, ludo_fast: 5, ludo_slow: 21, ludo_exp: 60 },
+  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30, ludo_new: false, ser_body_atr: 0, ludo_cross: true, ludo_cross_after: 0, ludo_ma: true, ludo_fast: 5, ludo_slow: 21, ludo_exp: 60 },
   fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
   volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
   scanner: {},
@@ -148,6 +148,7 @@ const PARAM_LABELS = {
   ludo_new: L('Новый режим (M1, экспирация 60 с); выкл = старый режим (5-секундные свечи, 15 с)', 'Neuer Modus (M1, Ablauf 60 s); aus = alter Modus (5-Sekunden-Kerzen, 15 s)', 'New mode (M1, 60 s expiry); off = old mode (5-second candles, 15 s)'),
   ser_body_atr: L('Тело каждой свечи серии минимум, ATR (0 = выкл)', 'Körper jeder Serienkerze mindestens, ATR (0 = aus)', 'Body of every series candle at least, ATR (0 = off)'),
   ludo_cross: L('Сигнал на пересечении EMA (выкл = сигнал по серии свечей)', 'Signal bei EMA-Kreuzung (aus = Signal durch die Kerzenserie)', 'Signal on the EMA cross (off = signal by the candle series)'),
+  ludo_cross_after: L('Сигнал через … свечей после пересечения (0 = на самой свече)', 'Signal … Kerzen nach der Kreuzung (0 = auf der Kerze selbst)', 'Signal … candles after the cross (0 = on the cross candle)'),
   ludo_ma: L('Подтверждение скользящими EMA', 'Bestätigung durch EMAs', 'Confirmation by EMAs'),
   ludo_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'),
   ludo_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
@@ -218,7 +219,7 @@ const T = {
   ser_small: v => L(`мелкая свеча в серии: тело ${v.b} ATR < ${v.m}`, `kleine Kerze in der Serie: Körper ${v.b} ATR < ${v.m}`, `small candle in the series: body ${v.b} ATR < ${v.m}`),
   ludo_series: v => L(`серия: ${v.n} ${v.c} свечи M1 подряд, каждая от ${v.b} ATR`, `Serie: ${v.n} Kerzen M1 in Folge, jede ab ${v.b} ATR`, `series: ${v.n} M1 candles in a row, each from ${v.b} ATR`),
   no_ema_cross: v => L(`нет пересечения EMA ${v.f} / EMA ${v.s} на этой свече`, `keine Kreuzung EMA ${v.f} / EMA ${v.s} auf dieser Kerze`, `no EMA ${v.f} / EMA ${v.s} cross on this candle`),
-  ema_cross: v => L(`EMA ${v.f} пересекла EMA ${v.s} ${v.d}`, `EMA ${v.f} kreuzt EMA ${v.s} ${v.d === 'вверх' ? 'nach oben' : 'nach unten'}`, `EMA ${v.f} crossed EMA ${v.s} ${v.d === 'вверх' ? 'up' : 'down'}`),
+  ema_cross: v => L(`EMA ${v.f} пересекла EMA ${v.s} ${v.d}${v.a ? ` ${v.a} свечи назад` : ''}`, `EMA ${v.f} kreuzt EMA ${v.s} ${v.d === 'вверх' ? 'nach oben' : 'nach unten'}`, `EMA ${v.f} crossed EMA ${v.s} ${v.d === 'вверх' ? 'up' : 'down'}`),
   series: v => L(`серия ${v.n} в одну сторону`,`Serie ${v.n} in eine Richtung`, `series of ${v.n} one way`),
   direction_holds: () => L('направление сохраняется', 'Richtung hält', 'direction holds'),
   no_squeeze: v => L(`нет сжатия (${v.n} свечей)`, `keine Kompression (${v.n} Kerzen)`, `no squeeze (${v.n} candles)`),
@@ -415,8 +416,12 @@ const MORE = {
     if (p.ludo_cross || p.ludo_ma) {
       const cl = closes(c), ef = I.ema(cl, F), es = I.ema(cl, Sl);
       if (p.ludo_cross) {
-        if (ef[i - 1] == null || es[i - 1] == null || !((ef[i - 1] - es[i - 1]) * d <= 0 && (ef[i] - es[i]) * d > 0)) return fail(2, 'no_ema_cross', { f: F, s: Sl });
-        pass(2, 'ema_cross', { f: F, s: Sl, d: d > 0 ? 'вверх' : 'вниз' });
+        // ludo_cross_after A (19.11.2026): the cross A candles ago, every candle since in the signal colour, no cross back.
+        const A = Math.max(0, Math.round(Number(p.ludo_cross_after) || 0)), j = i - A;
+        let ok = j >= 1 && ef[j - 1] != null && es[j - 1] != null && (ef[j - 1] - es[j - 1]) * d <= 0 && (ef[j] - es[j]) * d > 0;
+        for (let q = j + 1; ok && q <= i; q++) if ((ef[q] - es[q]) * d <= 0 || dirOf(c[q]) !== d) ok = false;
+        if (!ok) return fail(2, 'no_ema_cross', { f: F, s: Sl });
+        pass(2, 'ema_cross', { f: F, s: Sl, d: d > 0 ? 'вверх' : 'вниз', a: A });
       }
       if (p.ludo_ma) {
         if (d > 0 ? !(ef[i] > es[i]) : !(ef[i] < es[i])) return fail(2, 'ma_against', { f: F, s: Sl });

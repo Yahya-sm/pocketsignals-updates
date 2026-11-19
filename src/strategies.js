@@ -100,7 +100,7 @@ const DEFAULTS = {
   // 11.11.2026 (user's 1.0.199 list), experiments, untested live (no tick history):
   n_preclose: { expiry: 60, pc_sec: 5, pc_atr: 0.8, pc_back: 30 },
   n_fractal: { expiry: 120, fr_early: false, fr_far: 1.5, fr_lookback: 30 },
-  n_run: { rs_chaos_on: true, rs_chaos: 0.4, rs_chaos_n: 12, rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_cross_fast: 5, rs_cross_slow: 21,
+  n_run: { rs_chaos_on: true, rs_chaos: 0.4, rs_chaos_n: 12, rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_cross_fast: 5, rs_cross_slow: 21, rs_cross_after: 0,
     rs_m_zone: false, rs_z_tf: 'M5', rs_z_exp: 120, rs_z_buy: true, rs_z_sell: true, rs_z_n: 2, rs_z_touch: 2, rs_z_width: 0.5, rs_z_gap: 5,
     rs_m_pull: false, rs_p_tf: 'M5', rs_p_exp: 120, rs_p_buy: true, rs_p_sell: true, rs_p_trend: 3, rs_p_max: 2, rs_p_depth: 50, rs_p_di: true, rs_p_adx: 0 },
   n_pin: { expiry: 180, pn_tf: 'M1', pn_buy: true, pn_sell: true, pn_imp_n: 3, pn_big_n: 3, pn_big_atr: 0.8, pn_min_atr: 0, pn_stop: 0.5, pn_tail: 50, pn_early: 0 },
@@ -783,9 +783,14 @@ function roomPivot(c, i, d, a) {
   }
   return best;
 }
-const emaCrossAt = (c, i, d, f, s) => {
-  const cl = c.map(k => k.close), ef = I.ema(cl, f), es = I.ema(cl, s);
-  return ef[i - 1] != null && es[i - 1] != null && (ef[i - 1] - es[i - 1]) * d <= 0 && (ef[i] - es[i]) * d > 0;
+// EMA cross A candles ago (A = 0: on this candle). With A > 0 every candle after the cross has the signal's colour and the
+// EMAs did not cross back (user 19.11.2026: "two candles after the cross").
+const emaCrossAt = (c, i, d, f, s, A = 0) => {
+  const cl = c.map(k => k.close), ef = I.ema(cl, f), es = I.ema(cl, s), j = i - A;
+  if (j < 1 || ef[j - 1] == null || es[j - 1] == null) return false;
+  if (!((ef[j - 1] - es[j - 1]) * d <= 0 && (ef[j] - es[j]) * d > 0)) return false;
+  for (let q = j + 1; q <= i; q++) if ((ef[q] - es[q]) * d <= 0 || dirK(c[q]) !== d) return false;
+  return true;
 };
 function runTail(c, i, d, a, di) {
   const room = roomPivot(c, i, d, a);
@@ -810,7 +815,8 @@ function runSeries(x, p) {
   const N = Math.max(2, Number(p.rs_min) || 4), rl = runLen(c, i), cross = !!p.rs_cross;
   if (cross ? rl < N : rl !== N) return null;
   const F = Number(p.rs_cross_fast) || 5, Sl = Number(p.rs_cross_slow) || 21;
-  if (cross && !emaCrossAt(c, i, d, F, Sl)) return null;
+  const A = Math.max(0, Math.round(Number(p.rs_cross_after) || 0));
+  if (cross && !emaCrossAt(c, i, d, F, Sl, A)) return null;
   let mb = Infinity; for (let j = i - rl + 1; j <= i; j++) mb = Math.min(mb, bodyK(c[j]));
   if (mb / a < (Number(p.rs_atr) || 0)) return null;
   const g = diOf(c, i, d);
@@ -819,7 +825,7 @@ function runSeries(x, p) {
   const room = roomPivot(c, i, d, a);
   if (Number(p.rs_room) > 0 && room != null && room < Number(p.rs_room)) return null;
   const TF = p.rs_tf || 'M1', w = d > 0 ? 'вверх' : 'вниз';
-  const base = L(`серия: ${rl} ${colRu(d, rl)} свечи ${TF} подряд, каждая от ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} пересекла EMA ${Sl} ${w}` : ''} → ${d > 0 ? 'рост' : 'падение'} по тренду`,
+  const base = L(`серия: ${rl} ${colRu(d, rl)} свечи ${TF} подряд, каждая от ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} пересекла EMA ${Sl} ${w}${A ? ` ${A} свечи назад` : ''}` : ''} → ${d > 0 ? 'рост' : 'падение'} по тренду`,
     `Serie: ${rl} ${d > 0 ? 'grüne' : 'rote'} ${TF}-Kerzen in Folge, jede ab ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} kreuzt EMA ${Sl} ${d > 0 ? 'nach oben' : 'nach unten'}` : ''} → ${d > 0 ? 'Anstieg' : 'Fall'} mit dem Trend`,
     `series: ${rl} ${d > 0 ? 'green' : 'red'} ${TF} candles in a row, each from ${(mb / a).toFixed(1)} ATR${cross ? `, EMA ${F} crossed EMA ${Sl} ${d > 0 ? 'up' : 'down'}` : ''} → ${d > 0 ? 'rise' : 'fall'} with the trend`);
   return runSig(d, c, i, a, base, g.di, Number(p.expiry) || 120);
@@ -1817,6 +1823,7 @@ LABELS.n_run = {
   rs_adx_on: L3('DI по сигналу (обязательно)', 'DI mit dem Signal (Pflicht)', 'DI with the signal (required)'), rs_adx_min: L3('ADX не меньше (0 = выкл)', 'ADX mindestens (0 = aus)', 'ADX at least (0 = off)'),
   rs_room: L3('До ближайшей зоны против сигнала не меньше … ATR (0 = выкл)', 'Bis zur nächsten Zone gegen das Signal mindestens … ATR (0 = aus)', 'To the nearest zone against the signal at least … ATR (0 = off)'),
   rs_cross: L3('Сигнал на пересечении EMA (серия — только фильтр)', 'Signal bei EMA-Kreuzung (Serie nur Filter)', 'Signal on the EMA cross (series only a filter)'),
+  rs_cross_after: L3('Сигнал через … свечей после пересечения (0 = на самой свече)', 'Signal … Kerzen nach der Kreuzung (0 = auf der Kerze selbst)', 'Signal … candles after the cross (0 = on the cross candle)'),
   rs_cross_fast: L3('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'), rs_cross_slow: L3('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
   rs_m_zone: L3('Режим «от зоны поддержки/сопротивления» включён', 'Modus „von der Zone“ an', '"From the zone" mode on'), rs_z_tf: L3('Таймфрейм свечей', 'Kerzen-Zeitrahmen', 'Candle timeframe'),
   rs_z_exp: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), rs_z_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), rs_z_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
@@ -1829,7 +1836,7 @@ LABELS.n_run = {
   rs_p_di: L3('DI по сигналу (обязательно)', 'DI mit dem Signal (Pflicht)', 'DI with the signal (required)'), rs_p_adx: L3('ADX не меньше (0 = выкл)', 'ADX mindestens (0 = aus)', 'ADX at least (0 = off)') };
 GROUPS.n_run = [
   { title: L3('Фильтр пилы (все режимы)', 'Säge-Filter (alle Modi)', 'Saw filter (all modes)'), desc: L3('Нет сигнала, если свечи чередуются красная/зелёная. 0,4 = не больше 4 смен цвета из 10.', 'Kein Signal, wenn Kerzen rot/grün wechseln. 0,4 = höchstens 4 von 10 Wechseln.', 'No signal when candles alternate red/green. 0.4 = at most 4 changes in 10.'), keys: ['rs_chaos_on', 'rs_chaos', 'rs_chaos_n'] },
-  { title: L3('Режим: серия свечей', 'Modus: Kerzenserie', 'Mode: candle series'), desc: L3('Сигнал на N-й свече одного цвета подряд (ровно N). С пересечением EMA: триггер — пересечение на этой свече, серия ≥ N — фильтр.', 'Signal auf der N-ten Kerze einer Farbe (genau N). Mit EMA-Kreuzung: Auslöser = Kreuzung auf dieser Kerze, Serie ≥ N = Filter.', 'Signal on the N-th candle of one colour (exactly N). With EMA cross: trigger = cross on this candle, series ≥ N = filter.'), keys: ['rs_m_run', 'rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_cross', 'rs_cross_fast', 'rs_cross_slow'] },
+  { title: L3('Режим: серия свечей', 'Modus: Kerzenserie', 'Mode: candle series'), desc: L3('Сигнал на N-й свече одного цвета подряд (ровно N). С пересечением EMA: триггер — пересечение на этой свече, серия ≥ N — фильтр.', 'Signal auf der N-ten Kerze einer Farbe (genau N). Mit EMA-Kreuzung: Auslöser = Kreuzung auf dieser Kerze, Serie ≥ N = Filter.', 'Signal on the N-th candle of one colour (exactly N). With EMA cross: trigger = cross on this candle, series ≥ N = filter.'), keys: ['rs_m_run', 'rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_cross', 'rs_cross_after', 'rs_cross_fast', 'rs_cross_slow'] },
   { title: L3('Режим: от зоны поддержки/сопротивления', 'Modus: von der Zone', 'Mode: from the zone'), desc: L3('Серия ровно N свечей от зоны, где цена разворачивалась несколько раз. ADX не используется.', 'Serie von genau N Kerzen von einer Zone, an der der Preis mehrmals drehte. Kein ADX.', 'A series of exactly N candles off a zone where price turned several times. No ADX.'), keys: ['rs_m_zone', 'rs_z_tf', 'rs_z_exp', 'rs_z_buy', 'rs_z_sell', 'rs_z_n', 'rs_z_touch', 'rs_z_width', 'rs_z_gap'] },
   { title: L3('Режим: откат по тренду', 'Modus: Rücklauf im Trend', 'Mode: pullback in trend'), desc: L3('Серия тренда, 1…N свечей отката не глубже порога, затем свеча в сторону тренда.', 'Trendserie, 1…N Rücklaufkerzen bis zur Tiefe, dann eine Kerze in Trendrichtung.', 'Trend series, 1…N pullback candles within the depth, then a candle with the trend.'), keys: ['rs_m_pull', 'rs_p_tf', 'rs_p_exp', 'rs_p_buy', 'rs_p_sell', 'rs_p_trend', 'rs_p_max', 'rs_p_depth', 'rs_p_di', 'rs_p_adx'] },
 ];
