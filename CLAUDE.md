@@ -218,3 +218,5 @@ The user speaks **German** (sometimes Russian); answer in German unless asked ot
 - 19.11.2026 (5): 'signal N candles after the EMA cross' – n_run rs_cross_after, Ludo NEW ludo_cross_after (0 = on the cross candle; >0: cross N candles ago, all candles since in signal colour, no cross back). raw_pb, series 2: Ludo 451 -> 198/day ~49 %; n_run (saw filter on) 80 -> 39/day, 51/56/54/51 % but halves 45-49 vs 56-63 – not stable.
 
 - 19.11.2026 (6): strategies.js x.tfMin — для таймфреймов S5/S15/S30 теперь в минутах (S15 = 0.25), раньше S15 считалось 15 минутами → адаптивная экспирация давала 45 мин. Не выпущено.
+- 19.11.2026 (6) выпущено как 1.0.207 (abbcbd73, сборка #179).
+- 20.11.2026 (1): n_emastart START — сигнал только на ПЕРВОМ достижении порога наклона после разворота EMA (повторы посреди тренда убраны); es_bars 0 = 1 свеча (раньше молча 5). История EMA9 M1: сигналов в 1.3–5 раз меньше, WIN ~48–53 %, преимущества нет. Не выпущено.

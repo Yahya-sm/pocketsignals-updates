@@ -1363,12 +1363,16 @@ const S = {
     let m5 = tm === 5 ? x.ctx && x.ctx.M5 : null;
     if ((!m5 || m5.length < 60) && x.ctx && x.ctx.M1) m5 = tm === 1 ? x.ctx.M1 : I.resample(x.ctx.M1, tm);
     if (!m5 || m5.length < 40) return null;
-    const n = m5.length - 1, B = Math.max(1, Number(p.es_bars) || 5), lim = Number(p.es_slope) || 20;
+    const bb = Number(p.es_bars), n = m5.length - 1, B = Math.max(1, Number.isFinite(bb) ? bb : 5), lim = Number(p.es_slope) || 20; // 0 = 1 candle, not 5
     const e = q.tr_ma === 'SMA' ? I.sma(m5.map(k => k.close), q.tr_m5_ema) : I.ema(m5.map(k => k.close), q.tr_m5_ema), a = I.atr(m5, 14);
     const sl = j => (e[j] == null || e[j - B] == null || !(a[j] > 0)) ? null : (e[j] - e[j - B]) / a[j] * 100;
     const s1 = sl(n), s0 = sl(n - 1); if (s1 == null || s0 == null) return null;
     const d = s1 >= lim ? 1 : s1 <= -lim ? -1 : 0; if (!d || s0 * d >= lim) return null; // crossed the threshold on this candle
     if (d > 0 ? !q.tr_buy : !q.tr_sell) return null;
+    // 20.11.2026 (user): only the FIRST strong slope after the MA turned. Leg = candles since the MA last changed direction;
+    // if the slope already reached the threshold earlier in this leg, this is a later wobble mid-trend → no signal.
+    let t = n; while (t > n - 300 && e[t - 1] != null && Math.sign(e[t] - e[t - 1]) === d) t--;
+    for (let j = t + 1; j < n; j++) { const v = sl(j); if (v != null && v * d >= lim) return null; }
     if (p.es_side !== false && (m5[n].close - e[n]) * d <= 0) return null; // price on the move's side of the line
     if (q.tr_adx) { const ad = I.adx(m5, q.tr_adx_period)[n]; if (!ad || ad.adx < q.tr_adx || (ad.pdi - ad.mdi) * d <= 0) return null; }
     const f = q.tr_fresh; if (f && Math.abs(m5[n].close - e[n]) > f * a[n]) return null;
