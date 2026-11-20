@@ -586,7 +586,9 @@ const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP:
 const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
   rs_z_n: [1, 1], rs_z_touch: [1, 2], rs_z_width: [0.1, 0.1], rs_z_gap: [1, 1], rs_p_trend: [1, 2], rs_p_max: [1, 1], rs_p_depth: [5, 5], rs_p_adx: [1, 0],
   pn_imp_n: [1, 1], pn_big_n: [1, 1], pn_big_atr: [0.1, 0], pn_min_atr: [0.1, 0], pn_stop: [0.1, 0.1], pn_tail: [5, 0], pn_early: [1, 0],
-  rs_cross_after: [1, 0], ludo_cross_after: [1, 0], rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0], ludo_path: [0.1, 0], ludo_body_min: [0.1, 0], ludo_body_max: [0.1, 0], ludo_clean: [1, 0], ludo_wick: [5, 0], ludo_fast: [1, 1], ludo_slow: [1, 2] };
+  rs_cross_after: [1, 0], ludo_cross_after: [1, 0], rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0], ludo_path: [0.1, 0], ludo_body_min: [0.1, 0], ludo_body_max: [0.1, 0], ludo_clean: [1, 0], ludo_wick: [5, 0], ludo_fast: [1, 1], ludo_slow: [1, 2],
+  sp_early: [1, 0], sp_atr: [0.1, 0.1], sp_atr10: [0.1, 0.1], sp_atr15: [0.1, 0.1], sp_rev_exp: [60, 60], sp_rev_exp10: [60, 60], sp_rev_exp15: [60, 60],
+  sp_after: [1, 1], sp_after10: [1, 1], sp_after15: [1, 1], sp_cont_exp: [60, 60], sp_cont_exp10: [60, 60], sp_cont_exp15: [60, 60] };
 const numStep = (name, v) => NUM_STEP[name] || [Number.isInteger(v) ? 1 : 0.1, 0];
 const parseNum = s => Number(String(s).trim().replace(',', '.'));
 function paramInput(key, name, v) {

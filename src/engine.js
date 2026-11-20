@@ -9,7 +9,7 @@ const I = require('./indicators');
 // Market-regime thresholds (settings, see I.regime).
 const LAB = require('./lab');
 // 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
-const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_emastart', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin']; // + its copy with market weather filters (14.11.2026)
+const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_emastart', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin', 'n_spike5']; // + its copy with market weather filters (14.11.2026)
 const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
@@ -180,6 +180,13 @@ class Engine extends EventEmitter {
       s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_run', 'n_pin'])];
       s.strat_tfs = { ...s.strat_tfs }; for (const n of ['n_run', 'n_pin']) if (!s.strat_tfs[n]) s.strat_tfs[n] = ['M1'];
       s.runpin_1911 = true; writeJson(this.settingsFile, s);
+    }
+    // 20.11.2026: new n_spike5 – favourites only (not switched on), strategy TF M1.
+    if (!this.settings.spike5_2011) {
+      const s = this.settings;
+      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_spike5'])];
+      s.strat_tfs = { ...s.strat_tfs }; if (!s.strat_tfs.n_spike5) s.strat_tfs.n_spike5 = ['M1'];
+      s.spike5_2011 = true; writeJson(this.settingsFile, s);
     }
     // 19.11.2026 (user chose "stricter"): pin bar tail ≥ 50 %, no early signal – written once into saved settings too.
     if (!this.settings.pin_strict_1911) {

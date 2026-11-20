@@ -28,6 +28,7 @@ const META = {
   n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
   n_run: [L('Серия свечей по тренду', 'Kerzenserie mit dem Trend', 'Candle series with the trend'), 'trend'],
   n_pin: [L('Разворот после импульса (пин-бар)', 'Umkehr nach Impuls (Pinbar)', 'Reversal after an impulse (pin bar)'), 'reversal'],
+  n_spike5: [L('Скачок в начале пятиминутки', 'Sprung am Anfang der 5-Minuten-Kerze', 'Spike at the start of the 5-minute candle'), 'reversal'],
   n_emastart: [L('Начало движения: наклон EMA', 'Bewegungsbeginn: EMA-Neigung', 'Move start: EMA slope'), 'trend'],
   n_serrev: [L('Разворот после серии (пауза + разворотная свеча)', 'Umkehr nach Serie (Pause + Umkehrkerze)', 'Reversal after a series (pause + reversal candle)'), 'rev'],
   // Names start with 1 / 2 so the two are told apart at a glance (user 14.11.2026).
@@ -99,6 +100,10 @@ const DEFAULTS = {
   n_trend15: { expiry: 60, tr_m5_ema: 50, tr_adx: 20, tr_ema: 20, tr_pull: 6, tr_ext: 1.5, tr_buy: true, tr_sell: true, tr_side: 0, tr_steps: 0, tr_nopull: false, tr_turn: false, tr_confirm: true, tr_cross: false, tr_cross_tf: 'ENTRY', tr_cross_vol: 1, tr_cross_flat: true, tr_tf: 'M5', tr_ma: 'EMA', tr_mode_adx: 0, tr_saw: 0, tr_fresh: 0, tr_mode: 'BOUNCE', tr_adx_period: 14, tr_slope_pct: 0 },
   // 11.11.2026 (user's 1.0.199 list), experiments, untested live (no tick history):
   n_preclose: { expiry: 60, pc_sec: 5, pc_atr: 0.8, pc_back: 30 },
+  n_spike5: { sp_early: 15, sp_rev: true, sp_cont: true, sp_buy: true, sp_sell: true,
+    sp_m5: true, sp_atr: 0.8, sp_rev_exp: 120, sp_after: 2, sp_cont_exp: 120,
+    sp_m10: true, sp_atr10: 0.6, sp_rev_exp10: 120, sp_after10: 3, sp_cont_exp10: 180,
+    sp_m15: true, sp_atr15: 0.5, sp_rev_exp15: 120, sp_after15: 2, sp_cont_exp15: 120 },
   n_fractal: { expiry: 120, fr_early: false, fr_far: 1.5, fr_lookback: 30 },
   n_run: { rs_chaos_on: true, rs_chaos: 0.4, rs_chaos_n: 12, rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_cross_fast: 5, rs_cross_slow: 21, rs_cross_after: 0,
     rs_m_zone: false, rs_z_tf: 'M5', rs_z_exp: 120, rs_z_buy: true, rs_z_sell: true, rs_z_n: 2, rs_z_touch: 2, rs_z_width: 0.5, rs_z_gap: 5,
@@ -616,6 +621,7 @@ function liveMode(name, settings) {
   if (name === 'n_preclose') return 'live';
   if (name === 'n_run') return 'closed';
   if (name === 'n_pin') return Number(p.pn_early) > 0 ? 'both' : 'closed';
+  if (name === 'n_spike5') return Number(p.sp_early) > 0 ? 'both' : 'closed';
   if (name === 'n_fractal') return p.fr_early ? 'both' : 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
   if (name === 'n_sharp' && (settings.strat_presets?.n_sharp || []).length) return 'legacy'; // profiles use the Stochastic rule, not the bot logic
@@ -1425,6 +1431,43 @@ const S = {
       `${isEarly ? `⏰ ${Math.round(left)} s before the close: ` : ''}impulse of ${r.n} candles ${r.D > 0 ? 'up' : 'down'} on ${TF} (${r.big} big from ${p.pn_big_atr} ATR), stop candle: body ${r.stopPct} % of the big ones, wick ${r.tail} % → reversal`);
     return Object.assign(sig(d, 75, txt), { noFlip: true, bar: c[q].time, expiry: Number(p.expiry) || 180, ...(isEarly ? { entry: c[q].time + pm * 60 } : {}) });
   },
+  // Spike in the first minute of an M5/M10/M15 candle (user 20.11.2026, OTC history). Signal 1 against the spike right
+  // after that minute, signal 2 with the spike A minutes later. M15 → M10 → M5, first one wins (starts coincide at :00).
+  n_spike5(x, p) {
+    const c = x.c; if (!c || c.length < 40) return null;
+    const i = c.length - 1, now = serverNow(), early = Number(p.sp_early) || 0;
+    const fm = c[i].time + 60 > now; let left = 0;
+    if (fm) { if (!early) return null; left = c[i].time + 60 - now; if (!(left > 0 && left <= early)) return null; }
+    const et = fm ? { ru: `⏰ за ${Math.round(left)} с до закрытия: `, de: `⏰ ${Math.round(left)} s vor Schluss: `, en: `⏰ ${Math.round(left)} s before the close: ` } : { ru: '', de: '', en: '' };
+    for (const P of [15, 10, 5]) {
+      const sx = P === 5 ? '' : String(P);
+      if (p['sp_m' + P] === false) continue;
+      const X = Number(p['sp_atr' + sx]) || 0, A = Math.max(1, Math.min(P - 1, Math.round(Number(p['sp_after' + sx]) || 1)));
+      const pos = Math.round(c[i].time / 60) % P;
+      const kind = pos === 0 && p.sp_rev !== false ? 'rev' : pos === A && p.sp_cont !== false ? 'cont' : null;
+      if (!kind) continue;
+      const q = i - pos; if (q < 0 || c[q].time !== c[i].time - pos * 60) continue;
+      const tfc = I.resample(c.slice(0, q), P, false);
+      if (tfc.length < 16 || tfc[tfc.length - 1].time + P * 60 !== c[q].time) continue;
+      const a = I.atr(tfc, 14), at = a[a.length - 1]; if (!(at > 0)) continue;
+      const mv = c[q].close - c[q].open, D = Math.sign(mv);
+      if (!D || Math.abs(mv) < X * at) continue;
+      const d = kind === 'rev' ? -D : D;
+      if (d > 0 ? p.sp_buy === false : p.sp_sell === false) continue;
+      const r = (Math.abs(mv) / at).toFixed(1), TF = 'M' + P;
+      const up = D > 0;
+      const txt = kind === 'rev'
+        ? L(`${et.ru}скачок ${up ? 'вверх' : 'вниз'} ${r} ATR ${TF} в первую минуту свечи ${TF} → откат ${up ? 'вниз' : 'вверх'}`,
+          `${et.de}Sprung ${up ? 'nach oben' : 'nach unten'} ${r} ATR ${TF} in der ersten Minute der ${TF}-Kerze → Rücklauf ${up ? 'nach unten' : 'nach oben'}`,
+          `${et.en}spike ${up ? 'up' : 'down'} ${r} ATR ${TF} in the first minute of the ${TF} candle → pullback ${up ? 'down' : 'up'}`)
+        : L(`${et.ru}скачок ${up ? 'вверх' : 'вниз'} ${r} ATR ${TF}, откат ${A} мин прошёл → снова ${up ? 'вверх' : 'вниз'} по скачку`,
+          `${et.de}Sprung ${up ? 'nach oben' : 'nach unten'} ${r} ATR ${TF}, Rücklauf ${A} Min vorbei → wieder ${up ? 'nach oben' : 'nach unten'} mit dem Sprung`,
+          `${et.en}spike ${up ? 'up' : 'down'} ${r} ATR ${TF}, ${A} min pullback over → ${up ? 'up' : 'down'} again with the spike`);
+      const exp = Number(p[(kind === 'rev' ? 'sp_rev_exp' : 'sp_cont_exp') + sx]) || 120;
+      return Object.assign(sig(d, 75, txt), { noFlip: true, bar: c[q].time + (kind === 'rev' ? 0 : 1), expiry: exp, ...(fm ? { entry: c[i].time + 60 } : {}) });
+    }
+    return null;
+  },
   n_serrev(x, p) {
     const c = x.c, i = x.last, atr = x.atr[i]; if (!(atr > 0) || i < 25) return null;
     const body = k => Math.abs(k.close - k.open);
@@ -1638,7 +1681,7 @@ function evaluate(candlesByTf, enabled, settings) {
         if (r && r.dir) {
           wkey = `${candlesByTf.asset || '?'}|${tf}|${c[c.length - 1].time}|${r.bar || ''}|${r.dir}`;
           if (set === sets[0] || !wfound) { whyAdd(name, wkey, 'found'); wfound = true; }
-          if (passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
+          if (name === 'n_spike5' || passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
           wlast = 'filters';
         }
       }
@@ -1648,11 +1691,11 @@ function evaluate(candlesByTf, enabled, settings) {
       if (x.rg === undefined) x.rg = I.regime(c, c.length - 1, settings);
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
-      if (x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
+      if (name !== 'n_spike5' && x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
       // General market strictness for all strategies and pairs (mkt_level 0–3, user 08.11.2026): weak markets are skipped.
       // ATR now / the pair's average ATR in the window, ADX, and a big candle among the last 10 (× average range).
       const ML = MKT_LEVELS[Number(settings.mkt_level) || 0];
-      if (ML) {
+      if (ML && name !== 'n_spike5') {
         if (x.mkt === undefined) {
           const n = c.length - 1, a = x.atr, ad = x.adx[n];
           let sum = 0, cnt = 0; for (let j = 14; j < n; j++) if (a[j] > 0) { sum += a[j]; cnt++; }
@@ -1664,7 +1707,7 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       // Small candles (rg_vol, 0 = off): average size of the last 5 candles / average of the pair's other candles on this timeframe.
       const minVol = Number(settings.rg_vol ?? 0.7);
-      if (minVol > 0) {
+      if (minVol > 0 && name !== 'n_spike5') {
         if (x.volRatio === undefined) {
           const sz = k => k.high - k.low, n5 = c.length - 5;
           const a5 = c.slice(n5).reduce((t, k) => t + sz(k), 0) / 5, rest = c.slice(0, n5).reduce((t, k) => t + sz(k), 0) / n5;
@@ -1674,7 +1717,7 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       // regime_mode: off | auto (by strategy type) | trend (only in TREND) | range (only in RANGE, ADX below rg_range_adx).
       const rm = settings.regime_mode || (settings.regime_filter ? 'auto' : 'off');
-      if (x.rg && rm !== 'off') {
+      if (x.rg && rm !== 'off' && name !== 'n_spike5') {
         const want = rm === 'auto' ? (META[name][1] === 'trend' ? 'TREND' : 'RANGE') : rm.toUpperCase();
         if (x.rg.regime !== want) { whyAdd(name, wkey, 'regime'); continue; }
         if (want === 'RANGE' && x.rg.adx >= (Number(settings.rg_range_adx) || 25)) { whyAdd(name, wkey, 'regime'); continue; }
@@ -1802,7 +1845,7 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin'];
+}, LABELS = {}, OWN_LOGIC = ['n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin', 'n_spike5'];
 // Move start: EMA slope (user 15.11.2026).
 LABELS.n_emastart = {
   es_mode: L('Режим сигнала', 'Signalart', 'Signal mode'), es_tf: L('Таймфрейм скользящей', 'Zeitrahmen des Durchschnitts', 'Moving average timeframe'),
@@ -1865,6 +1908,40 @@ HELP.n_pin = [{ title: L3('Таблица: результаты на истор�
   L3('3 свечи / 3 больших / 0,8 ATR — 53–56 % на 1–2 мин (141–205 в день). Одна большая свеча — ≤ 50 %. Разворот после свечи ≥ 2 ATR — 42–48 %. Каждая ≥ 0,5 ATR — 52–54 % (126 в день). Это не вероятность успеха.',
     '3 Kerzen / 3 große / 0,8 ATR – 53–56 % bei 1–2 Min (141–205 pro Tag). Eine große Kerze – ≤ 50 %. Umkehr nach Kerze ≥ 2 ATR – 42–48 %. Jede ≥ 0,5 ATR – 52–54 % (126 pro Tag). Keine Erfolgswahrscheinlichkeit.',
     '3 candles / 3 big / 0.8 ATR – 53–56 % at 1–2 min (141–205 a day). One big candle – ≤ 50 %. Reversal after a candle ≥ 2 ATR – 42–48 %. Each ≥ 0.5 ATR – 52–54 % (126 a day). Not a success probability.')] }];
+// 20.11.2026: spike in the first minute of an M5/M10/M15 candle.
+LABELS.n_spike5 = {
+  sp_early: L3('Ранний сигнал: за … с до закрытия минуты (0 = по закрытию)', 'Frühes Signal: … s vor Schluss der Minute (0 = beim Schluss)', 'Early signal: … s before the minute closes (0 = at the close)'),
+  sp_rev: L3('Сигнал 1: против скачка (откат)', 'Signal 1: gegen den Sprung (Rücklauf)', 'Signal 1: against the spike (pullback)'),
+  sp_cont: L3('Сигнал 2: по скачку после отката', 'Signal 2: mit dem Sprung nach dem Rücklauf', 'Signal 2: with the spike after the pullback'),
+  sp_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), sp_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals') };
+for (const [P, sx] of [[5, ''], [10, '10'], [15, '15']]) Object.assign(LABELS.n_spike5, {
+  ['sp_m' + P]: L3(`M${P}: таймфрейм включён`, `M${P}: Zeitrahmen an`, `M${P}: timeframe on`),
+  ['sp_atr' + sx]: L3(`M${P}: скачок не меньше … ATR этого ТФ`, `M${P}: Sprung mindestens … ATR dieses ZR`, `M${P}: spike at least … ATR of this TF`),
+  ['sp_rev_exp' + sx]: L3(`M${P}: сигнал 1 — экспирация, с`, `M${P}: Signal 1 – Ablauf, s`, `M${P}: signal 1 – expiry, s`),
+  ['sp_after' + sx]: L3(`M${P}: сигнал 2 через … мин после скачка`, `M${P}: Signal 2 … Min nach dem Sprung`, `M${P}: signal 2 … min after the spike`),
+  ['sp_cont_exp' + sx]: L3(`M${P}: сигнал 2 — экспирация, с`, `M${P}: Signal 2 – Ablauf, s`, `M${P}: signal 2 – expiry, s`) });
+GROUPS.n_spike5 = [
+  { title: L3('Общие', 'Allgemein', 'General'), desc: L3('', '', ''), keys: ['sp_early', 'sp_rev', 'sp_cont', 'sp_buy', 'sp_sell'] },
+  { title: L3('M5 — пятиминутки', 'M5 – 5-Minuten-Kerzen', 'M5 – 5-minute candles'), desc: L3('', '', ''), keys: ['sp_m5', 'sp_atr', 'sp_rev_exp', 'sp_after', 'sp_cont_exp'] },
+  { title: L3('M10 — десятиминутки (начало свечи в :00, :10, :20…)', 'M10 – 10-Minuten-Kerzen (Beginn :00, :10, :20…)', 'M10 – 10-minute candles (start at :00, :10, :20…)'), desc: L3('', '', ''), keys: ['sp_m10', 'sp_atr10', 'sp_rev_exp10', 'sp_after10', 'sp_cont_exp10'] },
+  { title: L3('M15 — пятнадцатиминутки (начало свечи в :00, :15, :30, :45)', 'M15 – 15-Minuten-Kerzen (Beginn :00, :15, :30, :45)', 'M15 – 15-minute candles (start at :00, :15, :30, :45)'), desc: L3('', '', ''), keys: ['sp_m15', 'sp_atr15', 'sp_rev_exp15', 'sp_after15', 'sp_cont_exp15'] },
+];
+HELP.n_spike5 = [
+  { title: L3('Описание стратегии', 'Strategiebeschreibung', 'Strategy description'), body: [
+    L3('На OTC резкий скачок в первую минуту свечи M5/M10/M15 обычно откатывается в следующие 2–3 минуты, потом движение продолжается в сторону скачка. Такой же скачок в другие минуты эффекта не даёт. Данных 12,6 дня — проверяйте на демо; брокер может изменить поведение котировок.',
+      'Auf OTC läuft ein scharfer Sprung in der ersten Minute einer M5/M10/M15-Kerze meist in den nächsten 2–3 Minuten zurück, danach geht es in Sprungrichtung weiter. Derselbe Sprung in anderen Minuten wirkt nicht. Daten 12,6 Tage – auf Demo prüfen; der Broker kann das Kursverhalten ändern.',
+      'On OTC a sharp spike in the first minute of an M5/M10/M15 candle usually pulls back over the next 2–3 minutes, then the move continues in the spike direction. The same spike in other minutes has no effect. 12.6 days of data – test on demo; the broker may change how quotes behave.')] },
+  { title: L3('Лучшие настройки для каждого таймфрейма', 'Beste Einstellungen je Zeitrahmen', 'Best settings per timeframe'), body: [
+    L3('История OTC: 12,6 дня, 52 пары, вход на закрытии минуты. Две цифры — первая и вторая половина истории.', 'OTC-Historie: 12,6 Tage, 52 Paare, Einstieg beim Minutenschluss. Zwei Zahlen = erste und zweite Hälfte.', 'OTC history: 12.6 days, 52 pairs, entry at the minute close. Two numbers = first and second half.'),
+    L3('M5, скачок 0,8 — баланс: сигнал 1 2 мин → 58 / 60 %; сигнал 2 через 2 мин, эксп. 2 мин → 61 / 57 %; ~50 скачков в день.', 'M5, Sprung 0,8 – Balance: Signal 1 2 Min → 58 / 60 %; Signal 2 nach 2 Min, Ablauf 2 Min → 61 / 57 %; ~50 Sprünge/Tag.', 'M5, spike 0.8 – balance: signal 1 2 min → 58 / 60 %; signal 2 after 2 min, exp. 2 min → 61 / 57 %; ~50 spikes a day.'),
+    L3('M5, скачок 1,0 — максимум: 2 мин → 73 / 78 %; через 2 / 2 мин → 64 / 71 %; ~14 в день.', 'M5, Sprung 1,0 – Maximum: 2 Min → 73 / 78 %; nach 2 / 2 Min → 64 / 71 %; ~14/Tag.', 'M5, spike 1.0 – maximum: 2 min → 73 / 78 %; after 2 / 2 min → 64 / 71 %; ~14 a day.'),
+    L3('M10, скачок 0,6 — баланс: 2 мин → 68 / 61 %; через 3 / 3 мин → 62 / 70 %; ~17 в день.', 'M10, Sprung 0,6 – Balance: 2 Min → 68 / 61 %; nach 3 / 3 Min → 62 / 70 %; ~17/Tag.', 'M10, spike 0.6 – balance: 2 min → 68 / 61 %; after 3 / 3 min → 62 / 70 %; ~17 a day.'),
+    L3('M10, скачок 0,7 — максимум: 2 мин → 75 / 76 %; через 3 / 3 мин → 73 / 71 %; ~8 в день.', 'M10, Sprung 0,7 – Maximum: 2 Min → 75 / 76 %; nach 3 / 3 Min → 73 / 71 %; ~8/Tag.', 'M10, spike 0.7 – maximum: 2 min → 75 / 76 %; after 3 / 3 min → 73 / 71 %; ~8 a day.'),
+    L3('M15, скачок 0,5 — баланс: 2 мин → 72 / 77 %; через 2 / 2 мин → 69 / 71 %; ~17 в день.', 'M15, Sprung 0,5 – Balance: 2 Min → 72 / 77 %; nach 2 / 2 Min → 69 / 71 %; ~17/Tag.', 'M15, spike 0.5 – balance: 2 min → 72 / 77 %; after 2 / 2 min → 69 / 71 %; ~17 a day.'),
+    L3('M15, скачок 0,6 — максимум: 2 мин → 100 / 93 % (мало случаев); через 2 / 2 мин → 75 / 79 %; ~10 в день.', 'M15, Sprung 0,6 – Maximum: 2 Min → 100 / 93 % (wenige Fälle); nach 2 / 2 Min → 75 / 79 %; ~10/Tag.', 'M15, spike 0.6 – maximum: 2 min → 100 / 93 % (few cases); after 2 / 2 min → 75 / 79 %; ~10 a day.'),
+    L3('Ниже порога «баланс» винрейт быстро падает к 50 % (M5 0,6 — 52–53 %). Экспирация 5 мин везде хуже 2–3 мин. Начала свечей M5/M10/M15 совпадают в :00 — сигнал один, по старшему ТФ. Ранний сигнал на истории не проверен (нет секундных данных). Это не вероятность успеха.',
+      'Unter der Balance-Schwelle fällt die Quote schnell auf 50 % (M5 0,6 – 52–53 %). Ablauf 5 Min überall schlechter als 2–3 Min. M5/M10/M15-Anfänge fallen bei :00 zusammen – ein Signal, vom höheren ZR. Frühes Signal nicht historisch geprüft (keine Sekundendaten). Keine Erfolgswahrscheinlichkeit.',
+      'Below the balance threshold the win rate drops fast towards 50 % (M5 0.6 – 52–53 %). 5 min expiry is worse than 2–3 min everywhere. M5/M10/M15 starts coincide at :00 – one signal, from the higher TF. The early signal is not tested on history (no second data). Not a success probability.')] }];
 GROUPS.n_emastart = [
   { title: L('Режим сигнала', 'Signalart', 'Signal mode'), desc: L('«Начало движения» — сигнал, когда наклон скользящей только что дорос до порога. «Отскок» — по наклону ждём отката к быстрой EMA. «Тренд» — сигнал, пока наклон держится (раз в 30 мин).', '„Bewegungsbeginn“ – Signal, wenn die Neigung gerade die Schwelle erreicht. „Abprall“ – mit der Neigung auf den Rücklauf zur schnellen EMA warten. „Trend“ – Signal, solange die Neigung hält (alle 30 Min).', '"Move start" – signal when the slope just reached the threshold. "Bounce" – with the slope, wait for a pullback to the fast EMA. "Trend" – signal while the slope holds (every 30 min).'), keys: ['es_mode', 'expiry', 'es_buy', 'es_sell'] },
   { title: L('Скользящая и наклон', 'Durchschnitt und Neigung', 'Moving average and slope'), desc: L('Наклон = на сколько линия сдвинулась за … свечей, в % от средней свечи (ATR).', 'Neigung = wie weit sich die Linie in … Kerzen bewegt hat, in % einer mittleren Kerze (ATR).', 'Slope = how far the line moved in … candles, in % of an average candle (ATR).'), keys: ['es_tf', 'es_ma', 'es_period', 'es_bars', 'es_slope', 'es_side', 'es_fresh'] },
