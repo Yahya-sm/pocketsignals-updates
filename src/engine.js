@@ -1109,6 +1109,7 @@ class Engine extends EventEmitter {
         allStrategies: strategies.list.filter(k => !HIDDEN.includes(k)).map(k => ({
           key: k, names: strategies.NAMES[k], type: strategies.META[k][1],
           params: strategies.paramsFor(k, this.settings), tfs: this.settings.strat_tfs?.[k] || ['M1'],
+          modes: 'ludo_mode' in strategies.paramsFor(k, this.settings) ? LAB.LUDO_MODES : null,
           presets: strategies.PRESETS[k] || [], groups: strategies.GROUPS[k] || null, tests: strategies.TESTS[k] || null, labels: strategies.LABELS[k] || null,
           activePresets: this.settings.strat_presets?.[k] || [], help: strategies.HELP[k] || null, log: null,
         })),

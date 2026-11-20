@@ -92,7 +92,7 @@ Object.assign(PARAMS, {
   pro_bot: { adx_min: 20, min_body_atr: 0.6, min_closes: 3, pullback_atr: 0.3, break_atr: 0.2 },
   candle_bot: { sec_from: 45, sec_to: 50, min_closes: 3, max_opposite_wick_pct: 50, min_level_distance_atr: 0.5 },
   meanrev: { adx_max: 20, atr_pct_lo: 20, atr_pct_hi: 80, bb_mult: 2, max_body_atr: 1, wick_pct: 50 },
-  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30, ludo_new: false, ser_body_atr: 0, ludo_cross: true, ludo_cross_after: 0, ludo_ma: true, ludo_fast: 5, ludo_slow: 21, ludo_exp: 60 },
+  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30, ludo_new: false, ser_body_atr: 0, ludo_cross: true, ludo_cross_after: 0, ludo_ma: true, ludo_fast: 5, ludo_slow: 21, ludo_exp: 60, ludo_mode: 'MANUAL', ludo_path: 0, ludo_body_min: 0, ludo_body_max: 0, ludo_clean: 0, ludo_wick: 0 },
   fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
   volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
   scanner: {},
@@ -152,6 +152,12 @@ const PARAM_LABELS = {
   ludo_ma: L('Подтверждение скользящими EMA', 'Bestätigung durch EMAs', 'Confirmation by EMAs'),
   ludo_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'),
   ludo_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
+  ludo_mode: L('Режим: MANUAL = ручные настройки, A / B = готовые (настройки под спойлером)', 'Modus: MANUAL = manuell, A / B = fertig (Werte im Spoiler)', 'Mode: MANUAL = manual, A / B = ready-made (values in the spoiler)'),
+  ludo_path: L('Путь от начала серии до сигнала не больше, ATR (0 = выкл)', 'Weg vom Serienbeginn bis zum Signal höchstens, ATR (0 = aus)', 'Path from series start to the signal at most, ATR (0 = off)'),
+  ludo_body_min: L('Тело сигнальной свечи минимум, ATR (0 = выкл)', 'Körper der Signalkerze mindestens, ATR (0 = aus)', 'Signal candle body at least, ATR (0 = off)'),
+  ludo_body_max: L('Тело сигнальной свечи максимум, ATR (0 = выкл)', 'Körper der Signalkerze höchstens, ATR (0 = aus)', 'Signal candle body at most, ATR (0 = off)'),
+  ludo_clean: L('Чистое пересечение: до него линии не пересекались … свечей (0 = выкл)', 'Saubere Kreuzung: davor … Kerzen keine Kreuzung (0 = aus)', 'Clean cross: no cross for … candles before (0 = off)'),
+  ludo_wick: L('Тень сигнальной свечи по ходу движения не больше, % (0 = выкл)', 'Docht der Signalkerze in Bewegungsrichtung höchstens, % (0 = aus)', 'Signal candle wick in the move direction at most, % (0 = off)'),
   ludo_exp: L('Экспирация нового режима, с', 'Ablauf im neuen Modus, s', 'Expiry in the new mode, s'),
   ma_slope: L('Мин. наклон медленной EMA по сигналу, % от ATR за 5 свечей (0 = выкл)', 'Min. Neigung der langsamen EMA in Signalrichtung, % eines ATR über 5 Kerzen (0 = aus)', 'Min slope of the slow EMA with the signal, % of an ATR over 5 candles (0 = off)'),
   ma_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'), ma_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
@@ -219,6 +225,10 @@ const T = {
   ser_small: v => L(`мелкая свеча в серии: тело ${v.b} ATR < ${v.m}`, `kleine Kerze in der Serie: Körper ${v.b} ATR < ${v.m}`, `small candle in the series: body ${v.b} ATR < ${v.m}`),
   ludo_series: v => L(`серия: ${v.n} ${v.c} свечи M1 подряд, каждая от ${v.b} ATR`, `Serie: ${v.n} Kerzen M1 in Folge, jede ab ${v.b} ATR`, `series: ${v.n} M1 candles in a row, each from ${v.b} ATR`),
   no_ema_cross: v => L(`нет пересечения EMA ${v.f} / EMA ${v.s} на этой свече`, `keine Kreuzung EMA ${v.f} / EMA ${v.s} auf dieser Kerze`, `no EMA ${v.f} / EMA ${v.s} cross on this candle`),
+  ludo_late: v => L(`движение уже прошло ${v.p} ATR (макс. ${v.m})`, `Bewegung schon ${v.p} ATR (max ${v.m})`, `move already ${v.p} ATR (max ${v.m})`),
+  ludo_body: v => L(`тело свечи ${v.b} ATR, нужно ${v.lo}–${v.hi}`, `Kerzenkörper ${v.b} ATR, nötig ${v.lo}–${v.hi}`, `candle body ${v.b} ATR, need ${v.lo}–${v.hi}`),
+  ludo_wick: v => L(`тень по ходу ${v.w} %, макс. ${v.m} %`, `Docht ${v.w} %, max ${v.m} %`, `wick ${v.w} %, max ${v.m} %`),
+  ludo_dirty: v => L(`линии пересекались за последние ${v.n} свечей`, `Linien kreuzten in den letzten ${v.n} Kerzen`, `lines crossed in the last ${v.n} candles`),
   ema_cross: v => L(`EMA ${v.f} пересекла EMA ${v.s} ${v.d}${v.a ? ` ${v.a} свечи назад` : ''}`, `EMA ${v.f} kreuzt EMA ${v.s} ${v.d === 'вверх' ? 'nach oben' : 'nach unten'}`, `EMA ${v.f} crossed EMA ${v.s} ${v.d === 'вверх' ? 'up' : 'down'}`),
   series: v => L(`серия ${v.n} в одну сторону`,`Serie ${v.n} in eine Richtung`, `series of ${v.n} one way`),
   direction_holds: () => L('направление сохраняется', 'Richtung hält', 'direction holds'),
@@ -421,6 +431,14 @@ const MORE = {
         let ok = j >= 1 && ef[j - 1] != null && es[j - 1] != null && (ef[j - 1] - es[j - 1]) * d <= 0 && (ef[j] - es[j]) * d > 0;
         for (let q = j + 1; ok && q <= i; q++) if ((ef[q] - es[q]) * d <= 0 || dirOf(c[q]) !== d) ok = false;
         if (!ok) return fail(2, 'no_ema_cross', { f: F, s: Sl });
+        // 20.11.2026 (user): filters against a late entry. Path = series start → signal close; body / wick of the signal candle;
+        // clean = the lines did not cross for ludo_clean candles before the cross.
+        const path = Math.abs(k.close - ser[0].open) / a, kb = body(k) / a, kw = 100 * (d > 0 ? k.high - k.close : k.close - k.low) / (rng(k) || 1);
+        const pm = Number(p.ludo_path) || 0, bmin = Number(p.ludo_body_min) || 0, bmax = Number(p.ludo_body_max) || 0, cn = Number(p.ludo_clean) || 0, wm = Number(p.ludo_wick) || 0;
+        if (pm && path > pm) return fail(2, 'ludo_late', { p: f1(path), m: pm });
+        if ((bmin && kb < bmin) || (bmax && kb > bmax)) return fail(2, 'ludo_body', { b: f1(kb), lo: bmin, hi: bmax || '∞' });
+        if (wm && kw > wm) return fail(2, 'ludo_wick', { w: f0(kw), m: wm });
+        if (cn) { for (let q = j - 1; q > j - 1 - cn; q--) if (q < 1 || es[q - 1] == null || (ef[q] - es[q]) * (ef[q - 1] - es[q - 1]) <= 0) return fail(2, 'ludo_dirty', { n: cn }); }
         pass(2, 'ema_cross', { f: F, s: Sl, d: d > 0 ? 'вверх' : 'вниз', a: A });
       }
       if (p.ludo_ma) {
@@ -709,7 +727,7 @@ for (const s of CATALOG.filter(s => s.impl)) {
     if (ludoNew) {
       cc = step >= 60 ? x.c : x.ctx && x.ctx.M1;
       if (!cc || cc.length < 2) { note(s.id, asset, { status: 'NO_DATA', stage: 0, rejects: [{ code: 'no_data', v: { n: 0 } }] }); return null; }
-      logic = 'ludo_m1'; p = { ...p, ma_filter: false, ma_slope: 0 };
+      logic = 'ludo_m1'; p = { ...p, ...(LUDO_MODES[p.ludo_mode] || {}), ma_filter: false, ma_slope: 0 };
     }
     const r = run(logic, cc, p, asset);
     note(s.id, asset, r);
@@ -754,7 +772,14 @@ function backtest(c, id, opt = {}) {
 }
 
 // ---------- settings grouped by indicator (user 14.11.2026): one folded block per indicator ----------
+// Ludo ready-made modes (user 20.11.2026, history test 12 forex pairs M1 5.5 days). A: 1.8 sig/day/pair, 61/58 % at 1/2 min;
+// B: 0.6/day/pair, 57–60 % at 1–5 min. Not proven (few signals). They override these keys; MANUAL = the user's own values.
+const LUDO_MODES = {
+  A: { ludo_cross: true, ludo_cross_after: 0, ludo_fast: 5, ludo_slow: 13, min_series: 2, max_chaos: 1, ser_body_atr: 0, ludo_ma: false, ludo_path: 1.5, ludo_body_min: 0.6, ludo_body_max: 1, ludo_clean: 10, ludo_wick: 20, ludo_exp: 60 },
+  B: { ludo_cross: true, ludo_cross_after: 0, ludo_fast: 5, ludo_slow: 13, min_series: 4, max_chaos: 1, ser_body_atr: 0, ludo_ma: false, ludo_path: 1.5, ludo_body_min: 0, ludo_body_max: 0, ludo_clean: 0, ludo_wick: 20, ludo_exp: 60 },
+};
 const IND_GROUPS = [
+  { title: L('Ludo: режим A / B / ручной', 'Ludo: Modus A / B / manuell', 'Ludo: mode A / B / manual'), desc: L('A и B — готовые настройки (под спойлером). MANUAL — ваши значения ниже.', 'A und B – fertige Werte (im Spoiler). MANUAL – Ihre Werte.', 'A and B – ready-made (in the spoiler). MANUAL – your values.'), keys: ['ludo_new', 'ludo_mode', 'ludo_cross', 'ludo_cross_after', 'ludo_fast', 'ludo_slow', 'min_series', 'ludo_path', 'ludo_body_min', 'ludo_body_max', 'ludo_clean', 'ludo_wick', 'ludo_ma', 'ludo_exp'] },
   { title: L('EMA — скользящие средние', 'EMA – gleitende Durchschnitte', 'EMA – moving averages'), desc: L('Направление и подтверждение тренда.', 'Richtung und Trendbestätigung.', 'Direction and trend confirmation.'), keys: ['ma_filter', 'ma_fast', 'ma_slow', 'ma_slope', 'vip_ema_fast', 'vip_ema_slow', 'trend_ema', 'entry_ema', 'range_ema', 'max_slope_atr', 'pullback_atr'] },
   { title: L('RSI — осциллятор', 'RSI – Oszillator', 'RSI – oscillator'), desc: L('Импульс и перекупленность / перепроданность.', 'Impuls und überkauft / überverkauft.', 'Momentum and overbought / oversold.'), keys: ['rsi_period', 'rsi_hi', 'rsi_lo', 'rsi_call', 'rsi_put'] },
   { title: L('ADX / DI — сила тренда', 'ADX / DI – Trendstärke', 'ADX / DI – trend strength'), desc: L('Есть ли тренд и куда он направлен.', 'Gibt es einen Trend und wohin.', 'Is there a trend and which way.'), keys: ['adx_period', 'adx_min', 'adx_max', 'forex_adx'] },
@@ -906,4 +931,4 @@ function statsFor(signals) {
   return out;
 }
 
-module.exports = { groupsFor, helpFor, _neuroFeatures: neuroFeatures, SECOND_TF, PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };
+module.exports = { LUDO_MODES, groupsFor, helpFor, _neuroFeatures: neuroFeatures, SECOND_TF, PARAM_LABELS, adaptiveTf, setStale, setupKey, backtest, CATALOG, BY_ID, PARAMS, COMMON, EXPIRY_SEC, STRAT, run, wilson, breakEven, ev, verdict, riskCheck, manualLimits, statsFor, lastDecisions, RISK_DEFAULTS, VERSION, T };

@@ -562,6 +562,7 @@ function hiddenParams(x) {
     if (x.params.rs_chaos_on === false) hid.push('rs_chaos', 'rs_chaos_n');
     return hid;
   }
+  if (x.modes && x.params.ludo_mode && x.params.ludo_mode !== 'MANUAL') return Object.keys(x.modes[x.params.ludo_mode] || {}); // a ready mode: its values are in the spoiler
   if (x.key !== 'n_sharp') return [];
   return [...(x.params.sharp_on_rev === false ? ['sharp_min', 'sharp_wait', 'sharp_mirror', 'sharp_stoch', 'sharp_low', 'sharp_high', 'sharp_k', 'sharp_ks', 'sharp_k_late', 'sharp_rsi', 'sharp_rsi_back', 'sharp_trig', 'sharp_rv_adx'] : []),
     ...(!x.params.sharp_on_trend ? ['sharp_tr_deep', 'sharp_tr_opp', 'sharp_tr_atr', 'sharp_tr_new', 'sharp_tr_far', 'sharp_tr_di', 'sharp_tr_adx'] : [])];
@@ -579,13 +580,13 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'] };
-const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start' };
+const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B'] };
+const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start', MANUAL: 'mode_manual' };
 // Step and minimum for the − / + buttons (19.11.2026). Known keys from the prompt; else 1 for whole numbers, 0.1 for fractions, min 0.
 const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
   rs_z_n: [1, 1], rs_z_touch: [1, 2], rs_z_width: [0.1, 0.1], rs_z_gap: [1, 1], rs_p_trend: [1, 2], rs_p_max: [1, 1], rs_p_depth: [5, 5], rs_p_adx: [1, 0],
   pn_imp_n: [1, 1], pn_big_n: [1, 1], pn_big_atr: [0.1, 0], pn_min_atr: [0.1, 0], pn_stop: [0.1, 0.1], pn_tail: [5, 0], pn_early: [1, 0],
-  rs_cross_after: [1, 0], ludo_cross_after: [1, 0], rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0] };
+  rs_cross_after: [1, 0], ludo_cross_after: [1, 0], rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0], ludo_path: [0.1, 0], ludo_body_min: [0.1, 0], ludo_body_max: [0.1, 0], ludo_clean: [1, 0], ludo_wick: [5, 0], ludo_fast: [1, 1], ludo_slow: [1, 2] };
 const numStep = (name, v) => NUM_STEP[name] || [Number.isInteger(v) ? 1 : 0.1, 0];
 const parseNum = s => Number(String(s).trim().replace(',', '.'));
 function paramInput(key, name, v) {
@@ -594,6 +595,15 @@ function paramInput(key, name, v) {
   if (typeof v === 'boolean') return `<input type="checkbox" class="sw" ${id} ${v ? 'checked' : ''}>`;
   if (typeof v === 'number') { const [st, mn] = numStep(name, v); return `<span class="numbox"><button type="button" class="nb" data-nb="-1">−</button><input type="text" inputmode="decimal" data-num data-step="${st}" data-min="${mn}" ${id} value="${v}"><button type="button" class="nb" data-nb="1">+</button></span>`; }
   return `<input type="text" ${id} value="${esc(v)}">`;
+}
+// Ludo ready modes (user 20.11.2026): every mode has a spoiler with its values; the chosen one is marked.
+function modeSpoilers(x) {
+  if (!x.modes) return '';
+  return Object.entries(x.modes).map(([m, vals]) => {
+    const key = `${x.key}:mode${m}`, open = openTests.has(key), on = x.params.ludo_mode === m;
+    const rows = Object.entries(vals).map(([k, v]) => `<div class="prow"><span>${esc(x.labels && x.labels[k] ? tr(x.labels[k]) : paramLabel(k))}</span><b>${typeof v === 'boolean' ? (v ? '✓' : '—') : v}</b></div>`).join('');
+    return `<div class="tests"><button class="tests-h" data-tests="${key}" aria-expanded="${open}">${open ? '▾' : '▸'} ${on ? '✓ ' : ''}${esc(t('ludo_mode_n', { m }))}</button>${open ? `<div class="tests-b pfold">${rows}</div>` : ''}</div>`;
+  }).join('');
 }
 function renderStrategies(s) {
   const q = stratQuery.toLowerCase();
@@ -614,7 +624,7 @@ function renderStrategies(s) {
       ${(x.presets || []).length && !(x.key === 'n_sharp' && x.params.sharp_on_rev === false) ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
         `<button class="chip${(x.activePresets || []).includes(n) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${(x.activePresets || []).includes(n) ? '✓ ' : ''}${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
       ${x.key === 'n_sharp' && x.params.sharp_on_rev === false ? '' : testTable(x)}
-      ${paramRows(x)}
+      ${modeSpoilers(x)}${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('fav_empty')}</p>`;
 }
@@ -835,7 +845,7 @@ document.addEventListener('change', e => {
     }
     call({ action: 'strategy', name: el.dataset.sp, patch: { [el.dataset.param]: v } });
     // A switch can show/hide other settings (n_run modes, n_sharp blocks): update the local copy and redraw at once.
-    if (el.type === 'checkbox') { const x = (state.settings.allStrategies || []).find(q => q.key === el.dataset.sp); if (x && x.params) { x.params[el.dataset.param] = v; renderStrategies(state.settings); } }
+    if (el.type === 'checkbox' || el.dataset.param === 'ludo_mode') { const x = (state.settings.allStrategies || []).find(q => q.key === el.dataset.sp); if (x && x.params) { x.params[el.dataset.param] = v; renderStrategies(state.settings); } }
   }
   if (el.dataset.tf) {
     const tfs = [...document.querySelectorAll(`[data-tf="${el.dataset.tf}"]:checked`)].map(x => x.value);
