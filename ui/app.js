@@ -580,7 +580,7 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B'] };
+const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B', 'C'] };
 const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start', MANUAL: 'mode_manual' };
 // Step and minimum for the − / + buttons (19.11.2026). Known keys from the prompt; else 1 for whole numbers, 0.1 for fractions, min 0.
 const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
@@ -599,7 +599,10 @@ function paramInput(key, name, v) {
 // Ludo ready modes (user 20.11.2026): every mode has a spoiler with its values; the chosen one is marked.
 function modeSpoilers(x) {
   if (!x.modes) return '';
-  return Object.entries(x.modes).map(([m, vals]) => {
+  // Always-visible buttons (user 20.11.2026): new mode on/off and the mode itself, no need to open a block.
+  const on = !!x.params.ludo_new, cur = x.params.ludo_mode || 'MANUAL';
+  const bar = `<div class="presets"><small>${esc(t('ludo_bar'))}</small><button class="chip${on ? ' active' : ''}" data-lnew="${x.key}">${on ? '✓ ' + t('ludo_new_on') : t('ludo_new_off')}</button>${on ? ['MANUAL', ...Object.keys(x.modes)].map(m => `<button class="chip${cur === m ? ' active' : ''}" data-lmode="${x.key}" data-m="${m}">${cur === m ? '✓ ' : ''}${m === 'MANUAL' ? t('mode_manual') : t('ludo_mode_btn', { m })}</button>`).join('') : ''}</div>`;
+  return bar + Object.entries(x.modes).map(([m, vals]) => {
     const key = `${x.key}:mode${m}`, open = openTests.has(key), on = x.params.ludo_mode === m;
     const rows = Object.entries(vals).map(([k, v]) => `<div class="prow"><span>${esc(x.labels && x.labels[k] ? tr(x.labels[k]) : paramLabel(k))}</span><b>${typeof v === 'boolean' ? (v ? '✓' : '—') : v}</b></div>`).join('');
     return `<div class="tests"><button class="tests-h" data-tests="${key}" aria-expanded="${open}">${open ? '▾' : '▸'} ${on ? '✓ ' : ''}${esc(t('ludo_mode_n', { m }))}</button>${open ? `<div class="tests-b pfold">${rows}</div>` : ''}</div>`;
@@ -769,6 +772,11 @@ document.addEventListener('click', e => {
   if (el.dataset.mkt) { const k = el.dataset.mkt; openMarkets.has(k) ? openMarkets.delete(k) : openMarkets.add(k); renderMarkets(state.settings); }
   if (el.dataset.pairsAll) setPairs((state.settings.markets[el.dataset.pairsAll] || []).map(p => p.key), []);
   if (el.dataset.pairsNone) setPairs([], (state.settings.markets[el.dataset.pairsNone] || []).map(p => p.key));
+  if (el.dataset.lnew || el.dataset.lmode) { // Ludo buttons: save and redraw at once
+    const k = el.dataset.lnew || el.dataset.lmode, x = (state.settings.allStrategies || []).find(q => q.key === k); if (!x) return;
+    const patch = el.dataset.lnew ? { ludo_new: !x.params.ludo_new } : { ludo_mode: el.dataset.m };
+    Object.assign(x.params, patch); call({ action: 'strategy', name: k, patch }); renderStrategies(state.settings); return;
+  }
   if (el.dataset.tests) { const k = el.dataset.tests; openTests.has(k) ? openTests.delete(k) : openTests.add(k); renderStrategies(state.settings); }
   if (el.dataset.open) { const k = el.dataset.open; openStrats.has(k) ? openStrats.delete(k) : openStrats.add(k); renderStrategies(state.settings); }
   if (el.dataset.filter) { stratFilter = el.dataset.filter; renderStrategies(state.settings); }

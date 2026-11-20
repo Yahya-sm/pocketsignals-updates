@@ -152,7 +152,7 @@ const PARAM_LABELS = {
   ludo_ma: L('Подтверждение скользящими EMA', 'Bestätigung durch EMAs', 'Confirmation by EMAs'),
   ludo_fast: L('Быстрая EMA, период', 'Schnelle EMA, Periode', 'Fast EMA period'),
   ludo_slow: L('Медленная EMA, период', 'Langsame EMA, Periode', 'Slow EMA period'),
-  ludo_mode: L('Режим: MANUAL = ручные настройки, A / B = готовые (настройки под спойлером)', 'Modus: MANUAL = manuell, A / B = fertig (Werte im Spoiler)', 'Mode: MANUAL = manual, A / B = ready-made (values in the spoiler)'),
+  ludo_mode: L('Режим: MANUAL = ручные настройки, A / B / C = готовые (настройки под спойлером)', 'Modus: MANUAL = manuell, A / B = fertig (Werte im Spoiler)', 'Mode: MANUAL = manual, A / B = ready-made (values in the spoiler)'),
   ludo_path: L('Путь от начала серии до сигнала не больше, ATR (0 = выкл)', 'Weg vom Serienbeginn bis zum Signal höchstens, ATR (0 = aus)', 'Path from series start to the signal at most, ATR (0 = off)'),
   ludo_body_min: L('Тело сигнальной свечи минимум, ATR (0 = выкл)', 'Körper der Signalkerze mindestens, ATR (0 = aus)', 'Signal candle body at least, ATR (0 = off)'),
   ludo_body_max: L('Тело сигнальной свечи максимум, ATR (0 = выкл)', 'Körper der Signalkerze höchstens, ATR (0 = aus)', 'Signal candle body at most, ATR (0 = off)'),
@@ -777,6 +777,8 @@ function backtest(c, id, opt = {}) {
 const LUDO_MODES = {
   A: { ludo_cross: true, ludo_cross_after: 0, ludo_fast: 5, ludo_slow: 13, min_series: 2, max_chaos: 1, ser_body_atr: 0, ludo_ma: false, ludo_path: 1.5, ludo_body_min: 0.6, ludo_body_max: 1, ludo_clean: 10, ludo_wick: 20, ludo_exp: 60 },
   B: { ludo_cross: true, ludo_cross_after: 0, ludo_fast: 5, ludo_slow: 13, min_series: 4, max_chaos: 1, ser_body_atr: 0, ludo_ma: false, ludo_path: 1.5, ludo_body_min: 0, ludo_body_max: 0, ludo_clean: 0, ludo_wick: 20, ludo_exp: 60 },
+  // C (20.11.2026): strong series = 3+ candles, EVERY body >= 0.6 ATR, entry 1 candle after the cross, move not over (path <= 3 ATR). 0.6/day/pair, 59/64 % at 1/2 min.
+  C: { ludo_cross: true, ludo_cross_after: 1, ludo_fast: 5, ludo_slow: 13, min_series: 3, max_chaos: 1, ser_body_atr: 0.6, ludo_ma: false, ludo_path: 3, ludo_body_min: 0, ludo_body_max: 0, ludo_clean: 0, ludo_wick: 25, ludo_exp: 120 },
 };
 const IND_GROUPS = [
   { title: L('Ludo: режим A / B / ручной', 'Ludo: Modus A / B / manuell', 'Ludo: mode A / B / manual'), desc: L('A и B — готовые настройки (под спойлером). MANUAL — ваши значения ниже.', 'A und B – fertige Werte (im Spoiler). MANUAL – Ihre Werte.', 'A and B – ready-made (in the spoiler). MANUAL – your values.'), keys: ['ludo_new', 'ludo_mode', 'ludo_cross', 'ludo_cross_after', 'ludo_fast', 'ludo_slow', 'min_series', 'ludo_path', 'ludo_body_min', 'ludo_body_max', 'ludo_clean', 'ludo_wick', 'ludo_ma', 'ludo_exp'] },
