@@ -1363,7 +1363,7 @@ const S = {
     let m5 = tm === 5 ? x.ctx && x.ctx.M5 : null;
     if ((!m5 || m5.length < 60) && x.ctx && x.ctx.M1) m5 = tm === 1 ? x.ctx.M1 : I.resample(x.ctx.M1, tm);
     if (!m5 || m5.length < 40) return null;
-    const bb = Number(p.es_bars), n = m5.length - 1, B = Math.max(1, Number.isFinite(bb) ? bb : 5), lim = Number(p.es_slope) || 20; // 0 = 1 candle, not 5
+    const bb = Number(p.es_bars), n = m5.length - 1, B = Math.max(1, bb || 5), lim = Number(p.es_slope) || 20; // 0 = 5 candles as before 1.0.208 (1.0.208 made 0 = 1 → almost no signals)
     const e = q.tr_ma === 'SMA' ? I.sma(m5.map(k => k.close), q.tr_m5_ema) : I.ema(m5.map(k => k.close), q.tr_m5_ema), a = I.atr(m5, 14);
     const sl = j => (e[j] == null || e[j - B] == null || !(a[j] > 0)) ? null : (e[j] - e[j - B]) / a[j] * 100;
     const s1 = sl(n), s0 = sl(n - 1); if (s1 == null || s0 == null) return null;
