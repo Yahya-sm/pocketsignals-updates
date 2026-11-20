@@ -79,5 +79,6 @@ setInterval(() => push({ type: 'state', state: engine.state() }), 15000);
 window.__psWake = () => {
   const p = engine.po;
   if (p.ssid && !p.authed && (!p.ws || p.ws.readyState > 1)) { p._log('Wieder wach – verbinde neu'); p.connect(); }
+  else { try { engine.wakeScan(); } catch (e) {} } // overdue scan (screen off throttles timers)
 };
 engine.start();

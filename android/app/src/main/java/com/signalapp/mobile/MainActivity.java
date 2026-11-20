@@ -304,14 +304,16 @@ public class MainActivity extends Activity {
         handleAction(getIntent()); // app was started from a notification button
 
         if (bgOn()) startSignalService();
-        // Wake the engine every 30 s while signals may run (screen on, or "signals with the screen off" switched on):
-        // a lost connection is rebuilt even if JS timers slept.
+        // Wake the engine while signals may run (screen on, or "signals with the screen off" switched on): a lost connection
+        // is rebuilt and an overdue scan runs even if JS timers slept. Screen off (20.11.2026): every 3 s, because the hidden
+        // WebView throttles JS timers and the minute scan came minutes late or not at all.
         root.postDelayed(new Runnable() { public void run() {
-            if (bgOn() || isScreenOn()) {
+            boolean on = isScreenOn();
+            if (bgOn() || on) {
                 signals.resumeTimers();
                 signals.evaluateJavascript("window.__psWake&&window.__psWake()", null);
             }
-            root.postDelayed(this, 30000);
+            root.postDelayed(this, on ? 30000 : 3000);
         } }, 30000);
     }
 
@@ -339,6 +341,8 @@ public class MainActivity extends Activity {
         s.setUseWideViewPort(true);
         w.setWebChromeClient(new WebChromeClient());
         w.setBackgroundColor(Color.parseColor("#0a0e16"));
+        // Keep the WebView renderer at high priority when hidden (screen off), so Android does not starve or kill it.
+        if (Build.VERSION.SDK_INT >= 26) w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
         return w;
     }
 

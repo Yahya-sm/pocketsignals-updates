@@ -494,9 +494,15 @@ class Engine extends EventEmitter {
     const step = this.scanInterval * 1000, offset = step === 60000 ? 1500 : 300;
     const tick = () => {
       const ms = step - (Date.now() % step) + offset;
+      this._due = Date.now() + ms;
       this.timer = setTimeout(() => { this.scan(); tick(); }, ms);
     };
     tick();
+  }
+  // Phone with the screen off (20.11.2026): Android WebView throttles JS timers in a hidden page, so the scan timer fires
+  // minutes late. The app wakes JS every few seconds; if the planned scan is overdue, scan now and restart the timer.
+  wakeScan() {
+    if (this._due && Date.now() > this._due + 1500) { this.scan(); this.restartTimer(); }
   }
 
   _onAssets(list) {

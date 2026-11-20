@@ -100,7 +100,7 @@ Object.assign(PARAMS, {
   smart_money_5m: { swing_n: 3, fvg_atr: 0.3, ob_atr: 1.5, m5: true },
   spring: { zone_atr: 1.2, spike_atr: 0.8, min_candles_zone: 5, break_body_atr: 1.2, max_opposite_wick_pct: 25 },
   pressure: { window: 10, third_share: 0.7, min_sequence: 3, max_opposite_wick_pct: 30, dominance: 0.65 },
-  correction: { imp_atr: 3, min_reactions: 2, depth_min: 0.38, depth_max: 0.62 },
+  correction: { imp_atr: 3, min_reactions: 2, depth_min: 0.38, depth_max: 0.62, corr_body_min: 0, corr_body_max: 0 },
   double_strike: { imp_atr: 2, max_retrace: 0.38 },
   neuro: { threshold: 0.56 },
 });
@@ -169,6 +169,8 @@ const PARAM_LABELS = {
   rsi_hi: L('Истощение: RSI 7 выше', 'Erschöpfung: RSI 7 über', 'Exhaustion: RSI 7 above'), rsi_lo: L('Истощение: RSI 7 ниже', 'Erschöpfung: RSI 7 unter', 'Exhaustion: RSI 7 below'),
   forex_close_extreme_pct: L('FOREX: закрытие в крайних, %', 'FOREX: Schluss in äußeren, %', 'FOREX: close in the outer, %'),
   window: L('Окно диапазона, свечей', 'Range-Fenster, Kerzen', 'Range window, candles'),
+  corr_body_min: L('Размер сигнальной свечи: тело от … ATR (0 = выкл)', 'Signalkerze: Körper ab … ATR (0 = aus)', 'Signal candle: body from … ATR (0 = off)'),
+  corr_body_max: L('Размер сигнальной свечи: тело до … ATR (0 = выкл)', 'Signalkerze: Körper bis … ATR (0 = aus)', 'Signal candle: body up to … ATR (0 = off)'),
   touch_tol_atr: L('Допуск касания, ×ATR', 'Toleranz Berührung, ×ATR', 'Touch tolerance, ×ATR'),
   min_touches: L('Мин. касаний каждой границы', 'Min. Berührungen je Grenze', 'Min touches of each bound'),
   width_min_atr: L('Ширина диапазона от, ×ATR', 'Range-Breite ab, ×ATR', 'Range width from, ×ATR'), width_max_atr: L('Ширина диапазона до, ×ATR', 'Range-Breite bis, ×ATR', 'Range width up to, ×ATR'),
@@ -533,6 +535,8 @@ const MORE = {
     pass(1, 'level', { n: lv });
     const shrink = pb.length >= 2 && body(pb[pb.length - 1]) < body(pb[0]);
     if (depth < p.depth_min || depth > p.depth_max || !shrink || dirOf(k) !== d) return fail(2, 'no_correction', { p: f0(depth * 100) });
+    const cbMin = Number(p.corr_body_min) || 0, cbMax = Number(p.corr_body_max) || 0, cb = body(k) / a;
+    if ((cbMin && cb < cbMin) || (cbMax && cb > cbMax)) return fail(2, 'no_correction', { p: f0(depth * 100) + ' · ' + f1(cb) + ' ATR' });
     pass(2, 'correction', { p: f0(depth * 100) }); out.score = Math.round(55 + 20 * (1 - Math.abs(depth - 0.5) / 0.12) * 0.5 + 15 * Math.min(1, body(k) / a));
   },
   double_strike({ c, p, i, a, k, fail, pass, out }) {
@@ -790,7 +794,7 @@ const IND_GROUPS = [
   { title: L('Z-score — перегрев', 'Z-Score – Überhitzung', 'Z-score – overheating'), desc: L('На сколько отклонений цена ушла от средней.', 'Wie viele Standardabweichungen vom Mittel.', 'How many standard deviations from the mean.'), keys: ['z_period', 'z_level', 'extreme_window'] },
   { title: L('Фракталы, свинги и уровни', 'Fraktale, Swings und Level', 'Fractals, swings and levels'), desc: L('Структура рынка и уровни поддержки / сопротивления.', 'Marktstruktur und Unterstützung / Widerstand.', 'Market structure and support / resistance.'), keys: ['fractal_n', 'swing_n', 'min_amp_atr', 'level_tol_atr', 'min_reactions', 'room_atr', 'break_atr', 'lookback', 'min_level_distance_atr', 'fvg_atr', 'ob_atr', 'm5'] },
   { title: L('Диапазон / сжатие', 'Range / Kompression', 'Range / squeeze'), desc: L('Границы бокового рынка и зоны сжатия.', 'Grenzen des Seitwärtsmarkts und Kompressionszonen.', 'Sideways bounds and squeeze zones.'), keys: ['window', 'touch_tol_atr', 'min_touches', 'width_min_atr', 'width_max_atr', 'zone_pct', 'zone_atr', 'spike_atr', 'min_candles_zone'] },
-  { title: L('Свечи и паттерны', 'Kerzen und Muster', 'Candles and patterns'), desc: L('Размер, тело, тени, серии свечей.', 'Größe, Körper, Dochte, Serien.', 'Size, body, wicks, series.'), keys: ['accel_range_atr', 'min_directional_closes', 'prev_range_atr', 'prev_same_dir', 'max_opposite_wick_pct', 'exhaustion_streak', 'forex_close_extreme_pct', 'break_body_atr', 'rejection_wick_pct', 'wick_pct', 'body_pct', 'min_body_atr', 'min_closes', 'poke_min_atr', 'poke_max_atr', 'third_share', 'min_sequence', 'dominance', 'imp_atr', 'depth_min', 'depth_max', 'max_retrace', 'window', 'max_chaos', 'min_series'] },
+  { title: L('Свечи и паттерны', 'Kerzen und Muster', 'Candles and patterns'), desc: L('Размер, тело, тени, серии свечей.', 'Größe, Körper, Dochte, Serien.', 'Size, body, wicks, series.'), keys: ['accel_range_atr', 'min_directional_closes', 'prev_range_atr', 'prev_same_dir', 'max_opposite_wick_pct', 'exhaustion_streak', 'forex_close_extreme_pct', 'break_body_atr', 'rejection_wick_pct', 'wick_pct', 'body_pct', 'min_body_atr', 'min_closes', 'poke_min_atr', 'poke_max_atr', 'third_share', 'min_sequence', 'dominance', 'imp_atr', 'depth_min', 'depth_max', 'corr_body_min', 'corr_body_max', 'max_retrace', 'window', 'max_chaos', 'min_series'] },
 ];
 function groupsFor(params) {
   const used = new Set();
