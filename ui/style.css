@@ -536,3 +536,19 @@ html, body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, s
 #labTop .rk.dep small { margin-left: 2px; }
 @media (max-width: 699px) { #labTop .rk.opt { display: none; } }
 #labFilters { min-height: 0; margin: 0; justify-content: flex-end; }
+
+/* Radar of active pairs (20.11.2026): thin folded block above the live signals. */
+.pradar { margin: 4px 0 6px; font-size: 12px; }
+.pradar > summary { padding: 6px 10px; flex-wrap: wrap; gap: 2px 8px; }
+.pradar[open] > summary { padding: 6px 4px; }
+.pradar > summary .psub { width: 100%; padding-left: 16px; }
+.pradar .pcount { color: var(--muted); font-weight: 400; }
+.pradar .psub { color: var(--muted); font-size: 11px; }
+.pradar .prow { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 4px; }
+.pradar .pnum { display: flex; align-items: center; gap: 6px; }
+.pradar .pnum button { width: 26px; height: 24px; padding: 0; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: inherit; font-size: 14px; }
+.pradar .pnum b { min-width: 30px; text-align: center; }
+.pradar .plist { max-height: 200px; overflow-y: auto; margin-top: 4px; }
+.pradar .ppair { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-top: 1px solid var(--line); cursor: pointer; }
+.pradar .pgo { color: var(--muted); }
+.pradar .pnone { padding: 6px 4px; }

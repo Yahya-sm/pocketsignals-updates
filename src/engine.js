@@ -976,7 +976,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1095,10 +1095,29 @@ class Engine extends EventEmitter {
     this.emit('state');
   }
 
+  // Radar of active pairs (20.11.2026): not a signal – selected pairs with several big M1 candles in the last N.
+  radar() {
+    const s = this.settings, clamp = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+    const N = Math.round(clamp(s.radar_n, 3, 60, 10)), X = clamp(s.radar_x, 0.1, 100, 1), K = Math.round(clamp(s.radar_k, 1, 60, 3));
+    const list = [];
+    if (s.radar_on !== false) for (const a of this.selectedAssets()) {
+      const c = this.candles.get(a.symbol); if (!c || c.length < N + 60) continue;
+      const w = c.slice(-N), pre = c.slice(Math.max(0, c.length - N - 120), c.length - N);
+      const avg = pre.reduce((t, k) => t + k.high - k.low, 0) / pre.length; if (!(avg > 0)) continue;
+      const big = w.filter(k => Math.abs(k.close - k.open) >= X * avg).length; if (big < K) continue;
+      const size = Math.round(w.reduce((t, k) => t + k.high - k.low, 0) / N / avg * 10) / 10;
+      const mv = w[N - 1].close - w[0].open;
+      list.push({ symbol: a.symbol, name: a.name, otc: a.otc, payout: a.payout, big, n: N, size, dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[N - 1].time });
+    }
+    list.sort((p, q) => q.big - p.big || q.size - p.size);
+    return { on: s.radar_on !== false, n: N, x: X, k: K, list: list.slice(0, 15) };
+  }
+
   state() {
-    const done = this.signals.filter(s => s.result === 'WIN' || s.result === 'LOSS');
+    const done =this.signals.filter(s => s.result === 'WIN' || s.result === 'LOSS');
     const wins = done.filter(s => s.result === 'WIN').length;
     return {
+      radar: this.radar(),
       status: this.status, connected: this.po.authed, lastError: this.po.lastError || null, log: this.po.log.slice(-40),
       // What session is stored (never the session itself): shown under the session field.
       session: this.po.ssid ? { length: this.po.ssid.length, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid) } : null, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid || ''),

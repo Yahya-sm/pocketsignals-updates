@@ -119,6 +119,7 @@ function render() {
   const open = state.signals.filter(s => !s.result).length;
   $('#stats').innerHTML = statTiles(mineList(), true);
 
+  renderRadar();
   renderLive();
   if (window.labRender) window.labRender();
   $('#liveCount').textContent = open || '';
@@ -697,6 +698,45 @@ window.__dirBadgeFor = sym => {
   const s = (state && state.signals || []).filter(x => x.symbol === sym && Date.now() - x.created < 600000).sort((a, b) => b.created - a.created)[0];
   dirBadge(s);
 };
+// Radar of active pairs (20.11.2026): not a signal – where big M1 candles are now. Folded block above the live signals.
+const RADAR_KEYS = [['radar_n', 'radar_n_l', 1, 3, 10], ['radar_x', 'radar_x_l', 0.1, 0.1, 1], ['radar_k', 'radar_k_l', 1, 1, 3]];
+function renderRadar() {
+  const el = $('#radar'); if (!el || !state) return;
+  const R = state.radar; if (!R || !R.on) { if (el.dataset.html !== '') { el.innerHTML = ''; el.dataset.html = ''; } return; }
+  let open = false; try { open = localStorage.getItem('radarOpen') === '1'; } catch {}
+  const num = v => String(Math.round(v * 10) / 10).replace('.', ',');
+  const rows = RADAR_KEYS.map(([k, l, , , d]) => `<div class="prow"><span>${esc(t(l))}</span><span class="pnum"><button data-rk="${k}" data-rd="-1">−</button><b>${num(R[k.slice(6)] ?? d)}</b><button data-rk="${k}" data-rd="1">+</button></span></div>`).join('');
+  const list = R.list.length ? R.list.map(p => `<div class="ppair" data-rsym="${esc(p.symbol)}"><div class="pmain"><b>${esc(p.name)}</b> <span style="color:var(--${p.dir === 'up' ? 'call' : 'put'})">${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : ''}</span>`
+    + `<div class="psub">${esc(t('radar_line', { b: p.big, n: p.n, s: num(p.size) }))}${p.payout ? ' · ' + p.payout + ' %' : ''}</div></div><span class="pgo">↗</span></div>`).join('')
+    : `<div class="psub pnone">${esc(t('radar_none'))}</div>`;
+  const html = `<details class="setfold pradar"${open ? ' open' : ''}><summary><h3>${esc(t('radar_title'))} <span class="pcount">${R.list.length || ''}</span></h3><span class="psub">${esc(t('radar_sub'))}</span></summary>${rows}<div class="plist">${list}</div></details>`;
+  if (el.dataset.html === html) return;
+  const sc = el.querySelector('.plist')?.scrollTop || 0;
+  el.innerHTML = html; el.dataset.html = html;
+  const pl = el.querySelector('.plist'); if (pl) pl.scrollTop = sc;
+  el.querySelector('details').addEventListener('toggle', e => { try { localStorage.setItem('radarOpen', e.target.open ? '1' : '0'); } catch {} });
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-rk]');
+  if (b) {
+    e.preventDefault(); const k = b.dataset.rk, def = RADAR_KEYS.find(x => x[0] === k), R = state.radar || {};
+    const v = Math.max(def[3], Math.round(((R[k.slice(6)] ?? def[4]) + def[2] * Number(b.dataset.rd)) * 10) / 10);
+    await call({ action: 'settings', patch: { [k]: v } });
+    if (state.radar) state.radar = { ...state.radar, [k.slice(6)]: v };
+    $('#radar').dataset.html = ''; renderRadar(); return;
+  }
+  const r = e.target.closest('[data-rsym]');
+  if (r) openPOSymbol(r.dataset.rsym);
+});
+async function openPOSymbol(symbol) {
+  const res = await call({ action: 'openPO', symbol, tf: 'M1', lang: LANG });
+  const name = res.name || symbol;
+  if (isDesktop) { toast(t('toast_po', { name }) + ' · M1'); return; }
+  if (isAndroid) {
+    if (window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(name);
+    else window.AndroidApp.openPocketOption(name, res.symbol || symbol);
+  }
+}
 async function openPO(id, tf, auto, exp, trade) {
   const sig = state.signals.find(s => s.id === id);
   const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG, ...(trade ? { trade } : {}) });
