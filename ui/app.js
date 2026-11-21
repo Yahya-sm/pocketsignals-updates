@@ -119,6 +119,7 @@ function render() {
   const open = state.signals.filter(s => !s.result).length;
   $('#stats').innerHTML = statTiles(mineList(), true);
 
+  applyCards();
   renderRadar();
   renderLive();
   if (window.labRender) window.labRender();
@@ -555,11 +556,13 @@ function oneTest(T, key) {
 // Settings that work against the chosen way of trading are hidden (user 17.11.2026).
 function hiddenParams(x) {
   if (x.key === 'n_run') { // a switched-off mode hides its settings except its own switch (19.11.2026)
-    const g = { rs_m_run: ['rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_cross', 'rs_cross_fast', 'rs_cross_slow'],
+    const g = { rs_m_run: x.params.rs_cross ? ['rs_min', 'rs_atr', 'rs_series'] : ['rs_tf', 'expiry', 'rs_buy', 'rs_sell', 'rs_min', 'rs_atr', 'rs_adx_on', 'rs_adx_min', 'rs_room', 'rs_series', 'rs_cross_fast', 'rs_cross_slow', 'rs_cross_after'], // 20.11.2026: the EMA cross switch stays visible with the series off
       rs_m_zone: ['rs_z_tf', 'rs_z_exp', 'rs_z_buy', 'rs_z_sell', 'rs_z_n', 'rs_z_touch', 'rs_z_width', 'rs_z_gap'],
       rs_m_pull: ['rs_p_tf', 'rs_p_exp', 'rs_p_buy', 'rs_p_sell', 'rs_p_trend', 'rs_p_max', 'rs_p_depth', 'rs_p_di', 'rs_p_adx'] };
     const hid = Object.entries(g).flatMap(([k, keys]) => x.params[k] === false || (k !== 'rs_m_run' && !x.params[k]) ? keys : []);
     if (x.params.rs_cross === false) hid.push('rs_cross_after', 'rs_cross_fast', 'rs_cross_slow');
+    if (x.params.rs_cross === false) hid.push('rs_series');
+    if (x.params.rs_cross !== false && x.params.rs_series === false) hid.push('rs_min', 'rs_atr'); // series filter off: its settings hidden
     if (x.params.rs_chaos_on === false) hid.push('rs_chaos', 'rs_chaos_n');
     return hid;
   }
@@ -698,45 +701,124 @@ window.__dirBadgeFor = sym => {
   const s = (state && state.signals || []).filter(x => x.symbol === sym && Date.now() - x.created < 600000).sort((a, b) => b.created - a.created)[0];
   dirBadge(s);
 };
-// Radar of active pairs (20.11.2026): not a signal – where big M1 candles are now. Folded block above the live signals.
-const RADAR_KEYS = [['radar_n', 'radar_n_l', 1, 3, 10], ['radar_x', 'radar_x_l', 0.1, 0.1, 1], ['radar_k', 'radar_k_l', 1, 1, 3]];
-function renderRadar() {
-  const el = $('#radar'); if (!el || !state) return;
-  const R = state.radar; if (!R || !R.on) { if (el.dataset.html !== '') { el.innerHTML = ''; el.dataset.html = ''; } return; }
-  let open = false; try { open = localStorage.getItem('radarOpen') === '1'; } catch {}
-  const num = v => String(Math.round(v * 10) / 10).replace('.', ',');
-  const rows = RADAR_KEYS.map(([k, l, , , d]) => `<div class="prow"><span>${esc(t(l))}</span><span class="pnum"><button data-rk="${k}" data-rd="-1">−</button><b>${num(R[k.slice(6)] ?? d)}</b><button data-rk="${k}" data-rd="1">+</button></span></div>`).join('');
-  const list = R.list.length ? R.list.map(p => `<div class="ppair" data-rsym="${esc(p.symbol)}"><div class="pmain"><b>${esc(p.name)}</b> <span style="color:var(--${p.dir === 'up' ? 'call' : 'put'})">${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : ''}</span>`
-    + `<div class="psub">${esc(t('radar_line', { b: p.big, n: p.n, s: num(p.size) }))}${p.payout ? ' · ' + p.payout + ' %' : ''}</div></div><span class="pgo">↗</span></div>`).join('')
-    : `<div class="psub pnone">${esc(t('radar_none'))}</div>`;
-  const html = `<details class="setfold pradar"${open ? ' open' : ''}><summary><h3>${esc(t('radar_title'))} <span class="pcount">${R.list.length || ''}</span></h3><span class="psub">${esc(t('radar_sub'))}</span></summary>${rows}<div class="plist">${list}</div></details>`;
-  if (el.dataset.html === html) return;
-  const sc = el.querySelector('.plist')?.scrollTop || 0;
-  el.innerHTML = html; el.dataset.html = html;
-  const pl = el.querySelector('.plist'); if (pl) pl.scrollTop = sc;
-  el.querySelector('details').addEventListener('toggle', e => { try { localStorage.setItem('radarOpen', e.target.open ? '1' : '0'); } catch {} });
-}
-document.addEventListener('click', async e => {
-  const b = e.target.closest('[data-rk]');
-  if (b) {
-    e.preventDefault(); const k = b.dataset.rk, def = RADAR_KEYS.find(x => x[0] === k), R = state.radar || {};
-    const v = Math.max(def[3], Math.round(((R[k.slice(6)] ?? def[4]) + def[2] * Number(b.dataset.rd)) * 10) / 10);
-    await call({ action: 'settings', patch: { [k]: v } });
-    if (state.radar) state.radar = { ...state.radar, [k.slice(6)]: v };
-    $('#radar').dataset.html = ''; renderRadar(); return;
-  }
-  const r = e.target.closest('[data-rsym]');
-  if (r) openPOSymbol(r.dataset.rsym);
+// Radar of active pairs (user 20.11.2026): folded block, own − / + settings, a row opens the pair in Pocket Option.
+// Signal cards on/off (user 21.11.2026): to watch only the radar. Per viewer, kept in localStorage.
+let cardsOff = (() => { try { return localStorage.getItem('cardsOff') === '1'; } catch { return false; } })();
+function applyCards() { document.body.classList.toggle('nocards', cardsOff); const b = document.getElementById('cardsTgl');
+  if (b) { b.textContent = (cardsOff ? '☐ ' : '☑ ') + (LANG === 'ru' ? 'Карточки' : LANG === 'de' ? 'Karten' : 'Cards'); b.classList.toggle('active', !cardsOff); } }
+document.addEventListener('click', e => { if (!e.target.closest('#cardsTgl')) return; e.preventDefault(); cardsOff = !cardsOff;
+  try { localStorage.setItem('cardsOff', cardsOff ? '1' : '0'); } catch {} applyCards(); });
+let radarTab = (() => { try { return localStorage.getItem('radarTab') || 'pairs'; } catch { return 'pairs'; } })();
+let patSetOpen = false;
+// One "⚙ Settings" button in the radar header (user 21.11.2026): all radar settings and hints hidden until pressed.
+let radarCfg = false;
+document.addEventListener('click', e => { const b = e.target.closest('[data-rcfg]'); if (!b) return; e.preventDefault(); e.stopPropagation();
+  radarCfg = !radarCfg; if (!radarCfg) patSetOpen = false; const d = document.querySelector('.pradar'); if (d && !d.open) { d.open = true; radarOpen = true; } renderRadar(true); }, true);
+let psetOpen = (() => { try { return localStorage.getItem('psetOpen') === '1'; } catch { return false; } })();
+const pTg = (k, on) => `<button type="button" class="ptg${on ? ' on' : ''}" data-ptg="${k}">${on ? (LANG === 'ru' ? 'вкл' : 'on') : (LANG === 'ru' ? 'выкл' : 'off')}</button>`;
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ptg]'); if (!b || !state.patRadar) return; e.preventDefault(); e.stopPropagation();
+  const k = b.dataset.ptg, v = !b.classList.contains('on'); call({ action: 'settings', patch: { [k]: v } });
+  state.patRadar = { ...state.patRadar, [k === 'pat_atr_on' ? 'atrOn' : 'adxOn']: v }; renderRadar(true);
+}, true);
+let rsetOpen = (() => { try { return localStorage.getItem('rsetOpen') === '1'; } catch { return false; } })();
+document.addEventListener('toggle', e => { const c = e.target.classList; if (!c) return;
+  if (c.contains('psfold')) { psetOpen = e.target.open; try { localStorage.setItem('psetOpen', psetOpen ? '1' : '0'); } catch {} return; }
+  if (c.contains('rsfold')) { rsetOpen = e.target.open; try { localStorage.setItem('rsetOpen', rsetOpen ? '1' : '0'); } catch {} return; }
+  if (c.contains('pfold')) patSetOpen = e.target.open; }, true);
+document.addEventListener('click', e => {
+  const tb = e.target.closest('[data-rtab]'); if (!tb) return; e.preventDefault();
+  radarTab = tb.dataset.rtab; try { localStorage.setItem('radarTab', radarTab); } catch {} renderRadar(true);
 });
-async function openPOSymbol(symbol) {
-  const res = await call({ action: 'openPO', symbol, tf: 'M1', lang: LANG });
-  const name = res.name || symbol;
-  if (isDesktop) { toast(t('toast_po', { name }) + ' · M1'); return; }
-  if (isAndroid) {
-    if (window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(name);
-    else window.AndroidApp.openPocketOption(name, res.symbol || symbol);
-  }
+document.addEventListener('click', e => {
+  const st = e.target.closest('[data-pfav]'); if (!st || !state.patRadar) return; e.preventDefault(); e.stopPropagation();
+  const f = new Set(state.patRadar.fav || []); f.has(st.dataset.pfav) ? f.delete(st.dataset.pfav) : f.add(st.dataset.pfav);
+  const v = state.patRadar.all.map(p => p.id).filter(id => f.has(id));
+  const list = state.patRadar.list.map(p => ({ ...p, fav: f.has(p.id) })).sort((p, q) => (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || q.time - p.time);
+  state.patRadar = { ...state.patRadar, fav: v, list };
+  call({ action: 'settings', patch: { pat_fav: v } }); renderRadar(true);
+}, true);
+document.addEventListener('change', e => {
+  const cb = e.target.closest('[data-pid]'); if (!cb || !state.patRadar) return;
+  const ids = new Set(state.patRadar.ids); cb.checked ? ids.add(cb.dataset.pid) : ids.delete(cb.dataset.pid);
+  const v = state.patRadar.all.map(p => p.id).filter(id => ids.has(id));
+  state.patRadar = { ...state.patRadar, ids: v, list: state.patRadar.list.filter(p => ids.has(p.id)) };
+  call({ action: 'settings', patch: { pat_ids: v } }); renderRadar(true);
+});
+let radarOpen = (() => { try { return localStorage.getItem('radarOpen') === '1'; } catch { return false; } })();
+// 21.11.2026 (user): the radar must not jump while scrolling or ticking patterns. No refresh while the pattern list
+// is open or the pointer is over the radar (unless the user clicked something there); scroll positions are kept.
+let radarHover = false;
+document.addEventListener('pointerover', e => { radarHover = !!(e.target.closest && e.target.closest('#radar')); });
+function radarWrite(el, html, force) {
+  if (el.dataset.html === html) return;
+  if (!force && el.dataset.html && (patSetOpen || radarHover)) return;
+  const keep = [...el.querySelectorAll('.rlist, .pset')].map(x => x.scrollTop);
+  el.innerHTML = html; el.dataset.html = html;
+  el.querySelectorAll('.rlist, .pset').forEach((x, i) => { if (keep[i] != null) x.scrollTop = keep[i]; });
 }
+function renderRadar(force) {
+  const el = document.getElementById('radar'), R = state && state.radar; if (!el || !R) return;
+  if (!R.on) { el.innerHTML = ''; return; }
+  const ru = LANG === 'ru', de = LANG === 'de';
+  const T = (r, d, e) => ru ? r : de ? d : e;
+  const step = (key, v, st, min) => `<span class="numbox"><button type="button" class="nb" data-rk="${key}" data-rs="${-st}" data-rm="${min}">−</button><b class="rv">${String(v).replace('.', ',')}</b><button type="button" class="nb" data-rk="${key}" data-rs="${st}" data-rm="${min}">+</button></span>`;
+  const rows = R.list.map(p => `<button class="rrow" data-rsym="${esc(p.symbol)}"><b>${esc(p.name)}</b><span class="${p.dir}">${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : '•'}${p.trend ? `<em class="rtr ${p.trend}" title="${T('тренд M', 'Trend M', 'trend M')}${R.ttf || 5}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}</span><small>${T(`${p.big} крупных из ${p.n} · ${String(p.size).replace('.', ',')}× обычного`, `${p.big} große von ${p.n} · ${p.size}× normal`, `${p.big} big of ${p.n} · ${p.size}× usual`)}${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') + ' %' : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
+  const PR = state.patRadar || { list: [], all: [], ids: [] };
+  // Settings row above the tabs (user 21.11.2026): name of the open tab + small arrow, like the radar header; no extra words.
+  const cfgRow = `<button type="button" class="rcfgrow${radarCfg ? ' on' : ''}" data-rcfg="1">${radarTab === 'pat' ? T('Паттерны', 'Muster', 'Patterns') : T('Активные пары', 'Aktive Paare', 'Active pairs')}</button>`;
+  const tabs = `<div class="rtabs"><button type="button" data-rtab="pairs" class="${radarTab === 'pairs' ? 'on' : ''}">${T('Активные пары', 'Aktive Paare', 'Active pairs')} ${R.list.length}</button><button type="button" data-rtab="pat" class="${radarTab === 'pat' ? 'on' : ''}">${T('Паттерны', 'Muster', 'Patterns')} ${PR.list.length}</button></div>`;
+  if (radarTab === 'pat') {
+    const nm = p => ru ? p.ru : p.en;
+    const prow = PR.list.map(p => `<button class="rrow${p.fav ? ' fav' : ''}" data-rsym="${esc(p.symbol)}"><b>${p.fav ? '★ ' : ''}${esc(p.name)} <span class="pnm">${esc(nm(p))}</span></b><span class="${p.dir}">${p.dir === 'up' ? '▲' : '▼'}${p.trend ? `<em class="rtr ${p.trend}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}</span><small>${T(`ещё ${p.left} мин · история ${p.wr} %`, `noch ${p.left} Min · Historie ${p.wr} %`, `${p.left} min left · history ${p.wr} %`)}${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') + ' %' : ''}${p.adx ? ' · ADX ' + p.adx : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
+    const G = { c: T('Свечные', 'Kerzen', 'Candles'), g: T('Графические', 'Chartmuster', 'Chart'), v: T('Волатильность и индикаторы', 'Volatilität', 'Volatility') };
+    const chk = ['c', 'g', 'v'].map(g => `<b class="pg">${G[g]}</b>` + PR.all.filter(p => p.g === g).map(p => `<label class="pchk"><button type="button" class="pstar${(PR.fav || []).includes(p.id) ? ' on' : ''}" data-pfav="${p.id}">${(PR.fav || []).includes(p.id) ? '★' : '☆'}</button><input type="checkbox" data-pid="${p.id}"${PR.ids.includes(p.id) ? ' checked' : ''}> ${esc(nm(p))} <small>${p.wr} %</small></label>`).join('')).join('');
+    const html = `<details class="setfold pradar"${radarOpen ? ' open' : ''}><summary><h3>${T('Радар', 'Radar', 'Radar')} <span class="cnt">${R.list.length + PR.list.length}</span></h3></summary>${cfgRow}${tabs}
+    ${radarCfg ? `<div class="rcfg"><details class="pfold psfold"${psetOpen ? ' open' : ''}><summary>${T('Фильтры ATR и ADX', 'ATR- und ADX-Filter', 'ATR and ADX filters')} (ATR ${PR.atrOn ? '≥' + String(PR.atrMin).replace('.', ',') + ' %' : T('выкл', 'aus', 'off')} · ADX ${PR.adxOn ? '≥' + PR.adxMin : T('выкл', 'aus', 'off')})</summary><div class="rset">
+      <label>${pTg('pat_atr_on', PR.atrOn)} ${T('ATR не меньше, % от цены', 'ATR mindestens, % vom Preis', 'ATR at least, % of price')} ${step('pat_atr', PR.atrMin, 0.005, 0)}</label>
+      <label>${pTg('pat_adx_on', PR.adxOn)} ${T('ADX не меньше (сила тренда M1)', 'ADX mindestens (Trendstärke M1)', 'ADX at least (M1 trend strength)')} ${step('pat_adx', PR.adxMin, 1, 0)}</label>
+      <small class="pnote">${T('ATR — размер свечей (живость пары). ADX — есть ли движение: до 20 флэт, 20–25 начало тренда, от 25 тренд, от 40 сильный. Подсказка по ATR — в «Активных парах».', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.')}</small></div></details>
+    <details class="rleg"><summary>${T('Что значат стрелки', 'Was die Pfeile bedeuten', 'What the arrows mean')}</summary>${T(`Стрелки: первая — направление паттерна (куда он обещает цену); вторая с цифрой — тренд старшего ТФ (₅ = M5, выбирается в «Активных парах»). ◆ = флэт.`, 'Arrows: first = pattern direction; second with number = higher-TF trend.', 'Arrows: first = pattern direction; second with number = higher-TF trend.')}</details>
+    <details class="pfold"${patSetOpen ? ' open' : ''}><summary>${T('Какие паттерны показывать', 'Welche Muster anzeigen', 'Which patterns to show')} (${PR.ids.length}/${PR.all.length})</summary><div class="pset">${chk}<small class="pnote">${T('% — движение цены на истории OTC (две половины), не вероятность успеха', '% – Kursbewegung in der OTC-Historie, keine Erfolgswahrscheinlichkeit', '% – price move in OTC history, not a win probability')}</small></div></details></div>` : ''}
+    <div class="rlist">${prow || `<p class="empty">${T('Сейчас нет действующих паттернов', 'Zurzeit keine aktiven Muster', 'No active patterns right now')}</p>`}</div></details>`;
+    radarWrite(el, html, force);
+    return;
+  }
+  const html = `<details class="setfold pradar"${radarOpen ? ' open' : ''}><summary><h3>${T('Радар', 'Radar', 'Radar')} <span class="cnt">${R.list.length + PR.list.length}</span></h3></summary>${cfgRow}${tabs}
+    ${radarCfg ? `<div class="rcfg"><details class="rleg"><summary>${T('Что значат стрелки', 'Was die Pfeile bedeuten', 'What the arrows mean')}</summary>${T(`Стрелки: первая — куда шла цена за ${R.dn || R.n} свеч. M1; вторая с цифрой — тренд старшего ТФ (₅ = M5). ◆ = флэт.`, 'Pfeile: erster = Kursrichtung im Fenster; zweiter mit Zahl = Trend des höheren TF. ◆ = flach.', 'Arrows: first = price move in the window; second with number = higher-TF trend. ◆ = flat.')}</details>
+    <details class="pfold rsfold"${rsetOpen ? ' open' : ''}><summary>${T('Настройки активных пар', 'Einstellungen aktive Paare', 'Active pairs settings')} (${R.n} / ${String(R.x).replace('.', ',')} / ${R.k}${R.pay ? ` · ≥${R.pay} %` : ''} · ${T('тренд', 'Trend', 'trend')} M${R.ttf || 5})</summary><div class="rset"><label>${T('Окно, свечей M1', 'Fenster, M1-Kerzen', 'Window, M1 candles')} ${step('radar_n', R.n, 1, 3)}</label>
+    <label>${T('Крупная = тело от … обычной свечи', 'Groß = Körper ab … der normalen Kerze', 'Big = body from … of the usual candle')} ${step('radar_x', R.x, 0.1, 0.1)}</label>
+    <label>${T('Крупных в окне не меньше', 'Große im Fenster mindestens', 'Big ones in the window at least')} ${step('radar_k', R.k, 1, 1)}</label>
+    <label>${T('Первая стрелка: направление цены за … свечей M1', 'Erster Pfeil: Kursrichtung über … M1-Kerzen', 'First arrow: price move over … M1 candles')} ${step('radar_dn', R.dn || R.n, 1, 1)}</label>
+    <label>${T('Старший таймфрейм для тренда (цифра у второй стрелки)', 'Höherer Zeitrahmen für den Trend', 'Higher timeframe for the trend')} <span class="ttfbox">${[2, 3, 4, 5, 10, 15].map(m => `<button type="button" class="ttfb${(R.ttf || 5) === m ? ' on' : ''}" data-ttf="${m}">${m}</button>`).join('')}</span></label>
+    <label>${T('ATR не меньше, % от цены (0 = все)', 'ATR mindestens, % vom Preis (0 = alle)', 'ATR at least, % of price (0 = all)')} ${step('radar_atr', R.atr || 0, 0.005, 0)}</label>
+    <details class="atrhelp"><summary>${T('Что значит ATR и какой ставить', 'Was ist ATR', 'What ATR means')}</summary><div>${T(`ATR — средний размер минутной свечи в % от цены. Видно в каждой строке («ATR 0,045 %»).<br>
+      <b>0</b> — фильтр выключен, показываются все пары.<br>
+      <b>до 0,005 %</b> — мёртвые пары: цена почти стоит, свечи-точки, ловить нечего.<br>
+      <b>0,005–0,03 %</b> — неподвижные: движение слабое, выплата часто съедается шумом.<br>
+      <b>0,03–0,1 %</b> — нормальные подвижные пары, обычный выбор.<br>
+      <b>от 0,1 %</b> — очень подвижные: быстрые сильные свечи, больше возможностей и больше риска.<br>
+      Совет: <b>0,02</b> — убрать мёртвые; <b>0,05</b> — только живые; <b>0,1</b> — только самые резкие.`, 'ATR = average M1 candle size in % of price. 0 = off; below 0.005 % dead; 0.005–0.03 % slow; 0.03–0.1 % normal; above 0.1 % very volatile.', 'ATR = average M1 candle size in % of price. 0 = off; below 0.005 % dead; 0.005–0.03 % slow; 0.03–0.1 % normal; above 0.1 % very volatile.')}</div></details>
+    <label>${T('Выплата не меньше, % (0 = все)', 'Auszahlung mindestens, % (0 = alle)', 'Payout at least, % (0 = all)')} ${step('radar_pay', R.pay || 0, 5, 0)}</label></div></details></div>` : ''}
+    <div class="rlist">${rows || `<p class="empty">${T('Сейчас нет пар с крупными свечами по этим настройкам', 'Zurzeit keine Paare mit großen Kerzen', 'No pairs with big candles right now')}</p>`}</div></details>`;
+  radarWrite(el, html, force);
+}
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('pradar')) { radarOpen = e.target.open; try { localStorage.setItem('radarOpen', radarOpen ? '1' : '0'); } catch {} } }, true);
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-rk]');
+  if (b && (b.dataset.rk === 'pat_atr' || b.dataset.rk === 'pat_adx')) { e.preventDefault(); const k = b.dataset.rk, P = state.patRadar, f = k === 'pat_atr' ? 'atrMin' : 'adxMin';
+    const v = Math.max(+b.dataset.rm, Math.round((P[f] + +b.dataset.rs) * 1000) / 1000); call({ action: 'settings', patch: { [k]: v } }); state.patRadar = { ...P, [f]: v }; renderRadar(true); return; }
+  if (b) { e.preventDefault(); const k = b.dataset.rk, R = state.radar, cur = { radar_n: R.n, radar_x: R.x, radar_k: R.k, radar_pay: R.pay || 0, radar_atr: R.atr || 0, radar_dn: R.dn || R.n }[k], st = +b.dataset.rs;
+    const v = Math.max(+b.dataset.rm, Math.round((cur + st) * 1000) / 1000); call({ action: 'settings', patch: { [k]: v } }); state.radar = { ...R, [k.slice(6)]: v }; renderRadar(true); return; }
+  const tf = e.target.closest('[data-ttf]');
+  if (tf) { e.preventDefault(); const v = +tf.dataset.ttf; call({ action: 'settings', patch: { radar_ttf: v } }); state.radar = { ...state.radar, ttf: v }; renderRadar(true); return; }
+  const r = e.target.closest('[data-rsym]');
+  // Phone: switch to the Pocket Option tab like the signal cards do (user 21.11.2026); PC: toast as before.
+  if (r) call({ action: 'openPO', symbol: r.dataset.rsym, tf: 'M1', lang: LANG }).then(x => {
+    if (isAndroid && window.AndroidApp) { const nm = (x && x.name) || r.dataset.rsym;
+      if (window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(nm); else window.AndroidApp.openPocketOption(nm, (x && x.symbol) || r.dataset.rsym); return; }
+    if (x && x.name && typeof toast === 'function') toast(t('toast_po', { name: x.name }) + ' · M1'); });
+});
 async function openPO(id, tf, auto, exp, trade) {
   const sig = state.signals.find(s => s.id === id);
   const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG, ...(trade ? { trade } : {}) });

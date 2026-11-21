@@ -92,7 +92,7 @@ Object.assign(PARAMS, {
   pro_bot: { adx_min: 20, min_body_atr: 0.6, min_closes: 3, pullback_atr: 0.3, break_atr: 0.2 },
   candle_bot: { sec_from: 45, sec_to: 50, min_closes: 3, max_opposite_wick_pct: 50, min_level_distance_atr: 0.5 },
   meanrev: { adx_max: 20, atr_pct_lo: 20, atr_pct_hi: 80, bb_mult: 2, max_body_atr: 1, wick_pct: 50 },
-  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30, ludo_new: false, ser_body_atr: 0, ludo_cross: true, ludo_cross_after: 0, ludo_ma: true, ludo_fast: 5, ludo_slow: 21, ludo_exp: 60, ludo_mode: 'MANUAL', ludo_path: 0, ludo_body_min: 0, ludo_body_max: 0, ludo_clean: 0, ludo_wick: 0 },
+  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30 },
   fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
   volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
   scanner: {},

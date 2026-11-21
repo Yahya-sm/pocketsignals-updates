@@ -145,8 +145,9 @@
     const today = state.signals.filter(s => s.mine && s.trade && s.trade.at * 1000 >= day.getTime());
     const w = today.filter(s => s.trade.result === 'WIN').length, l = today.filter(s => s.trade.result === 'LOSS').length;
     const units = today.reduce((a, s) => a + (s.trade.result === 'WIN' ? (s.payout || 80) / 100 : s.trade.result === 'LOSS' ? -1 : 0), 0);
-    setHtml(el, `<div class="sidebox"><b>${t('last_trades')}</b>${last}<button class="linkbtn" data-tab="history">${t('tab_journal')} →</button></div>
-      <div class="sidebox"><b>${t('today_mine')}</b><p class="num">${today.length} · W ${w} / L ${l} · ${units >= 0 ? '+' : ''}${units.toFixed(2)} ${t('rk_units')}</p><p class="hint">${t('today_hint', { n: today.length })}</p></div>`);
+    // 21.11.2026 (user): both boxes folded (spoilers) to leave room for the radar; open/closed is remembered.
+    setHtml(el, `<details class="sidebox sfold" data-sf="last"${sfOpen('last') ? ' open' : ''}><summary><b>${t('last_trades')}</b></summary>${last}<button class="linkbtn" data-tab="history">${t('tab_journal')} →</button></details>
+      <details class="sidebox sfold" data-sf="today"${sfOpen('today') ? ' open' : ''}><summary><b>${t('today_mine')}</b> <small>${today.length} · W ${w} / L ${l}</small></summary><p class="num">${today.length} · W ${w} / L ${l} · ${units >= 0 ? '+' : ''}${units.toFixed(2)} ${t('rk_units')}</p><p class="hint">${t('today_hint', { n: today.length })}</p></details>`);
   }
 
   // ---------- catalog ----------
@@ -315,3 +316,6 @@
   if (typeof state !== 'undefined' && state) { window.labRender(); const lv = document.getElementById('live'); if (lv) { lv.dataset.key = ''; renderLive(); } }
   document.addEventListener('click', e => { if (e.target.closest('[data-tab]')) setTimeout(() => window.labRender(), 0); });
 })();
+// Folded side boxes (21.11.2026): remember open/closed per viewer.
+function sfOpen(k) { try { return localStorage.getItem('sf_' + k) === '1'; } catch { return false; } }
+document.addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('sfold')) { try { localStorage.setItem('sf_' + d.dataset.sf, d.open ? '1' : '0'); } catch {} } }, true);

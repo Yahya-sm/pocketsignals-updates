@@ -6,10 +6,11 @@ const EventEmitter = require('events');
 const POClient = require('./po-client');
 const strategies = require('./strategies');
 const I = require('./indicators');
+const PAT = require('./patterns'); // pattern radar (21.11.2026)
 // Market-regime thresholds (settings, see I.regime).
 const LAB = require('./lab');
 // 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
-const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_emastart', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin', 'n_spike5']; // + its copy with market weather filters (14.11.2026)
+const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin', 'n_spike5']; // + its copy with market weather filters (14.11.2026)
 const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
@@ -135,14 +136,7 @@ class Engine extends EventEmitter {
       if (!(s.strat_tfs || {}).n_trend15) s.strat_tfs = { ...s.strat_tfs, n_trend15: ['S15'] };
       s.t15_1411 = true; writeJson(this.settingsFile, s);
     }
-    // 15.11.2026: new "Начало движения: наклон EMA" (n_emastart) – favourite + switched on once, entry M1.
-    if (!this.settings.es_1511) {
-      const s = this.settings;
-      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_emastart'])];
-      s.strategies = [...new Set([...(s.strategies || []), 'n_emastart'])];
-      if (!(s.strat_tfs || {}).n_emastart) s.strat_tfs = { ...s.strat_tfs, n_emastart: ['M1'] };
-      s.es_1511 = true; writeJson(this.settingsFile, s);
-    }
+    // 21.11.2026: n_emastart removed (user) – the 15.11 migration that switched it on is gone; cleanup below.
     // 16.11.2026: "Глубокое падение/рост → отскок" (n_sharp) and "Разворот после глубокого падения" (n_deeprev) back at the
     // user's request – favourite + switched on once, M1 unless a timeframe was already set.
     if (!this.settings.deep_1611) {
@@ -194,6 +188,24 @@ class Engine extends EventEmitter {
       ss.n_pin = { ...(ss.n_pin || {}), pn_tail: 50, pn_early: 0 };
       s.strategy_settings = ss; s.pin_strict_1911 = true; writeJson(this.settingsFile, s);
     }
+    // 21.11.2026 (user, main PC): n_spike5 favourite + switched on, M5/M10/M15 on (only the two switches, other values kept).
+    if (!this.settings.spike5_on_2111) {
+      const s = this.settings, ss = { ...(s.strategy_settings || {}) };
+      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_spike5'])];
+      s.strategies = [...new Set([...(s.strategies || []), 'n_spike5'])];
+      s.strat_tfs = { ...s.strat_tfs }; if (!s.strat_tfs.n_spike5) s.strat_tfs.n_spike5 = ['M1'];
+      ss.n_spike5 = { ...(ss.n_spike5 || {}), sp_m5: true, sp_m10: true, sp_m15: true }; s.strategy_settings = ss;
+      s.spike5_on_2111 = true; writeJson(this.settingsFile, s);
+    }
+    // 21.11.2026: Ludo back to its original settings – saved extra keys dropped, only the expiry stays.
+    if (!this.settings.ludo_reset_2111) {
+      const s = this.settings, ss = s.strategy_settings || {};
+      if (ss.ludo_bot_otc) ss.ludo_bot_otc = { expiry: 60 };
+      s.ludo_reset_2111 = true; writeJson(this.settingsFile, s);
+    }
+    // 21.11.2026: "Начало движения: наклон EMA" (n_emastart) removed – cleaned out of the switched-on and favourite lists.
+    { const s = this.settings, no = l => (l || []).filter(k => k !== 'n_emastart');
+      if ((s.strategies || []).includes('n_emastart') || (s.favorite_strategies || []).includes('n_emastart')) { s.strategies = no(s.strategies); s.favorite_strategies = no(s.favorite_strategies); s.es_1511 = true; writeJson(this.settingsFile, s); } }
     LAB.setStale(this.settings.stale_sec);
     this.paramLogFile = path.join(DATA, 'param-log.json');
     this.paramLog = readJson(this.paramLogFile, []); // who, when, what: old → new (parameters and mode/account switches)
@@ -546,8 +558,11 @@ class Engine extends EventEmitter {
     list.forEach((a, i) => setTimeout(() => this.po.loadHistory(a.symbol, 60, 60 * 300), i * 40));
     // Trend candles in the trend timeframe itself (PocketOption sends at most ~150 candles per request,
     // too few one-minute candles for M10+). Fetched at most once a minute per pair.
-    if (this.settings.show_m5 !== false || this.settings.trend_filter) {
-      this.trendMinutes.filter(tm => tm > 1).forEach((tm, n) => list.forEach((a, i) => {
+    // + the radar's trend TF (radar_ttf, user 21.11.2026) so M10/M15 trends work in the radar too.
+    const rtf = this.settings.radar_on !== false ? Number(this.settings.radar_ttf) || 5 : 0;
+    const tms = (this.settings.show_m5 !== false || this.settings.trend_filter ? this.trendMinutes : []).concat(rtf && !this.trendMinutes.includes(rtf) ? [rtf] : (rtf && !(this.settings.show_m5 !== false || this.settings.trend_filter) ? [rtf] : []));
+    if (tms.length) {
+      [...new Set(tms)].filter(tm => tm > 1).forEach((tm, n) => list.forEach((a, i) => {
         const have = this.trendCandles.get(a.symbol + '|' + tm);
         if (have && Date.now() - have.at < 55000) return;
         setTimeout(() => { this.trendReq.set(this.po.loadHistory(a.symbol, tm * 60, tm * 60 * 60), { tf: tm }); }, list.length * 40 * (n + 1) + i * 40);
@@ -717,6 +732,7 @@ class Engine extends EventEmitter {
   }
 
   _emitSignal(s) {
+    if (s.strategy === 'n_deeprev' && this.signals.some(x => x.strategy === s.strategy && x.symbol === s.asset && x.dir === (s.dir > 0 ? 'CALL' : 'PUT') && Date.now() - (x.created || 0) < 30 * 60000)) return;
     const a = this.assets.get(s.asset) || { name: s.asset, type: '' };
     const entryTime = s.entry || s.candle.time + 60; // next candle start (S-timeframes set their own)
     const id = `${s.asset}-${s.strategy}-${s.tf}-${s.bar ?? entryTime}`; // entry "now" inside a candle: one signal per candle
@@ -976,7 +992,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1095,29 +1111,64 @@ class Engine extends EventEmitter {
     this.emit('state');
   }
 
-  // Radar of active pairs (20.11.2026): not a signal – selected pairs with several big M1 candles in the last N.
+  // Radar of active pairs (user 20.11.2026): no signal, only where big candles are now. Big = body at least radar_x x the
+  // pair's usual candle (mean high–low of the 120 closed M1 candles before the window); the window is the last radar_n
+  // closed M1 candles; listed when at least radar_k of them are big. Sorted by the number of big candles, then by size.
+  // Radar trend on the chosen TF: EMA 9/21 like m5Trend, but needs only 22 candles of that TF (M15 from M1 history).
+  radarTrend(symbol, tm, c) {
+    const own = this.trendCandles.get(symbol + '|' + tm), tc = own ? own.candles : I.resample(c, tm);
+    if (!tc || tc.length < 22) return null;
+    const close = tc.map(k => k.close), f = I.ema(close, 9), sl = I.ema(close, 21), i = close.length - 1;
+    return f[i] > sl[i] && close[i] > f[i] ? 'CALL' : f[i] < sl[i] && close[i] < f[i] ? 'PUT' : 'FLAT';
+  }
+
+  // ATR(14) of M1 as % of price (user 21.11.2026): comparable between pairs; radar_atr = minimum, 0 = off.
+  radarAtr(c) { if (!c || c.length < 20) return 0; const a = I.atr(c, 14), v = a[a.length - 1], p = c[c.length - 1].close; return v > 0 && p > 0 ? +(100 * v / p).toFixed(3) : 0; }
+
   radar() {
-    const s = this.settings, clamp = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
-    const N = Math.round(clamp(s.radar_n, 3, 60, 10)), X = clamp(s.radar_x, 0.1, 100, 1), K = Math.round(clamp(s.radar_k, 1, 60, 3));
-    const list = [];
-    if (s.radar_on !== false) for (const a of this.selectedAssets()) {
+    const s = this.settings, N = Math.max(3, Math.min(60, Number(s.radar_n) || 10)), X = Number(s.radar_x) || 1, K = Math.max(1, Number(s.radar_k) || 3), PAY = Math.max(0, Number(s.radar_pay) || 0), TTF = [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, ATR = Math.max(0, Number(s.radar_atr) || 0), DN = Math.max(1, Math.min(60, Number(s.radar_dn) || N)); // radar_dn: candles for the first arrow // radar_pay: minimum payout % (user 21.11.2026)
+    const out = [];
+    for (const a of this.selectedAssets()) {
+      if (PAY && !(Number(a.payout) >= PAY)) continue;
       const c = this.candles.get(a.symbol); if (!c || c.length < N + 60) continue;
-      const w = c.slice(-N), pre = c.slice(Math.max(0, c.length - N - 120), c.length - N);
-      const avg = pre.reduce((t, k) => t + k.high - k.low, 0) / pre.length; if (!(avg > 0)) continue;
+      const atr = this.radarAtr(c); if (ATR && atr < ATR) continue;
+      const w = c.slice(-N), base = c.slice(Math.max(0, c.length - N - 120), c.length - N);
+      const avg = base.reduce((t, k) => t + k.high - k.low, 0) / base.length; if (!(avg > 0)) continue;
       const big = w.filter(k => Math.abs(k.close - k.open) >= X * avg).length; if (big < K) continue;
-      const size = Math.round(w.reduce((t, k) => t + k.high - k.low, 0) / N / avg * 10) / 10;
-      const mv = w[N - 1].close - w[0].open;
-      list.push({ symbol: a.symbol, name: a.name, otc: a.otc, payout: a.payout, big, n: N, size, dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[N - 1].time });
+      const size = w.reduce((t, k) => t + k.high - k.low, 0) / w.length / avg, mv = c[c.length - 1].close - c[c.length - DN].open; // first arrow: move over the last DN candles (user 21.11.2026)
+      out.push({ symbol: a.symbol, name: a.name, otc: !!a.otc, payout: a.payout, big, n: N, size: +size.toFixed(1), dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[w.length - 1].time,
+        trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, TTF, c)] || '', m1n: c.length, atr }); // higher-TF trend (EMA 9/21), TF chosen by the user (radar_ttf)
     }
-    list.sort((p, q) => q.big - p.big || q.size - p.size);
-    return { on: s.radar_on !== false, n: N, x: X, k: K, list: list.slice(0, 15) };
+    out.sort((p, q) => q.big - p.big || q.size - p.size);
+    return { on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
+  }
+
+  // Pattern radar (user 21.11.2026): known trading patterns on closed M1 candles, only while valid. Not a signal.
+  // pat_ids = patterns the user wants to see (default all). Cached per pair by the last candle time.
+  patRadar() {
+    const s = this.settings, ids = Array.isArray(s.pat_ids) ? s.pat_ids : PAT.LIST.map(p => p.id), fav = Array.isArray(s.pat_fav) ? s.pat_fav : [], out = [];
+    this._patCache = this._patCache || new Map();
+    for (const a of this.selectedAssets()) {
+      if (Number(s.radar_pay) > 0 && !(Number(a.payout) >= Number(s.radar_pay))) continue; // same minimum payout as the pairs radar
+      const c = this.candles.get(a.symbol); if (!c || c.length < PAT.MIN + 5) continue;
+      // Own ATR / ADX filters of the pattern radar (user 21.11.2026), each with an on/off switch.
+      const atr = this.radarAtr(c); if (s.pat_atr_on && atr < (s.pat_atr != null ? Number(s.pat_atr) : 0.02)) continue;
+      const ad = I.adx(c, 14), adx = ad[ad.length - 1] ? Math.round(ad[ad.length - 1].adx) : 0; if (s.pat_adx_on && adx < (s.pat_adx != null ? Number(s.pat_adx) : 20)) continue;
+      const last = c[c.length - 1].time, key = a.symbol; let e = this._patCache.get(key);
+      if (!e || e.last !== last) { const w = c.slice(-160); e = { last, act: PAT.active(w, PAT.prep(w), null) }; this._patCache.set(key, e); }
+      for (const x of e.act) if (ids.includes(x.id)) { const p = PAT.LIST.find(q => q.id === x.id);
+        out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, fav: fav.includes(x.id), atr, adx,
+          trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '' }); }
+    }
+    out.sort((p, q) => (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || q.time - p.time || (q.payout || 0) - (p.payout || 0)); // favourites first (user 21.11.2026)
+    return { atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
   }
 
   state() {
     const done =this.signals.filter(s => s.result === 'WIN' || s.result === 'LOSS');
     const wins = done.filter(s => s.result === 'WIN').length;
     return {
-      radar: this.radar(),
+      radar: this.radar(), patRadar: this.patRadar(),
       status: this.status, connected: this.po.authed, lastError: this.po.lastError || null, log: this.po.log.slice(-40),
       // What session is stored (never the session itself): shown under the session field.
       session: this.po.ssid ? { length: this.po.ssid.length, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid) } : null, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid || ''),

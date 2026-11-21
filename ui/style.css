@@ -537,18 +537,125 @@ html, body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, s
 @media (max-width: 699px) { #labTop .rk.opt { display: none; } }
 #labFilters { min-height: 0; margin: 0; justify-content: flex-end; }
 
-/* Radar of active pairs (20.11.2026): thin folded block above the live signals. */
-.pradar { margin: 4px 0 6px; font-size: 12px; }
-.pradar > summary { padding: 6px 10px; flex-wrap: wrap; gap: 2px 8px; }
-.pradar[open] > summary { padding: 6px 4px; }
-.pradar > summary .psub { width: 100%; padding-left: 16px; }
-.pradar .pcount { color: var(--muted); font-weight: 400; }
-.pradar .psub { color: var(--muted); font-size: 11px; }
-.pradar .prow { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 4px; }
-.pradar .pnum { display: flex; align-items: center; gap: 6px; }
-.pradar .pnum button { width: 26px; height: 24px; padding: 0; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: inherit; font-size: 14px; }
-.pradar .pnum b { min-width: 30px; text-align: center; }
-.pradar .plist { max-height: 200px; overflow-y: auto; margin-top: 4px; }
-.pradar .ppair { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-top: 1px solid var(--line); cursor: pointer; }
-.pradar .pgo { color: var(--muted); }
-.pradar .pnone { padding: 6px 4px; }
+/* Radar of active pairs (20.11.2026) */
+.pradar .rset { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
+.pradar .rset label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pradar .rv { min-width: 34px; text-align: center; display: inline-block; color: var(--text, #e6edf3); }
+.pradar .rrow { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n d i" "s s i"; gap: 0 8px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 5px 2px; color: inherit; cursor: pointer; }
+.pradar .rrow b { grid-area: n; font-size: 13px; } .pradar .rrow > span { grid-area: d; font-weight: 800; } .pradar .rrow small { grid-area: s; color: var(--muted); font-size: 11px; } .pradar .rrow i { grid-area: i; align-self: center; color: var(--accent); font-style: normal; }
+.pradar .rrow .up { color: var(--call); } .pradar .rrow .down { color: var(--put); }
+
+.pradar > summary { flex-wrap: wrap; } .pradar > summary small { flex-basis: 100%; }
+
+/* 20.11.2026 (user): radar one thin line when folded; latency next to CALL/PUT; my-trade stats right under the tiles. */
+.dirrow { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.dirrow > .chips { margin: 0 !important; } #signals .dirrow #labFilters { display: flex !important; flex: none; }
+#signals .dirrow #labFilters > :not(.latchip) { display: none !important; }
+.setfold.pradar { margin: 4px 0; border-radius: 10px; }
+.setfold.pradar > summary { padding: 3px 10px; gap: 6px; min-height: 0; }
+.setfold.pradar > summary::before { font-size: 10px; }
+.setfold.pradar > summary h3 { font-size: 11px; letter-spacing: .04em; }
+.setfold.pradar[open] > summary { padding: 3px 4px; }
+.setfold.pradar[open] { padding: 0 8px 6px; }
+.pradar .rset { gap: 2px; margin: 2px 0 4px; font-size: 11px; }
+.pradar .rset .nb { min-height: 22px; min-width: 22px; padding: 0; }
+.pradar .rrow { padding: 2px; } .pradar .rrow b { font-size: 12px; } .pradar .rrow small { font-size: 10px; }
+.pradar[open] .rlist { max-height: 180px; overflow-y: auto; }
+
+/* Pattern radar tabs (21.11.2026) */
+.pradar .rtabs { display: flex; gap: 4px; margin: 2px 0 4px; }
+.pradar .rtabs button { flex: 1; font-size: 11px; padding: 3px 6px; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+.pradar .rtabs button.on { color: var(--text, #e6edf3); border-color: var(--accent); }
+.pradar .pfold > summary { font-size: 11px; color: var(--muted); cursor: pointer; padding: 2px 0; }
+.pradar .pset { display: flex; flex-direction: column; gap: 1px; font-size: 11px; max-height: 200px; overflow-y: auto; margin-bottom: 4px; }
+.pradar .pset .pg { margin-top: 4px; font-size: 11px; }
+.pradar .pchk { display: flex; align-items: center; gap: 6px; } .pradar .pchk small { margin-left: auto; color: var(--muted); }
+.pradar .pnote { color: var(--muted); font-size: 10px; margin-top: 4px; }
+
+/* Cards on/off + more compact cards (21.11.2026) */
+body.nocards #live, body.nocards #liveEmpty, body.nocards #newPill { display: none !important; }
+#cardsTgl:not(.active) { opacity: .6; }
+.sig { padding: 6px 9px; margin-bottom: 5px; }
+.sig-now { margin: 2px 0 0; }
+.m5chart { margin: 2px 0 1px; }
+.m5chart svg { height: 38px; margin-top: 0; }
+.m5tabs { top: 1px; opacity: .85; }
+.pricehint { margin: 0 0 3px; }
+.btns { margin-top: 4px; }
+.posplit button, .btns .quick { flex-direction: row; justify-content: center; align-items: baseline; gap: 5px; padding: 5px 4px; }
+.btns .morebtn { padding: 4px 6px; }
+
+/* Folded side boxes + taller radar list (21.11.2026) */
+.sidebox.sfold { padding: 5px 10px; }
+.sidebox.sfold > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; font-size: 12px; }
+.sidebox.sfold > summary::before { content: '▸'; font-size: 10px; color: var(--muted); }
+.sidebox.sfold[open] > summary::before { content: '▾'; }
+.sidebox.sfold > summary small { color: var(--muted); }
+.pradar[open] .rlist { max-height: 55vh; }
+
+/* Favourite patterns (21.11.2026) */
+.pradar .pstar { background: none; border: 0; padding: 0 2px; font-size: 14px; line-height: 1; color: var(--muted); cursor: pointer; }
+.pradar .pstar.on { color: #facc15; }
+.pradar .rrow.fav { background: rgba(250,204,21,.07); } .pradar .rrow.fav b { color: #facc15; }
+
+/* Radar: M5 trend arrow next to the move arrow (21.11.2026) */
+.pradar .rrow .rtr { font-style: normal; margin-left: 3px; font-size: .85em; }
+.pradar .rrow .rtr.up { color: var(--call); } .pradar .rrow .rtr.down { color: var(--put); } .pradar .rrow .rtr.flat { color: var(--muted); }
+
+/* Radar: chosen trend TF (21.11.2026) */
+.pradar .rrow .rtr sub { font-size: 9px; font-weight: 700; margin-left: 1px; vertical-align: baseline; position: relative; top: 2px; }
+.pradar .ttfbox { display: inline-flex; gap: 2px; flex: none; }
+.pradar .ttfb { min-width: 22px; padding: 1px 4px; font-size: 11px; border-radius: 5px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+.pradar .ttfb.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.pradar .rleg { font-size: 10px; color: var(--muted); margin: 0 0 2px; line-height: 1.3; }
+
+.pradar .atrhelp { font-size: 11px; color: var(--muted); margin: 0 0 4px; }
+.pradar .atrhelp > summary { cursor: pointer; color: var(--accent); }
+.pradar .atrhelp > div { padding: 4px 6px; line-height: 1.45; background: rgba(127,127,127,.08); border-radius: 6px; margin-top: 2px; }
+.pradar .atrhelp b { color: var(--text, #e6edf3); }
+
+.pradar .rrow i { font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+.pradar .ptg { font-size: 10px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; flex: none; }
+.pradar .ptg.on { background: var(--call); border-color: var(--call); color: #fff; }
+.pradar .psfold .rset label { justify-content: flex-start; } .pradar .psfold .rset .numbox { margin-left: auto; }
+
+/* Pattern name in its own colour, apart from the pair (21.11.2026) */
+.pradar .rrow b .pnm { color: #7cb7ff; font-weight: 600; margin-left: 4px; }
+.pradar .rrow.fav b .pnm { color: #60a5fa; }
+
+/* Header: tighter buttons so the pair count stays visible next to "Демо" (21.11.2026) */
+#bar { gap: 4px; padding-left: 8px; padding-right: 6px; }
+.brand { gap: 6px; }
+.brand .logo { width: 28px; height: 28px; }
+.brand b { font-size: 13px; }
+#bar .sub { white-space: nowrap; font-size: 11px; }
+#statusline { white-space: nowrap; }
+.mode { padding: 1px 5px; font-size: 9px; flex: none; }
+.gearbtn { width: 28px; height: 28px; border-radius: 8px; font-size: 15px; flex: none; }
+.winctl { gap: 0; flex: none; }
+.winctl button { width: 22px; height: 24px; font-size: 12px; padding: 0; }
+
+/* Header polish (21.11.2026): one tidy row – badge, gear and window buttons share size and style */
+#bar { gap: 6px; padding: 8px 8px 8px 10px; }
+.brand .logo { width: 32px; height: 32px; border-radius: 9px; }
+.brand b { font-size: 14px; letter-spacing: .01em; }
+#bar .sub { font-size: 11px; margin-top: 1px; }
+.mode { height: 20px; display: inline-flex; align-items: center; padding: 0 8px; font-size: 10px; border-radius: 10px; letter-spacing: .03em; }
+.gearbtn { width: 26px; height: 26px; border-radius: 7px; background: transparent; color: var(--muted); font-size: 15px; display: grid; place-items: center; }
+.gearbtn:hover { background: var(--card2); color: var(--text); }
+.winctl { gap: 1px; padding-left: 5px; margin-left: 1px; border-left: 1px solid var(--line); }
+.winctl button { width: 24px; height: 26px; border-radius: 7px; font-size: 12px; display: grid; place-items: center; }
+
+.pradar .rleg > summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+.pradar .rleg[open] { padding-bottom: 2px; }
+
+.pradar > summary .rcfgb { margin-left: auto; font-size: 10px; padding: 1px 8px; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+.pradar > summary .rcfgb.on { border-color: var(--accent); color: var(--accent); }
+.pradar .rcfg { border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; margin: 2px 0 4px; }
+
+.pradar .rcfgrow { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 2px 2px 3px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+.pradar .rcfgrow::before { content: '▸'; font-size: 10px; }
+.pradar .rcfgrow.on::before { content: '▾'; }
+.pradar .rcfgrow.on { color: var(--accent); }
