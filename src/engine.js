@@ -230,7 +230,19 @@ class Engine extends EventEmitter {
     // real login is the default again; quotes over the demo session only with the setting quotes_demo.
     const rg = this.config.realGood, startDemo = /"isDemo"\s*:\s*1/.test(loadSsid(this.config) || '');
     this.po = startDemo && !this.settings.quotes_demo && rg && rg.ssid ? new POClient(rg.ssid, rg.url) : new POClient(loadSsid(this.config), this.config.poUrl);
-    this.po.on('status', s => { this.status = s; this.emit('state'); });
+    this.po.on('status', s => {
+      this.status = s;
+      // 21.11.2026 (user: "Session expired", opening PO did not help): a demo login from the PO tab was swapped for the stored
+      // real-account login; when that one is dead, forget it and use the demo login the page gave us.
+      const lg0 = this.config.lastGood, rg = this.config.realGood || (lg0 && lg0.ssid && !/"isDemo"\s*:\s*1/.test(lg0.ssid) ? lg0 : null);
+      if (s === 'expired' && rg && rg.ssid === this.po.ssid && this._autoDemo) {
+        this.realDead = true; this.po._log('Gespeicherter Real-Login abgelaufen – nehme den Login aus PocketOption');
+        this.config.realGood = null; if (this.config.lastGood && this.config.lastGood.ssid === rg.ssid) this.config.lastGood = null;
+        writeJson(this.configFile, this.config);
+        const d = this._autoDemo; if (d && d.ssid !== this.po.ssid) setTimeout(() => this.setSsid(d.ssid, d.url, true), 0);
+      }
+      this.emit('state');
+    });
     // Demo server fails or keeps dropping: back to the last working real login (same prices), until the app restarts.
     this.po.on('demoDead', () => {
       const lg = this.config.lastGood, real = this.config.realGood || (lg && lg.ssid && !/"isDemo"\s*:\s*1/.test(lg.ssid) ? lg : null);
@@ -1030,7 +1042,8 @@ class Engine extends EventEmitter {
     const demo = x => /"isDemo"\s*:\s*1/.test(x || ''), lg = this.config.lastGood;
     const real = this.config.realGood || (lg && lg.ssid && !demo(lg.ssid) ? lg : null);
     // Demo logins are used directly again (09.11.2026). Only if the demo server failed in this run, stay on the real login.
-    if (auto && demo(ssid) && (this.demoDead || !this.settings.quotes_demo) && real && real.ssid) {
+    if (auto && demo(ssid)) this._autoDemo = { ssid, url };
+    if (auto && demo(ssid) && !this.realDead && !(real && real.ssid === this.po.ssid && (this.po.denied || this.status === 'expired')) && (this.demoDead || !this.settings.quotes_demo) && real && real.ssid) {
       // Our connection on the demo session empties the user's demo chart: the demo login stays with the PO window only.
       if (this.po.authed && !demo(this.po.ssid)) { this.po._log('Demo-Login erkannt – Kurse weiter über das Real-Konto (Demo-Chart bleibt frei)'); return; }
       this.po._log('Demo-Login erkannt – Kurse über das Real-Konto (Demo-Chart bleibt frei)');
