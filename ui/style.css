@@ -683,3 +683,12 @@ body.nocards #live, body.nocards #liveEmpty, body.nocards #newPill { display: no
 .pradar .rinline .rcfgrow { flex: none; padding: 0 2px; white-space: nowrap; }
 .pradar .rinline .rtabs { flex: 1; margin: 0; min-width: 0; }
 .pradar .rinline .rtabs button { padding: 2px 4px; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 21.11.2026 (user): cards off = no strategy scanning, so the "no signal" block is hidden too. */
+body.nocards .setfold.nosig { display: none !important; }
+/* 21.11.2026 (user): radar header "РАДАР N ⚙   ПАТТЕРНЫ N ⚙" – names switch the list, small gears open its settings. */
+.pradar > summary .rhead { background: none; border: 0; padding: 0 2px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+.pradar > summary .rhead.on { color: var(--text, #e6edf3); }
+.pradar > summary .rhead .cnt { font-weight: 400; margin-left: 2px; }
+.pradar > summary .rgear { background: none; border: 1px solid var(--line); border-radius: 6px; width: 22px; height: 20px; padding: 0; font-size: 12px; line-height: 1; color: var(--muted); cursor: pointer; flex: none; }
+.pradar > summary .rgear.on { color: var(--accent); border-color: var(--accent); }
+.pradar > summary .rgear + .rhead { margin-left: 10px; }

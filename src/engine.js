@@ -655,7 +655,8 @@ class Engine extends EventEmitter {
     // Fast scanning also looks at the forming candle; one signal per candle is kept by the signal id.
     const fast = this.scanInterval < 60;
     const forming = all.length && all[all.length - 1].time === nowMin;
-    const enabled = this.enabledStrategies();
+    // 21.11.2026 (user): signal cards switched off (☑ Карточки) = no strategy scanning at all; candles still load for the radar.
+    const enabled = this.settings.cards_off ? [] : this.enabledStrategies();
     // Strategies decide which candles they need (strategies.liveMode): the program's own ones as before ('legacy'),
     // the Telegram-bot ones only closed candles, only the forming candle, or both.
     const mode = n => strategies.liveMode(n, this.settings);
