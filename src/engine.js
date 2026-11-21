@@ -1136,8 +1136,12 @@ class Engine extends EventEmitter {
       const w = c.slice(-N), base = c.slice(Math.max(0, c.length - N - 120), c.length - N);
       const avg = base.reduce((t, k) => t + k.high - k.low, 0) / base.length; if (!(avg > 0)) continue;
       const big = w.filter(k => Math.abs(k.close - k.open) >= X * avg).length; if (big < K) continue;
+      // 21.11.2026 (user): since when the pair is active – walk back while the window ending at that candle still had >= K big candles.
+      const isBig = k => Math.abs(k.close - k.open) >= X * avg; let e = c.length - 1, cnt = big;
+      while (e - 1 >= N && e > c.length - 180) { cnt += (isBig(c[e - N]) ? 1 : 0) - (isBig(c[e]) ? 1 : 0); if (cnt < K) break; e--; }
+      const since = c[e].time + 60;
       const size = w.reduce((t, k) => t + k.high - k.low, 0) / w.length / avg, mv = c[c.length - 1].close - c[c.length - DN].open; // first arrow: move over the last DN candles (user 21.11.2026)
-      out.push({ symbol: a.symbol, name: a.name, otc: !!a.otc, payout: a.payout, big, n: N, size: +size.toFixed(1), dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[w.length - 1].time,
+      out.push({ symbol: a.symbol, name: a.name, otc: !!a.otc, payout: a.payout, big, n: N, size: +size.toFixed(1), dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[w.length - 1].time, since,
         trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, TTF, c)] || '', m1n: c.length, atr }); // higher-TF trend (EMA 9/21), TF chosen by the user (radar_ttf)
     }
     out.sort((p, q) => q.big - p.big || q.size - p.size);
