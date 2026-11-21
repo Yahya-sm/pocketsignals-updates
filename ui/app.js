@@ -763,6 +763,12 @@ function radarWrite(el, html, force) {
   el.innerHTML = html; el.dataset.html = html;
   el.querySelectorAll('.rlist, .pset').forEach((x, i) => { if (keep[i] != null) x.scrollTop = keep[i]; });
 }
+// 21.11.2026 (user): pattern age instead of the history win rate – ticks every second (pattern appeared when its candle closed).
+function patAge(t) {
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - (Number(t) + 60)));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+setInterval(() => document.querySelectorAll('#radar .page[data-pt]').forEach(x => { x.textContent = patAge(x.dataset.pt); }), 1000);
 function renderRadar(force) {
   const el = document.getElementById('radar'), R = state && state.radar; if (!el || !R) return;
   if (!R.on) { el.innerHTML = ''; return; }
@@ -780,16 +786,16 @@ function renderRadar(force) {
   const tabs = `<div class="rtabs"><button type="button" data-rtab="pairs" class="${radarTab === 'pairs' ? 'on' : ''}">${T('Активные пары', 'Aktive Paare', 'Active pairs')} ${R.list.length}</button><button type="button" data-rtab="pat" class="${radarTab === 'pat' ? 'on' : ''}">${T('Паттерны', 'Muster', 'Patterns')} ${PR.list.length}</button></div>`;
   if (radarTab === 'pat') {
     const nm = p => ru ? p.ru : p.en;
-    const prow = PR.list.map(p => `<button class="rrow${p.fav ? ' fav' : ''}" data-rsym="${esc(p.symbol)}"><b>${p.fav ? '★ ' : ''}${esc(p.name)} <span class="pnm">${esc(nm(p))}</span></b><span class="${p.dir}">${p.dir === 'up' ? '▲' : '▼'}${p.trend ? `<em class="rtr ${p.trend}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}</span><small>${T(`${p.left} мин · ист ${p.wr}`, `${p.left} Min · Hist ${p.wr}`, `${p.left} min · hist ${p.wr}`)}${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') : ''}${p.adx ? ' · ADX ' + p.adx : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
+    const prow = PR.list.map(p => `<button class="rrow${p.fav ? ' fav' : ''}" data-rsym="${esc(p.symbol)}"><b>${p.fav ? '★ ' : ''}${esc(p.name)} <span class="pnm">${esc(nm(p))}</span></b><span class="${p.dir}">${p.dir === 'up' ? '▲' : '▼'}${p.trend ? `<em class="rtr ${p.trend}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}</span><small>⏱ <i class="page" data-pt="${p.time}">${patAge(p.time)}</i>${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') : ''}${p.adx ? ' · ADX ' + p.adx : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
     const G = { c: T('Свечные', 'Kerzen', 'Candles'), g: T('Графические', 'Chartmuster', 'Chart'), v: T('Волатильность и индикаторы', 'Volatilität', 'Volatility') };
-    const chk = ['c', 'g', 'v'].map(g => `<b class="pg">${G[g]}</b>` + PR.all.filter(p => p.g === g).map(p => `<label class="pchk"><button type="button" class="pstar${(PR.fav || []).includes(p.id) ? ' on' : ''}" data-pfav="${p.id}">${(PR.fav || []).includes(p.id) ? '★' : '☆'}</button><input type="checkbox" data-pid="${p.id}"${PR.ids.includes(p.id) ? ' checked' : ''}> ${esc(nm(p))} <small>${p.wr} %</small></label>`).join('')).join('');
+    const chk = ['c', 'g', 'v'].map(g => `<b class="pg">${G[g]}</b>` + PR.all.filter(p => p.g === g).map(p => `<label class="pchk"><button type="button" class="pstar${(PR.fav || []).includes(p.id) ? ' on' : ''}" data-pfav="${p.id}">${(PR.fav || []).includes(p.id) ? '★' : '☆'}</button><input type="checkbox" data-pid="${p.id}"${PR.ids.includes(p.id) ? ' checked' : ''}> ${esc(nm(p))}</label>`).join('')).join('');
     const html = `<details class="setfold pradar"${radarOpen ? ' open' : ''}>${rhead}
     ${radarCfg ? `<div class="rcfg"><details class="pfold psfold"${psetOpen ? ' open' : ''}><summary>${T('Фильтры ATR и ADX', 'ATR- und ADX-Filter', 'ATR and ADX filters')} (ATR ${PR.atrOn ? '≥' + String(PR.atrMin).replace('.', ',') + ' %' : T('выкл', 'aus', 'off')} · ADX ${PR.adxOn ? '≥' + PR.adxMin : T('выкл', 'aus', 'off')})</summary><div class="rset">
       <label>${pTg('pat_atr_on', PR.atrOn)} ${T('ATR не меньше, % от цены', 'ATR mindestens, % vom Preis', 'ATR at least, % of price')} ${step('pat_atr', PR.atrMin, 0.005, 0)}</label>
       <label>${pTg('pat_adx_on', PR.adxOn)} ${T('ADX не меньше (сила тренда M1)', 'ADX mindestens (Trendstärke M1)', 'ADX at least (M1 trend strength)')} ${step('pat_adx', PR.adxMin, 1, 0)}</label>
       <small class="pnote">${T('ATR — размер свечей (живость пары). ADX — есть ли движение: до 20 флэт, 20–25 начало тренда, от 25 тренд, от 40 сильный. Подсказка по ATR — в «Активных парах».', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.')}</small></div></details>
     <details class="rleg"><summary>${T('Что значат стрелки', 'Was die Pfeile bedeuten', 'What the arrows mean')}</summary>${T(`Стрелки: первая — направление паттерна (куда он обещает цену); вторая с цифрой — тренд старшего ТФ (₅ = M5, выбирается в «Активных парах»). ◆ = флэт.`, 'Arrows: first = pattern direction; second with number = higher-TF trend.', 'Arrows: first = pattern direction; second with number = higher-TF trend.')}</details>
-    <details class="pfold"${patSetOpen ? ' open' : ''}><summary>${T('Какие паттерны показывать', 'Welche Muster anzeigen', 'Which patterns to show')} (${PR.ids.length}/${PR.all.length})</summary><div class="pset">${chk}<small class="pnote">${T('% — движение цены на истории OTC (две половины), не вероятность успеха', '% – Kursbewegung in der OTC-Historie, keine Erfolgswahrscheinlichkeit', '% – price move in OTC history, not a win probability')}</small></div></details></div>` : ''}
+    <details class="pfold"${patSetOpen ? ' open' : ''}><summary>${T('Какие паттерны показывать', 'Welche Muster anzeigen', 'Which patterns to show')} (${PR.ids.length}/${PR.all.length})</summary><div class="pset">${chk}</div></details></div>` : ''}
     <div class="rlist">${prow || `<p class="empty">${T('Сейчас нет действующих паттернов', 'Zurzeit keine aktiven Muster', 'No active patterns right now')}</p>`}</div></details>`;
     radarWrite(el, html, force);
     return;
