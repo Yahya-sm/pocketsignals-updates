@@ -675,3 +675,11 @@ body.nocards #live, body.nocards #liveEmpty, body.nocards #newPill { display: no
 #signals .dirrow .latchip small { font-size: 10px; } #signals .dirrow .latchip b { font-size: 10.5px; }
 /* 21.11.2026 (user): radar second line may wrap instead of being cut (ADX was hidden on the phone). */
 .pradar .rrow small { white-space: normal; overflow-wrap: anywhere; }
+/* 21.11.2026 (user): radar header in one line – "РАДАР N", the settings arrow and the two tabs side by side, not stacked. */
+.setfold.pradar > summary { flex-wrap: nowrap; align-items: center; }
+.pradar > summary h3 { flex: none; white-space: nowrap; }
+.pradar .rinline { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.pradar:not([open]) .rinline { display: none; }
+.pradar .rinline .rcfgrow { flex: none; padding: 0 2px; white-space: nowrap; }
+.pradar .rinline .rtabs { flex: 1; margin: 0; min-width: 0; }
+.pradar .rinline .rtabs button { padding: 2px 4px; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
