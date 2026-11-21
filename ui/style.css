@@ -659,3 +659,11 @@ body.nocards #live, body.nocards #liveEmpty, body.nocards #newPill { display: no
 .pradar .rcfgrow::before { content: '▸'; font-size: 10px; }
 .pradar .rcfgrow.on::before { content: '▾'; }
 .pradar .rcfgrow.on { color: var(--accent); }
+
+/* 21.11.2026 (user, phone): CALL/PUT/Cards chips smaller, latency to their right in the same row – no extra empty line. */
+#signals .dirrow { margin: 4px 0; flex-wrap: nowrap; }
+#signals .dirrow #dirFilter { flex-wrap: nowrap; gap: 4px; min-width: 0; }
+#signals .dirrow #dirFilter .spacer { display: none; }
+#signals .dirrow #dirFilter .chip { padding: 3px 9px; font-size: 11px; min-height: 0; line-height: 1.3; }
+#signals .dirrow #labFilters { margin: 0; padding: 0; }
+#signals .dirrow .latchip { margin-left: 0; }
