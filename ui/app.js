@@ -749,6 +749,7 @@ let radarOpen = (() => { try { return localStorage.getItem('radarOpen') === '1';
 // 21.11.2026 (user): the radar must not jump while scrolling or ticking patterns. No refresh while the pattern list
 // is open or the pointer is over the radar (unless the user clicked something there); scroll positions are kept.
 let radarHover = false;
+let radarPoSym = null; // pair last opened in Pocket Option from the app (radar or a card)
 document.addEventListener('pointerover', e => { radarHover = !!(e.target.closest && e.target.closest('#radar')); });
 function radarWrite(el, html, force) {
   if (el.dataset.html === html) return;
@@ -814,6 +815,9 @@ document.addEventListener('click', e => {
   if (tf) { e.preventDefault(); const v = +tf.dataset.ttf; call({ action: 'settings', patch: { radar_ttf: v } }); state.radar = { ...state.radar, ttf: v }; renderRadar(true); return; }
   const r = e.target.closest('[data-rsym]');
   // Phone: switch to the Pocket Option tab like the signal cards do (user 21.11.2026); PC: toast as before.
+  // Phone, same pair as the last radar tap (user 21.11.2026): the chart already shows it – just switch to the PO tab, no reload.
+  if (r && isAndroid && window.AndroidApp && window.AndroidApp.showPocketOption && radarPoSym === r.dataset.rsym) { window.AndroidApp.showPocketOption(); return; }
+  if (r) radarPoSym = r.dataset.rsym;
   if (r) call({ action: 'openPO', symbol: r.dataset.rsym, tf: 'M1', lang: LANG }).then(x => {
     if (isAndroid && window.AndroidApp) { const nm = (x && x.name) || r.dataset.rsym;
       if (window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(nm); else window.AndroidApp.openPocketOption(nm, (x && x.symbol) || r.dataset.rsym); return; }
@@ -821,6 +825,7 @@ document.addEventListener('click', e => {
 });
 async function openPO(id, tf, auto, exp, trade) {
   const sig = state.signals.find(s => s.id === id);
+  radarPoSym = sig ? sig.symbol : null; // the chart now shows the card's pair
   const r = await call({ action: 'openPO', id, tf, auto: !!auto, exp: exp || 0, lang: LANG, ...(trade ? { trade } : {}) });
   const name = r.name || (sig && sig.name) || '';
   if (isDesktop) { toast(t('toast_po', { name }) + (tf ? ' · ' + tf : '')); return; }
