@@ -835,9 +835,17 @@ document.addEventListener('click', e => {
   if (r) radarPoSym = r.dataset.rsym;
   if (r) call({ action: 'openPO', symbol: r.dataset.rsym, tf: 'M1', lang: LANG }).then(x => {
     if (isAndroid && window.AndroidApp) { const nm = (x && x.name) || r.dataset.rsym;
-      if (window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(nm); else window.AndroidApp.openPocketOption(nm, (x && x.symbol) || r.dataset.rsym); return; }
+      poOpen(nm, (x && x.symbol) || r.dataset.rsym, 'M1'); return; }
     if (x && x.name && typeof toast === 'function') toast(t('toast_po', { name: x.name }) + ' · M1'); });
 });
+// 22.11.2026 (user: switching the pair took a minute): the PO tab is reloaded only when the chart timeframe really changes;
+// otherwise the pair is switched inside the already open page (fast). poTf = timeframe the PO page was last loaded with.
+let poTf = null;
+function poOpen(name, symbol, tf) {
+  const A = window.AndroidApp;
+  if (tf && tf !== poTf && A.openPocketOptionReload) { poTf = tf; A.openPocketOptionReload(name); }
+  else A.openPocketOption(name, symbol || '');
+}
 async function openPO(id, tf, auto, exp, trade) {
   const sig = state.signals.find(s => s.id === id);
   radarPoSym = sig ? sig.symbol : null; // the chart now shows the card's pair
@@ -847,8 +855,7 @@ async function openPO(id, tf, auto, exp, trade) {
   if (isAndroid) {
     // Direction badge over the PocketOption chart (user 14.11.2026): ▲ CALL / ▼ PUT, pair, expiry; hides after expiry + 1 min.
     dirBadge(sig, exp);
-    if (tf && window.AndroidApp.openPocketOptionReload) window.AndroidApp.openPocketOptionReload(name);
-    else window.AndroidApp.openPocketOption(name, r.symbol || (sig && sig.symbol) || '');
+    poOpen(name, r.symbol || (sig && sig.symbol) || '', tf);
     return;
   }
   // Phone browser: the asset was saved into the account's chart, so PocketOption opens on it.

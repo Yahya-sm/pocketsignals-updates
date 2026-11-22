@@ -1157,7 +1157,7 @@ class Engine extends EventEmitter {
       out.push({ symbol: a.symbol, name: a.name, otc: !!a.otc, payout: a.payout, big, n: N, size: +size.toFixed(1), dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[w.length - 1].time, since,
         trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, TTF, c)] || '', m1n: c.length, atr }); // higher-TF trend (EMA 9/21), TF chosen by the user (radar_ttf)
     }
-    out.sort((p, q) => q.big - p.big || q.size - p.size);
+    out.sort((p, q) => q.since - p.since || q.big - p.big || q.size - p.size); // newest active pair on top (user 22.11.2026)
     return { on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
   }
 
@@ -1178,7 +1178,7 @@ class Engine extends EventEmitter {
         out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, fav: fav.includes(x.id), atr, adx,
           trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '' }); }
     }
-    out.sort((p, q) => (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || q.time - p.time || (q.payout || 0) - (p.payout || 0)); // favourites first (user 21.11.2026)
+    out.sort((p, q) => q.time - p.time || (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || /* newest pattern on top (user 22.11.2026) */ (q.payout || 0) - (p.payout || 0)); // favourites first (user 21.11.2026)
     return { atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
   }
 
