@@ -377,14 +377,27 @@ public class MainActivity extends Activity {
     }
 
     // Ask the signal page for the switch script, then run it inside PocketOption.
+    // 22.11.2026 (user: tap in the radar did not switch the pair): the in-page switch reports its result; on failure or
+    // no answer within 9 s the PO page is reloaded with the pair pending (old, slow but sure way).
+    int switchSeq = 0;
+    String switchName = null;
     void switchPo(String name) {
         pendingPoName = null;
+        final int seq = ++switchSeq; switchName = name;
         signals.evaluateJavascript("window.poSwitchScript(" + JSONObject.quote(name) + ")", result -> {
             try {
                 String script = new JSONArray("[" + result + "]").getString(0);
-                po.evaluateJavascript(script, null);
+                po.evaluateJavascript("Promise.resolve(" + script + ").then(function(r){try{SignalAppAuth.onPoSwitch(" + seq + ",String(r))}catch(e){}},function(e){try{SignalAppAuth.onPoSwitch(" + seq + ",'error')}catch(x){}})", null);
             } catch (Exception ignored) { }
         });
+        po.postDelayed(() -> { if (seq == switchSeq && switchName != null) poSwitchFailed(seq, "timeout"); }, 9000);
+    }
+
+    void poSwitchFailed(int seq, String why) {
+        if (seq != switchSeq || switchName == null) return;
+        String name = switchName; switchName = null;
+        signals.evaluateJavascript("window.LocalEngine && window.LocalEngine.act({action:'polog',text:" + JSONObject.quote("PO-Wechsel " + name + ": " + why + " – Seite wird neu geladen") + "})", null);
+        pendingPoName = name; poLoaded = false; po.reload();
     }
 
     @Override
@@ -707,6 +720,16 @@ public class MainActivity extends Activity {
             if (kind == null || json == null || json.length() > 200000) return;
             runOnUiThread(() -> signals.evaluateJavascript(
                 "window.LocalEngine && window.LocalEngine.act({action:'trade',kind:" + JSONObject.quote(kind) + ",data:(function(){try{return JSON.parse(" + JSONObject.quote(json) + ")}catch(e){return null}})()})", null));
+        }
+
+        @JavascriptInterface
+        public void onPoSwitch(int seq, String r) {
+            runOnUiThread(() -> {
+                if (seq != switchSeq || switchName == null) return;
+                String head = r == null ? "" : r.split("\\|")[0];
+                if (head.equals("ok") || head.equals("already")) { switchName = null; return; }
+                poSwitchFailed(seq, r);
+            });
         }
 
         @JavascriptInterface

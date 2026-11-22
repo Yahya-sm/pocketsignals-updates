@@ -1145,6 +1145,7 @@ class Engine extends EventEmitter {
     for (const a of this.selectedAssets()) {
       if (PAY && !(Number(a.payout) >= PAY)) continue;
       const c = this.candles.get(a.symbol); if (!c || c.length < N + 60) continue;
+      if (Date.now() / 1000 - c[c.length - 1].time > 240) continue; // stale candles of this pair (22.11.2026)
       const atr = this.radarAtr(c); if (ATR && atr < ATR) continue;
       const w = c.slice(-N), base = c.slice(Math.max(0, c.length - N - 120), c.length - N);
       const avg = base.reduce((t, k) => t + k.high - k.low, 0) / base.length; if (!(avg > 0)) continue;
@@ -1172,9 +1173,14 @@ class Engine extends EventEmitter {
       // Own ATR / ADX filters of the pattern radar (user 21.11.2026), each with an on/off switch.
       const atr = this.radarAtr(c); if (s.pat_atr_on && atr < (s.pat_atr != null ? Number(s.pat_atr) : 0.02)) continue;
       const ad = I.adx(c, 14), adx = ad[ad.length - 1] ? Math.round(ad[ad.length - 1].adx) : 0; if (s.pat_adx_on && adx < (s.pat_adx != null ? Number(s.pat_adx) : 20)) continue;
-      const last = c[c.length - 1].time, key = a.symbol; let e = this._patCache.get(key);
+      const last = c[c.length - 1].time, key = a.symbol, nowS = Date.now() / 1000; let e = this._patCache.get(key);
+      if (nowS - last > 240) continue; // 22.11.2026 (user saw 2-hour-old patterns): candles of this pair are stale – show nothing
       if (!e || e.last !== last) { const w = c.slice(-160); e = { last, act: PAT.active(w, PAT.prep(w), null) }; this._patCache.set(key, e); }
       for (const x of e.act) if (ids.includes(x.id)) { const p = PAT.LIST.find(q => q.id === x.id);
+        if (nowS - (x.time + 60) > Math.min(p.life || 15, 15) * 60) continue;
+        // 22.11.2026 (user): re-check on every scan with the live price – price already beyond the pattern's stop = setup gone.
+        { const tk = this.ticks.get(a.symbol), lp = tk && tk.length && Date.now() / 1000 - tk[tk.length - 1][0] < 120 ? +tk[tk.length - 1][1] : null;
+          if (lp != null && x.stop != null && (x.dir > 0 ? lp < x.stop : lp > x.stop)) continue; } // real age (clock), not candle count: max 15 min
         out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, fav: fav.includes(x.id), atr, adx,
           trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '' }); }
     }

@@ -156,7 +156,7 @@ function active(c, P, ids) {
   for (const p of LIST) { if (ids && !ids.includes(p.id)) continue;
     for (let age = 0; age < p.life; age++) { const i = n - age, r = at(c, i, P, p.id); if (!r) continue;
       let ok = true; for (let j = i + 1; j <= n; j++) if (r.dir > 0 ? c[j].close < r.stop : c[j].close > r.stop) { ok = false; break; }
-      if (ok) out.push({ id: p.id, dir: r.dir, age, left: p.life - age, time: c[i].time }); break; } }
+      if (ok) out.push({ id: p.id, dir: r.dir, age, left: p.life - age, time: c[i].time, stop: r.stop }); break; } }
   return out;
 }
 
