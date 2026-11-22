@@ -692,3 +692,10 @@ body.nocards .setfold.nosig { display: none !important; }
 .pradar > summary .rgear { background: none; border: 1px solid var(--line); border-radius: 6px; width: 22px; height: 20px; padding: 0; font-size: 12px; line-height: 1; color: var(--muted); cursor: pointer; flex: none; }
 .pradar > summary .rgear.on { color: var(--accent); border-color: var(--accent); }
 .pradar > summary .rgear + .rhead { margin-left: 10px; }
+
+/* watchdog warning bar (22.11.2026) */
+.watchbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0;padding:8px 10px;border-radius:12px;background:rgba(234,57,67,.15);border:1px solid var(--put);font-size:12px;line-height:1.3}
+.watchbox[hidden]{display:none}
+.watchbox span{flex:1 1 100%}
+.watchbox button{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:4px 10px;font-size:12px}
+

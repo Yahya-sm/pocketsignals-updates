@@ -364,6 +364,7 @@ class Engine extends EventEmitter {
     // Live ADX on the running signal cards (user, 03.11.2026): every 5 s, so a fading trend is seen before entering.
     // 22.11.2026 (user): radar and patterns re-checked every 5 s on the live candles (state() recomputes both).
     setInterval(() => { this._sampleAdx(); this.emit('state'); }, 5000);
+    setInterval(() => { try { this._watchdog(); } catch (e) {} }, 60000); // watchdog (22.11.2026), never breaks the engine
     // Price against the signal during the countdown (user, 07.11.2026), once a second.
     setInterval(() => { if (this._samplePrice()) this.emit('state'); }, 1000);
   }
@@ -1159,7 +1160,39 @@ class Engine extends EventEmitter {
     if (!c.length || nowS - c[c.length - 1].time > 180) return null; // last closed minute older than ~2 min: lagging
     return c;
   }
+  // 22.11.2026 (user): watchdog. Every minute: connection, fresh candles, login, scan. Careful by design – it only
+  // (a) reconnects OUR quote socket the same way the wake-up does, (b) nudges an overdue scan, (c) on the real quote
+  // login re-subscribes pairs once when no pair has fresh candles. It never touches the PO tab, the sessions, the
+  // settings, and never re-subscribes on the demo session the PO tab shares. Everything else = a warning to the user.
+  _watchdog() {
+    const W = this._wd = this._wd || { offSince: 0, staleSince: 0, tries: 0, last: {} }, now = Date.now(), p = this.po;
+    const warn = (kind, ru, de) => {
+      if (now - (W.last[kind] || 0) < 15 * 60000) return; W.last[kind] = now;
+      this.watch = { id: now, kind, ru, de }; p._log('⚠ Wächter: ' + de); this.emit('state');
+    };
+    if (!p.ssid) return warn('nossid', 'Нет входа в PocketOption — откройте вкладку PO и войдите', 'Kein PocketOption-Login – PO-Tab öffnen und anmelden');
+    if (this.status === 'expired') return warn('expired', 'Вход истёк — откройте вкладку PO и войдите заново', 'Login abgelaufen – im PO-Tab neu anmelden');
+    if (!p.authed) {
+      W.offSince = W.offSince || now;
+      if (now - W.offSince > 2 * 60000 && (!p.ws || p.ws.readyState > 1) && W.tries < 3) { W.tries++; p._log(`Wächter: keine Verbindung seit ${Math.round((now - W.offSince) / 60000)} min – verbinde neu (${W.tries}/3)`); p.connect(); }
+      if (now - W.offSince > 8 * 60000) warn('offline', 'Нет связи с PocketOption больше 8 мин, переподключение не помогло', 'Seit über 8 min keine Verbindung, Neuverbinden half nicht');
+      return;
+    }
+    W.offSince = 0; W.tries = 0;
+    if (this._due && now - this._due > 2 * 60000) { p._log('Wächter: Scan überfällig – starte ihn'); try { this.wakeScan(); } catch (e) {} }
+    const fresh = this._freshN || 0, lag = this._lagN || 0, shared = /"isDemo"\s*:\s*1/.test(p.ssid || '');
+    if (lag && !fresh) {
+      W.staleSince = W.staleSince || now;
+      if (now - W.staleSince > 5 * 60000) {
+        if (!shared && !W.resubAt) { W.resubAt = now; p._log('Wächter: keine frischen Kerzen seit 5 min – Paare neu abonniert'); this.subscribed.clear(); }
+        if (shared) warn('stale', 'Свечи не обновляются: котировки идут через демо-вход. Зайдите один раз в реальный счёт во вкладке PO и вернитесь на демо', 'Keine frischen Kerzen: Kurse über die Demo-Sitzung – einmal im PO-Tab ins Real-Konto wechseln');
+        else if (now - W.resubAt > 3 * 60000) warn('stale', 'Свечи не обновляются больше 8 мин, повторная подписка не помогла', 'Seit über 8 min keine frischen Kerzen, Neu-Abo half nicht');
+      }
+    } else { W.staleSince = 0; W.resubAt = 0; }
+  }
+
   _logFresh(fresh, lag) {
+    this._freshN = fresh; this._lagN = lag;
     if (Date.now() - (this._freshLogAt || 0) < 5 * 60000) return; this._freshLogAt = Date.now();
     this.po._log(`Radar: ${fresh} Paare mit frischen Kerzen, ${lag} verzögert (ohne Live-Kurse – ausgeblendet)`
       + (lag && /"isDemo"\s*:\s*1/.test(this.po.ssid || '') ? ' – Kurse laufen über die Demo-Sitzung des PO-Tabs; für frische Kurse einmal im PO-Tab ins Real-Konto wechseln' : ''));
@@ -1223,7 +1256,7 @@ class Engine extends EventEmitter {
     const done =this.signals.filter(s => s.result === 'WIN' || s.result === 'LOSS');
     const wins = done.filter(s => s.result === 'WIN').length;
     return {
-      radar: this.radar(), patRadar: this.patRadar(),
+      radar: this.radar(), patRadar: this.patRadar(), watch: this.watch || null,
       status: this.status, connected: this.po.authed, lastError: this.po.lastError || null, log: this.po.log.slice(-40),
       // What session is stored (never the session itself): shown under the session field.
       session: this.po.ssid ? { length: this.po.ssid.length, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid) } : null, demo: /"isDemo"\s*:\s*1/.test(this.po.ssid || ''),

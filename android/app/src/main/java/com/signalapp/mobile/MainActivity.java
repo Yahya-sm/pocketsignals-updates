@@ -628,8 +628,10 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 try {
                     android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                    // Alarm stream: the user's phone was in Do Not Disturb (moon icon) – notification sounds are muted there,
+                    // alarms usually pass (22.11.2026). Volume = the phone's alarm volume.
                     mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
-                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+                        .setUsage(android.media.AudioAttributes.USAGE_ALARM).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
                     android.content.res.AssetFileDescriptor fd = getResources().openRawResourceFd(r);
                     mp.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength()); fd.close();
                     mp.setOnCompletionListener(android.media.MediaPlayer::release);

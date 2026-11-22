@@ -120,6 +120,7 @@ function render() {
   $('#stats').innerHTML = statTiles(mineList(), true);
 
   applyCards(); syncCards();
+  try { renderWatch(); } catch {}
   renderRadar();
   renderLive();
   if (window.labRender) window.labRender();
@@ -734,7 +735,9 @@ function patAlerts(PR) {
   if (!PR || !Array.isArray(PR.list)) return;
   const keys = PR.list.map(p => `${p.symbol}|${p.id}|${p.time}`);
   if (!patSeen) { patSeen = new Set(keys); return; }
-  const fresh = PR.list.filter((p, i) => !patSeen.has(keys[i]) && Date.now() / 1000 - (p.time + 60) < 90);
+  // No own clock check (phone clock vs PocketOption clock may differ): the engine already lists only patterns whose entry
+  // is still on time (<= 1 min), so every pattern new to the list rings (22.11.2026).
+  const fresh = PR.list.filter((p, i) => !patSeen.has(keys[i]));
   keys.forEach(k => patSeen.add(k)); if (patSeen.size > 3000) patSeen = new Set(keys);
   if (!PR.alert || !fresh.length) return;
   const p = fresh[0], ru = LANG === 'ru', snd = PR.sound || 'bell';
@@ -745,6 +748,7 @@ function patAlerts(PR) {
 // Sound played by the app itself (phone: native player – works even if the notification channel is muted), then a
 // silent notification on the phone so it also shows in the shade.
 function ringAlert(title, body, p, snd) {
+  try { call({ action: 'polog', text: `🔔 ${title} – ${body} (Ton ${snd})` }); } catch {} // proof in the connection log that it rang
   if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
   beep(snd);
   if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, p.name, p.symbol, '', window.AndroidApp.playSound ? 'none' : snd);
@@ -757,7 +761,7 @@ function radarAlerts(R) {
   if (!R || !Array.isArray(R.list)) return;
   const keys = R.list.map(p => `${p.symbol}|${p.since}`);
   if (!radSeen) { radSeen = new Set(keys); return; }
-  const fresh = R.list.filter((p, i) => !radSeen.has(keys[i]) && Date.now() / 1000 - p.since < 90);
+  const fresh = R.list.filter((p, i) => !radSeen.has(keys[i]) && Date.now() / 1000 - p.since < 180);
   keys.forEach(k => radSeen.add(k)); if (radSeen.size > 3000) radSeen = new Set(keys);
   if (!R.alert || !fresh.length) return;
   const p = fresh[0], ru = LANG === 'ru';
@@ -1094,12 +1098,35 @@ async function copyText(text) {
   if (isAndroid && window.AndroidApp.copyText) { window.AndroidApp.copyText(text); return true; }
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
-$('#copyLogBtn').onclick = async () => {
+const logText = () => {
   const lines = [...(window.__bootErrors || []).map(e => '⚠ ' + e), ...((state && state.log) || [])];
-  const text = `PocketSignals ${updater ? updater.version : ''} (${isAndroid ? 'Handy' : isDesktop ? 'PC' : 'Browser'})\n` + lines.join('\n');
-  if (await copyText(text)) flash($('#copyLogBtn'), '✓ ' + t('log_copied'));
+  return `PocketSignals ${updater ? updater.version : ''} (${isAndroid ? 'Handy' : isDesktop ? 'PC' : 'Browser'})\n` + lines.join('\n');
+};
+$('#copyLogBtn').onclick = async () => {
+  if (await copyText(logText())) flash($('#copyLogBtn'), '✓ ' + t('log_copied'));
   else flash($('#copyLogBtn'), '✗ ' + t('copy_failed'), false);
 };
+// 22.11.2026 (user): watchdog warning – sound + notification once, and a red bar on the main screen with
+// "Copy log" (paste it into the chat with Claude) and ✕. The bar goes away by itself once the problem is gone.
+let watchSeen = null, watchClosed = 0;
+function renderWatch() {
+  const el = document.getElementById('watchBox'); if (!el || !state) return;
+  const w = state.watch, ru = LANG === 'ru';
+  const gone = !w || (w.kind === 'stale' && state.radar && (state.radar.list || []).length) || (w.kind === 'offline' && state.connected) || ((w.kind === 'expired' || w.kind === 'nossid') && state.connected);
+  if (watchSeen === null) watchSeen = w ? w.id : 0; // a warning already there when the page loads: no sound
+  if (w && watchSeen !== w.id) {
+    if (!gone) ringAlert('⚠ PocketSignals', ru ? w.ru : w.de, { name: '', symbol: '' }, 'alarm');
+    watchSeen = w.id;
+  }
+  if (gone || watchClosed === w.id) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `<span>⚠ ${esc(ru ? w.ru : w.de)}</span><button type="button" data-wcopy>${ru ? 'Скопировать журнал' : 'Protokoll kopieren'}</button><button type="button" data-wclose>✕</button>`;
+}
+document.addEventListener('click', async e => {
+  if (e.target.closest('[data-wclose]')) { watchClosed = state && state.watch ? state.watch.id : 0; renderWatch(); return; }
+  const b = e.target.closest('[data-wcopy]'); if (!b) return;
+  if (await copyText(logText())) flash(b, '✓ ' + t('log_copied')); else flash(b, '✗ ' + t('copy_failed'), false);
+});
 $('#exportSessionBtn').onclick = async () => {
   const btn = $('#exportSessionBtn');
   const r = await call({ action: 'exportSession' });
