@@ -774,7 +774,8 @@ let rsetOpen = (() => { try { return localStorage.getItem('rsetOpen') === '1'; }
 document.addEventListener('toggle', e => { const c = e.target.classList; if (!c) return;
   if (c.contains('psfold')) { psetOpen = e.target.open; try { localStorage.setItem('psetOpen', psetOpen ? '1' : '0'); } catch {} return; }
   if (c.contains('rsfold')) { rsetOpen = e.target.open; try { localStorage.setItem('rsetOpen', rsetOpen ? '1' : '0'); } catch {} return; }
-  if (c.contains('pfold')) patSetOpen = e.target.open; }, true);
+  if (c.contains('pfold')) { patSetOpen = e.target.open; patSetAt = Date.now(); } }, true);
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#radar .pset')) patSetAt = Date.now(); }, true);
 document.addEventListener('click', e => {
   const tb = e.target.closest('[data-rtab]'); if (!tb) return; e.preventDefault();
   radarTab = tb.dataset.rtab; try { localStorage.setItem('radarTab', radarTab); } catch {} const dd = document.querySelector('.pradar'); if (dd && !dd.open) { dd.open = true; radarOpen = true; try { localStorage.setItem('radarOpen', '1'); } catch {} } renderRadar(true);
@@ -799,10 +800,16 @@ let radarOpen = (() => { try { return localStorage.getItem('radarOpen') === '1';
 // is open or the pointer is over the radar (unless the user clicked something there); scroll positions are kept.
 let radarHover = false;
 let radarPoSym = null; // pair last opened in Pocket Option from the app (radar or a card)
-document.addEventListener('pointerover', e => { radarHover = !!(e.target.closest && e.target.closest('#radar')); });
+// 22.11.2026 (user: a 7-minute-old pattern stayed on the phone): a touch has no "leave", so after one tap the radar stayed
+// frozen for good. Only a mouse pauses the redraw now, and never longer than 4 s after the last movement.
+let radarHoverAt = 0;
+document.addEventListener('pointerover', e => { radarHover = e.pointerType === 'mouse' && !!(e.target.closest && e.target.closest('#radar')); radarHoverAt = Date.now(); });
+document.addEventListener('pointermove', e => { if (radarHover) radarHoverAt = Date.now(); }, { passive: true });
+let patSetAt = 0;
 function radarWrite(el, html, force) {
   if (el.dataset.html === html) return;
-  if (!force && el.dataset.html && (patSetOpen || radarHover)) return;
+  // Pause only briefly (mouse over the list, or the pattern check list just touched); the list never stays frozen.
+  if (!force && el.dataset.html && ((radarHover && Date.now() - radarHoverAt < 4000) || (patSetOpen && Date.now() - patSetAt < 8000))) return;
   const keep = [...el.querySelectorAll('.rlist, .pset')].map(x => x.scrollTop);
   el.innerHTML = html; el.dataset.html = html;
   el.querySelectorAll('.rlist, .pset').forEach((x, i) => { if (keep[i] != null) x.scrollTop = keep[i]; });
