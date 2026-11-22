@@ -563,8 +563,16 @@ class Engine extends EventEmitter {
       this.scanLogAt = Date.now(); this.signalsLogged = 0;
     }
     // Live prices for every scanned pair (once per connection; the first answer brings the last ~10 minutes).
-    list.filter(a => !this.subscribed.has(a.symbol)).forEach((a, i) => {
-      this.subscribed.add(a.symbol);
+    // 22.11.2026 (log: "0 pairs with fresh candles, 22 delayed"): PocketOption streams live prices for one pair at a time, so
+    // after the one-off subscription every other pair's prices stopped. Re-subscribe each pair whose newest price is older
+    // than 20 s (at most every 15 s per pair) – each answer brings its last ~10 minutes of prices again.
+    this._subAt = this._subAt || new Map();
+    const nowS = Date.now() / 1000;
+    list.filter(a => {
+      const t = this.ticks.get(a.symbol), last = t && t.length ? t[t.length - 1][0] : 0;
+      return !this.subscribed.has(a.symbol) || (nowS - last > 20 && Date.now() - (this._subAt.get(a.symbol) || 0) > 15000);
+    }).forEach((a, i) => {
+      this.subscribed.add(a.symbol); this._subAt.set(a.symbol, Date.now());
       setTimeout(() => this.po.subscribe(a.symbol), i * 150);
     });
     // Spread the requests a little so the server is not flooded.
