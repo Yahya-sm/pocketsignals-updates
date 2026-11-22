@@ -566,11 +566,13 @@ class Engine extends EventEmitter {
     // 22.11.2026 (log: "0 pairs with fresh candles, 22 delayed"): PocketOption streams live prices for one pair at a time, so
     // after the one-off subscription every other pair's prices stopped. Re-subscribe each pair whose newest price is older
     // than 20 s (at most every 15 s per pair) – each answer brings its last ~10 minutes of prices again.
+    // 22.11.2026 (1.0.231: the user's PO chart stopped loading): on the demo session the PO tab uses too, frequent
+    // changeSymbol empties the user's chart (seen 09.11 too) – there only the one-off subscription, as before.
     this._subAt = this._subAt || new Map();
-    const nowS = Date.now() / 1000;
+    const nowS = Date.now() / 1000, shared = /"isDemo"\s*:\s*1/.test(this.po.ssid || '');
     list.filter(a => {
       const t = this.ticks.get(a.symbol), last = t && t.length ? t[t.length - 1][0] : 0;
-      return !this.subscribed.has(a.symbol) || (nowS - last > 20 && Date.now() - (this._subAt.get(a.symbol) || 0) > 15000);
+      return !this.subscribed.has(a.symbol) || (!shared && nowS - last > 20 && Date.now() - (this._subAt.get(a.symbol) || 0) > 15000);
     }).forEach((a, i) => {
       this.subscribed.add(a.symbol); this._subAt.set(a.symbol, Date.now());
       setTimeout(() => this.po.subscribe(a.symbol), i * 150);
@@ -1159,7 +1161,8 @@ class Engine extends EventEmitter {
   }
   _logFresh(fresh, lag) {
     if (Date.now() - (this._freshLogAt || 0) < 5 * 60000) return; this._freshLogAt = Date.now();
-    this.po._log(`Radar: ${fresh} Paare mit frischen Kerzen, ${lag} verzögert (ohne Live-Kurse – ausgeblendet)`);
+    this.po._log(`Radar: ${fresh} Paare mit frischen Kerzen, ${lag} verzögert (ohne Live-Kurse – ausgeblendet)`
+      + (lag && /"isDemo"\s*:\s*1/.test(this.po.ssid || '') ? ' – Kurse laufen über die Demo-Sitzung des PO-Tabs; für frische Kurse einmal im PO-Tab ins Real-Konto wechseln' : ''));
   }
 
   radar() {
