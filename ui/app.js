@@ -724,8 +724,31 @@ const pTg = (k, on) => `<button type="button" class="ptg${on ? ' on' : ''}" data
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-ptg]'); if (!b || !state.patRadar) return; e.preventDefault(); e.stopPropagation();
   const k = b.dataset.ptg, v = !b.classList.contains('on'); call({ action: 'settings', patch: { [k]: v } });
-  state.patRadar = { ...state.patRadar, [k === 'pat_atr_on' ? 'atrOn' : 'adxOn']: v }; renderRadar(true);
+  state.patRadar = { ...state.patRadar, [k === 'pat_atr_on' ? 'atrOn' : k === 'pat_alert' ? 'alert' : 'adxOn']: v }; renderRadar(true);
 }, true);
+// 22.11.2026 (user): a new pattern gives a signal like the strategies – sound + notification (switch + own sound in its settings).
+// Only patterns that appeared within the last 90 s and were not in the list before; the first list after start is not announced.
+let patSeen = null;
+function patAlerts(PR) {
+  if (!PR || !Array.isArray(PR.list)) return;
+  const keys = PR.list.map(p => `${p.symbol}|${p.id}|${p.time}`);
+  if (!patSeen) { patSeen = new Set(keys); return; }
+  const fresh = PR.list.filter((p, i) => !patSeen.has(keys[i]) && Date.now() / 1000 - (p.time + 60) < 90);
+  keys.forEach(k => patSeen.add(k)); if (patSeen.size > 3000) patSeen = new Set(keys);
+  if (!PR.alert || !fresh.length) return;
+  const p = fresh[0], ru = LANG === 'ru', snd = PR.sound || 'bell';
+  const title = `${p.name} ${p.dir === 'up' ? '▲ CALL' : '▼ PUT'}`;
+  const body = `${ru ? 'Паттерн' : LANG === 'de' ? 'Muster' : 'Pattern'}:${ru ? p.ru : p.en}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''}`;
+  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+  if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, p.name, p.symbol, '', snd);
+  else if (isAndroid) window.AndroidApp.notify(title, body, p.name, p.symbol, '');
+  else { beep(snd); if (window.Notification && Notification.permission === 'granted' && document.hidden) new Notification(title, { body, icon: 'icon.png' }); }
+}
+document.addEventListener('change', e => {
+  const el = e.target; if (!el.dataset || !el.dataset.psound) return;
+  call({ action: 'settings', patch: { pat_sound: el.value } }); beep(el.value);
+  if (state.patRadar) state.patRadar = { ...state.patRadar, sound: el.value };
+});
 let rsetOpen = (() => { try { return localStorage.getItem('rsetOpen') === '1'; } catch { return false; } })();
 document.addEventListener('toggle', e => { const c = e.target.classList; if (!c) return;
   if (c.contains('psfold')) { psetOpen = e.target.open; try { localStorage.setItem('psetOpen', psetOpen ? '1' : '0'); } catch {} return; }
@@ -770,6 +793,7 @@ function patAge(t) {
 }
 setInterval(() => document.querySelectorAll('#radar .page[data-pt]').forEach(x => { x.textContent = patAge(x.dataset.pt); }), 1000);
 function renderRadar(force) {
+  if (state) patAlerts(state.patRadar);
   const el = document.getElementById('radar'), R = state && state.radar; if (!el || !R) return;
   if (!R.on) { el.innerHTML = ''; return; }
   const ru = LANG === 'ru', de = LANG === 'de';
@@ -790,7 +814,7 @@ function renderRadar(force) {
     const G = { c: T('Свечные', 'Kerzen', 'Candles'), g: T('Графические', 'Chartmuster', 'Chart'), v: T('Волатильность и индикаторы', 'Volatilität', 'Volatility') };
     const chk = ['c', 'g', 'v'].map(g => `<b class="pg">${G[g]}</b>` + PR.all.filter(p => p.g === g).map(p => `<label class="pchk"><button type="button" class="pstar${(PR.fav || []).includes(p.id) ? ' on' : ''}" data-pfav="${p.id}">${(PR.fav || []).includes(p.id) ? '★' : '☆'}</button><input type="checkbox" data-pid="${p.id}"${PR.ids.includes(p.id) ? ' checked' : ''}> ${esc(nm(p))}</label>`).join('')).join('');
     const html = `<details class="setfold pradar"${radarOpen ? ' open' : ''}>${rhead}
-    ${radarCfg ? `<div class="rcfg"><details class="pfold psfold"${psetOpen ? ' open' : ''}><summary>${T('Фильтры ATR и ADX', 'ATR- und ADX-Filter', 'ATR and ADX filters')} (ATR ${PR.atrOn ? '≥' + String(PR.atrMin).replace('.', ',') + ' %' : T('выкл', 'aus', 'off')} · ADX ${PR.adxOn ? '≥' + PR.adxMin : T('выкл', 'aus', 'off')})</summary><div class="rset">
+    ${radarCfg ? `<div class="rcfg"><div class="rset"><label>${pTg('pat_alert', PR.alert)} ${T('Сигнал о новом паттерне', 'Signal bei neuem Muster', 'Signal on a new pattern')} <select data-psound>${(window.SOUND_KEYS || ['default']).map(k => `<option value="${k}"${k === (PR.sound || 'bell') ? ' selected' : ''}>${t('snd_' + k)}</option>`).join('')}</select></label></div><details class="pfold psfold"${psetOpen ? ' open' : ''}><summary>${T('Фильтры ATR и ADX', 'ATR- und ADX-Filter', 'ATR and ADX filters')} (ATR ${PR.atrOn ? '≥' + String(PR.atrMin).replace('.', ',') + ' %' : T('выкл', 'aus', 'off')} · ADX ${PR.adxOn ? '≥' + PR.adxMin : T('выкл', 'aus', 'off')})</summary><div class="rset">
       <label>${pTg('pat_atr_on', PR.atrOn)} ${T('ATR не меньше, % от цены', 'ATR mindestens, % vom Preis', 'ATR at least, % of price')} ${step('pat_atr', PR.atrMin, 0.005, 0)}</label>
       <label>${pTg('pat_adx_on', PR.adxOn)} ${T('ADX не меньше (сила тренда M1)', 'ADX mindestens (Trendstärke M1)', 'ADX at least (M1 trend strength)')} ${step('pat_adx', PR.adxMin, 1, 0)}</label>
       <small class="pnote">${T('ATR — размер свечей (живость пары). ADX — есть ли движение: до 20 флэт, 20–25 начало тренда, от 25 тренд, от 40 сильный. Подсказка по ATR — в «Активных парах».', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.')}</small></div></details>
