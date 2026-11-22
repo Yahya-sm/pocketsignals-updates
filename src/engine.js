@@ -584,12 +584,14 @@ class Engine extends EventEmitter {
     // too few one-minute candles for M10+). Fetched at most once a minute per pair.
     // + the radar's trend TF (radar_ttf, user 21.11.2026) so M10/M15 trends work in the radar too.
     const rtf = this.settings.radar_on !== false ? Number(this.settings.radar_ttf) || 5 : 0;
-    const tms = (this.settings.show_m5 !== false || this.settings.trend_filter ? this.trendMinutes : []).concat(rtf && !this.trendMinutes.includes(rtf) ? [rtf] : (rtf && !(this.settings.show_m5 !== false || this.settings.trend_filter) ? [rtf] : []));
+    const ptf = this.patTf(); // pattern timeframe M2–M5 (22.11.2026): 150 own candles, patterns need ~110
+    const tms = (this.settings.show_m5 !== false || this.settings.trend_filter ? this.trendMinutes : []).concat(rtf && !this.trendMinutes.includes(rtf) ? [rtf] : (rtf && !(this.settings.show_m5 !== false || this.settings.trend_filter) ? [rtf] : [])).concat(ptf > 1 ? [ptf] : []);
     if (tms.length) {
       [...new Set(tms)].filter(tm => tm > 1).forEach((tm, n) => list.forEach((a, i) => {
         const have = this.trendCandles.get(a.symbol + '|' + tm);
-        if (have && Date.now() - have.at < 55000) return;
-        setTimeout(() => { this.trendReq.set(this.po.loadHistory(a.symbol, tm * 60, tm * 60 * 60), { tf: tm }); }, list.length * 40 * (n + 1) + i * 40);
+        if (have && Date.now() - have.at < 55000 && (tm !== ptf || have.candles.length >= 120)) return;
+        const cnt = tm === ptf ? 150 : 60;
+        setTimeout(() => { this.trendReq.set(this.po.loadHistory(a.symbol, tm * 60, tm * 60 * cnt), { tf: tm }); }, list.length * 40 * (n + 1) + i * 40);
       }));
     }
     // M5 and M15 history for multi-timeframe strategies (150 candles each = 12.5 h / 37 h), at most once a minute.
@@ -1017,7 +1019,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1191,6 +1193,18 @@ class Engine extends EventEmitter {
     } else { W.staleSince = 0; W.resubAt = 0; }
   }
 
+  patTf() { const v = Number(this.settings.pat_tf) || 1; return [1, 2, 3, 4, 5].includes(v) ? v : 1; }
+  // Closed candles of the pattern timeframe with the newest bars rebuilt from live prices; null = no fresh data.
+  _patCandles(sym, tf) {
+    if (tf === 1) return this._freshM1(sym);
+    const own = this.trendCandles.get(sym + '|' + tf); if (!own || !own.candles.length) return null;
+    const sec = tf * 60, nowS = Date.now() / 1000, bar = Math.floor(nowS / sec) * sec;
+    const c = this._withLive(sym, own.candles, sec).filter(k => k.time < bar);
+    const t = this.ticks.get(sym), lastTick = t && t.length ? t[t.length - 1][0] : 0;
+    if (!c.length || bar - c[c.length - 1].time > sec + 5 || nowS - lastTick > 120) return null; // last closed bar missing or no live prices
+    return c;
+  }
+
   _logFresh(fresh, lag) {
     this._freshN = fresh; this._lagN = lag;
     if (Date.now() - (this._freshLogAt || 0) < 5 * 60000) return; this._freshLogAt = Date.now();
@@ -1230,26 +1244,27 @@ class Engine extends EventEmitter {
     this._patCache = this._patCache || new Map();
     for (const a of this.selectedAssets()) {
       if (Number(s.radar_pay) > 0 && !(Number(a.payout) >= Number(s.radar_pay))) continue; // same minimum payout as the pairs radar
-      const c = this._freshM1(a.symbol); if (!c || c.length < PAT.MIN + 5) continue; // only pairs with fresh candles (22.11.2026)
+      const tf = this.patTf(), sec = tf * 60; // pattern timeframe M1–M5 (user 22.11.2026)
+      const c = this._patCandles(a.symbol, tf); if (!c || c.length < PAT.MIN + 5) continue; // only pairs with fresh candles (22.11.2026)
       // Own ATR / ADX filters of the pattern radar (user 21.11.2026), each with an on/off switch.
       const atr = this.radarAtr(c); if (s.pat_atr_on && atr < (s.pat_atr != null ? Number(s.pat_atr) : 0.02)) continue;
       const ad = I.adx(c, 14), adx = ad[ad.length - 1] ? Math.round(ad[ad.length - 1].adx) : 0; if (s.pat_adx_on && adx < (s.pat_adx != null ? Number(s.pat_adx) : 20)) continue;
-      const last = c[c.length - 1].time, key = a.symbol, nowS = Date.now() / 1000; let e = this._patCache.get(key);
+      const last = c[c.length - 1].time, key = a.symbol + '|' + tf, nowS = Date.now() / 1000; let e = this._patCache.get(key);
       if (!e || e.last !== last) { const w = c.slice(-160); e = { last, act: PAT.active(w, PAT.prep(w), null) }; this._patCache.set(key, e); }
       const atrAbs = (() => { const v = I.atr(c, 14); return v[v.length - 1] || 0; })();
       const tk = this.ticks.get(a.symbol), lp = tk && tk.length && nowS - tk[tk.length - 1][0] < 120 ? +tk[tk.length - 1][1] : null;
       for (const x of e.act) if (ids.includes(x.id)) { const p = PAT.LIST.find(q => q.id === x.id);
         // 22.11.2026 (user): late entry = no signal. Entry window = the minute after the pattern candle closed (M1);
         // also gone once the live price already ran 0.5 ATR the pattern's way from that close, or is beyond its stop.
-        if (nowS - (x.time + 60) > 60) continue;
+        if (nowS - (x.time + sec) > sec) continue; // one candle of the pattern TF
         const pc = c.find(k => k.time === x.time);
         if (lp != null && pc && atrAbs > 0 && (lp - pc.close) * x.dir > 0.5 * atrAbs) continue;
         if (lp != null && x.stop != null && (x.dir > 0 ? lp < x.stop : lp > x.stop)) continue;
-        out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, fav: fav.includes(x.id), atr, adx,
+        out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, at: x.time + sec, tf, fav: fav.includes(x.id), atr, adx,
           trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '' }); }
     }
     out.sort((p, q) => q.time - p.time || (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || /* newest pattern on top (user 22.11.2026) */ (q.payout || 0) - (p.payout || 0)); // favourites first (user 21.11.2026)
-    return { alert: s.pat_alert !== false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
+    return { tf: this.patTf(), alert: s.pat_alert !== false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
   }
 
   state() {
