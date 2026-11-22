@@ -724,6 +724,7 @@ const pTg = (k, on) => `<button type="button" class="ptg${on ? ' on' : ''}" data
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-ptg]'); if (!b || !state.patRadar) return; e.preventDefault(); e.stopPropagation();
   const k = b.dataset.ptg, v = !b.classList.contains('on'); call({ action: 'settings', patch: { [k]: v } });
+  if (k === 'radar_alert') { state.radar = { ...state.radar, alert: v }; renderRadar(true); return; }
   state.patRadar = { ...state.patRadar, [k === 'pat_atr_on' ? 'atrOn' : k === 'pat_alert' ? 'alert' : 'adxOn']: v }; renderRadar(true);
 }, true);
 // 22.11.2026 (user): a new pattern gives a signal like the strategies – sound + notification (switch + own sound in its settings).
@@ -739,15 +740,35 @@ function patAlerts(PR) {
   const p = fresh[0], ru = LANG === 'ru', snd = PR.sound || 'bell';
   const title = `${p.name} ${p.dir === 'up' ? '▲ CALL' : '▼ PUT'}`;
   const body = `${ru ? 'Паттерн' : LANG === 'de' ? 'Muster' : 'Pattern'}:${ru ? p.ru : p.en}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''}`;
+  ringAlert(title, body, p, snd);
+}
+// Sound played by the app itself (phone: native player – works even if the notification channel is muted), then a
+// silent notification on the phone so it also shows in the shade.
+function ringAlert(title, body, p, snd) {
   if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
-  if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, p.name, p.symbol, '', snd);
+  beep(snd);
+  if (isAndroid && window.AndroidApp.notifySound) window.AndroidApp.notifySound(title, body, p.name, p.symbol, '', window.AndroidApp.playSound ? 'none' : snd);
   else if (isAndroid) window.AndroidApp.notify(title, body, p.name, p.symbol, '');
-  else { beep(snd); if (window.Notification && Notification.permission === 'granted' && document.hidden) new Notification(title, { body, icon: 'icon.png' }); }
+  else if (window.Notification && Notification.permission === 'granted' && document.hidden) new Notification(title, { body, icon: 'icon.png' });
+}
+// 22.11.2026 (user): the pairs radar rings too (own switch + sound): a pair that newly entered the list, active < 90 s.
+let radSeen = null;
+function radarAlerts(R) {
+  if (!R || !Array.isArray(R.list)) return;
+  const keys = R.list.map(p => `${p.symbol}|${p.since}`);
+  if (!radSeen) { radSeen = new Set(keys); return; }
+  const fresh = R.list.filter((p, i) => !radSeen.has(keys[i]) && Date.now() / 1000 - p.since < 90);
+  keys.forEach(k => radSeen.add(k)); if (radSeen.size > 3000) radSeen = new Set(keys);
+  if (!R.alert || !fresh.length) return;
+  const p = fresh[0], ru = LANG === 'ru';
+  const title = `${p.name} ${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : ''}`;
+  const body = `${ru ? 'Радар: пара стала активной' : LANG === 'de' ? 'Radar: Paar wurde aktiv' : 'Radar: pair became active'} (${p.big}/${p.n})${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''}`;
+  ringAlert(title, body, p, R.sound || 'double');
 }
 document.addEventListener('change', e => {
-  const el = e.target; if (!el.dataset || !el.dataset.psound) return;
-  call({ action: 'settings', patch: { pat_sound: el.value } }); beep(el.value);
-  if (state.patRadar) state.patRadar = { ...state.patRadar, sound: el.value };
+  const el = e.target; if (!el.dataset) return;
+  if (el.dataset.psound) { call({ action: 'settings', patch: { pat_sound: el.value } }); beep(el.value); if (state.patRadar) state.patRadar = { ...state.patRadar, sound: el.value }; }
+  if (el.dataset.rsound) { call({ action: 'settings', patch: { radar_sound: el.value } }); beep(el.value); if (state.radar) state.radar = { ...state.radar, sound: el.value }; }
 });
 let rsetOpen = (() => { try { return localStorage.getItem('rsetOpen') === '1'; } catch { return false; } })();
 document.addEventListener('toggle', e => { const c = e.target.classList; if (!c) return;
@@ -793,7 +814,7 @@ function patAge(t) {
 }
 setInterval(() => document.querySelectorAll('#radar .page[data-pt]').forEach(x => { x.textContent = patAge(x.dataset.pt); }), 1000);
 function renderRadar(force) {
-  if (state) patAlerts(state.patRadar);
+  if (state) { patAlerts(state.patRadar); radarAlerts(state.radar); }
   const el = document.getElementById('radar'), R = state && state.radar; if (!el || !R) return;
   if (!R.on) { el.innerHTML = ''; return; }
   const ru = LANG === 'ru', de = LANG === 'de';
@@ -825,7 +846,7 @@ function renderRadar(force) {
     return;
   }
   const html = `<details class="setfold pradar"${radarOpen ? ' open' : ''}>${rhead}
-    ${radarCfg ? `<div class="rcfg"><details class="rleg"><summary>${T('Что значат стрелки', 'Was die Pfeile bedeuten', 'What the arrows mean')}</summary>${T(`Стрелки: первая — куда шла цена за ${R.dn || R.n} свеч. M1; вторая с цифрой — тренд старшего ТФ (₅ = M5). ◆ = флэт.`, 'Pfeile: erster = Kursrichtung im Fenster; zweiter mit Zahl = Trend des höheren TF. ◆ = flach.', 'Arrows: first = price move in the window; second with number = higher-TF trend. ◆ = flat.')}</details>
+    ${radarCfg ? `<div class="rcfg"><div class="rset"><label>${pTg('radar_alert', R.alert)} ${T('Сигнал о новой активной паре', 'Signal bei neuem aktivem Paar', 'Signal on a new active pair')} <select data-rsound>${(window.SOUND_KEYS || ['default']).map(k => `<option value="${k}"${k === (R.sound || 'double') ? ' selected' : ''}>${t('snd_' + k)}</option>`).join('')}</select></label></div><details class="rleg"><summary>${T('Что значат стрелки', 'Was die Pfeile bedeuten', 'What the arrows mean')}</summary>${T(`Стрелки: первая — куда шла цена за ${R.dn || R.n} свеч. M1; вторая с цифрой — тренд старшего ТФ (₅ = M5). ◆ = флэт.`, 'Pfeile: erster = Kursrichtung im Fenster; zweiter mit Zahl = Trend des höheren TF. ◆ = flach.', 'Arrows: first = price move in the window; second with number = higher-TF trend. ◆ = flat.')}</details>
     <details class="pfold rsfold"${rsetOpen ? ' open' : ''}><summary>${T('Настройки активных пар', 'Einstellungen aktive Paare', 'Active pairs settings')} (${R.n} / ${String(R.x).replace('.', ',')} / ${R.k}${R.pay ? ` · ≥${R.pay} %` : ''} · ${T('тренд', 'Trend', 'trend')} M${R.ttf || 5})</summary><div class="rset"><label>${T('Окно, свечей M1', 'Fenster, M1-Kerzen', 'Window, M1 candles')} ${step('radar_n', R.n, 1, 3)}</label>
     <label>${T('Крупная = тело от … обычной свечи', 'Groß = Körper ab … der normalen Kerze', 'Big = body from … of the usual candle')} ${step('radar_x', R.x, 0.1, 0.1)}</label>
     <label>${T('Крупных в окне не меньше', 'Große im Fenster mindestens', 'Big ones in the window at least')} ${step('radar_k', R.k, 1, 1)}</label>
@@ -1112,6 +1133,7 @@ $('#clearBtn').onclick = () => {
 
 // Plays one of the signal sounds (ui/sounds.js).
 function beep(key) {
+  if (isAndroid && window.AndroidApp && window.AndroidApp.playSound) { try { window.AndroidApp.playSound(key || 'default'); return; } catch {} } // phone: native player (22.11.2026)
   const tones = (window.SOUNDS || {})[key] || (window.SOUNDS || {}).default || [];
   if (!tones.length) return;
   try {

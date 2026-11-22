@@ -1006,7 +1006,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1176,7 +1176,7 @@ class Engine extends EventEmitter {
     }
     this._logFresh(nFresh, nLag);
     out.sort((p, q) => q.since - p.since || q.big - p.big || q.size - p.size); // newest active pair on top (user 22.11.2026)
-    return { on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
+    return { alert: s.radar_alert !== false, sound: s.radar_sound || 'double', on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
   }
 
   // Pattern radar (user 21.11.2026): known trading patterns on closed M1 candles, only while valid. Not a signal.

@@ -616,6 +616,28 @@ public class MainActivity extends Activity {
 
         // Same, with the strategy's own sound: every sound has its own notification channel "sig_<key>" (sounds are
         // channel settings on Android 8+). "none" = silent channel, unknown key = default sound.
+        // 22.11.2026 (user: radar/pattern bell silent): play a signal sound directly (MediaPlayer, alarm-independent
+        // notification stream), not through a notification channel. Used for the sample on choosing and for radar/pattern alerts.
+        @JavascriptInterface
+        public void playSound(String key) {
+            if (key == null || !key.matches("[a-z]+") || key.equals("none")) return;
+            int raw = getResources().getIdentifier("sig_" + key, "raw", getPackageName());
+            if (raw == 0) raw = getResources().getIdentifier("sig_default", "raw", getPackageName());
+            if (raw == 0) return;
+            final int r = raw;
+            runOnUiThread(() -> {
+                try {
+                    android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                    mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+                    android.content.res.AssetFileDescriptor fd = getResources().openRawResourceFd(r);
+                    mp.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength()); fd.close();
+                    mp.setOnCompletionListener(android.media.MediaPlayer::release);
+                    mp.prepare(); mp.start();
+                } catch (Exception ignored) { }
+            });
+        }
+
         @JavascriptInterface
         public void notifySound(String title, String body, String name, String symbol, String tvUrl, String key) {
             if (key == null || !key.matches("[a-z]+")) key = "default";
