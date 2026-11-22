@@ -362,7 +362,8 @@ class Engine extends EventEmitter {
     this._watchAutoSession();
     this.restartTimer();
     // Live ADX on the running signal cards (user, 03.11.2026): every 5 s, so a fading trend is seen before entering.
-    setInterval(() => { if (this._sampleAdx()) this.emit('state'); }, 5000);
+    // 22.11.2026 (user): radar and patterns re-checked every 5 s on the live candles (state() recomputes both).
+    setInterval(() => { this._sampleAdx(); this.emit('state'); }, 5000);
     // Price against the signal during the countdown (user, 07.11.2026), once a second.
     setInterval(() => { if (this._samplePrice()) this.emit('state'); }, 1000);
   }
@@ -1191,11 +1192,15 @@ class Engine extends EventEmitter {
       const ad = I.adx(c, 14), adx = ad[ad.length - 1] ? Math.round(ad[ad.length - 1].adx) : 0; if (s.pat_adx_on && adx < (s.pat_adx != null ? Number(s.pat_adx) : 20)) continue;
       const last = c[c.length - 1].time, key = a.symbol, nowS = Date.now() / 1000; let e = this._patCache.get(key);
       if (!e || e.last !== last) { const w = c.slice(-160); e = { last, act: PAT.active(w, PAT.prep(w), null) }; this._patCache.set(key, e); }
+      const atrAbs = (() => { const v = I.atr(c, 14); return v[v.length - 1] || 0; })();
+      const tk = this.ticks.get(a.symbol), lp = tk && tk.length && nowS - tk[tk.length - 1][0] < 120 ? +tk[tk.length - 1][1] : null;
       for (const x of e.act) if (ids.includes(x.id)) { const p = PAT.LIST.find(q => q.id === x.id);
-        if (nowS - (x.time + 60) > Math.min(p.life || 15, 15) * 60) continue;
-        // 22.11.2026 (user): re-check on every scan with the live price – price already beyond the pattern's stop = setup gone.
-        { const tk = this.ticks.get(a.symbol), lp = tk && tk.length && Date.now() / 1000 - tk[tk.length - 1][0] < 120 ? +tk[tk.length - 1][1] : null;
-          if (lp != null && x.stop != null && (x.dir > 0 ? lp < x.stop : lp > x.stop)) continue; } // real age (clock), not candle count: max 15 min
+        // 22.11.2026 (user): late entry = no signal. Entry window = the minute after the pattern candle closed (M1);
+        // also gone once the live price already ran 0.5 ATR the pattern's way from that close, or is beyond its stop.
+        if (nowS - (x.time + 60) > 60) continue;
+        const pc = c.find(k => k.time === x.time);
+        if (lp != null && pc && atrAbs > 0 && (lp - pc.close) * x.dir > 0.5 * atrAbs) continue;
+        if (lp != null && x.stop != null && (x.dir > 0 ? lp < x.stop : lp > x.stop)) continue;
         out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, fav: fav.includes(x.id), atr, adx,
           trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '' }); }
     }
