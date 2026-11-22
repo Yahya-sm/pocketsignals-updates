@@ -1139,13 +1139,28 @@ class Engine extends EventEmitter {
   // ATR(14) of M1 as % of price (user 21.11.2026): comparable between pairs; radar_atr = minimum, 0 = off.
   radarAtr(c) { if (!c || c.length < 20) return 0; const a = I.atr(c, 14), v = a[a.length - 1], p = c[c.length - 1].close; return v > 0 && p > 0 ? +(100 * v / p).toFixed(3) : 0; }
 
+  // 22.11.2026 (user: patterns must be fresh on M1): the stored candles come from the history, which ends ~5 min before now;
+  // the newest closed minutes are rebuilt from the live prices here (like the strategies get them). Null = no fresh data.
+  _freshM1(sym) {
+    const base = this.candles.get(sym); if (!base || !base.length) return null;
+    const nowS = Date.now() / 1000, nowMin = Math.floor(nowS / 60) * 60;
+    const c = this._withLive(sym, base, 60).filter(k => k.time < nowMin);
+    if (!c.length || nowS - c[c.length - 1].time > 180) return null; // last closed minute older than ~2 min: lagging
+    return c;
+  }
+  _logFresh(fresh, lag) {
+    if (Date.now() - (this._freshLogAt || 0) < 5 * 60000) return; this._freshLogAt = Date.now();
+    this.po._log(`Radar: ${fresh} Paare mit frischen Kerzen, ${lag} verzögert (ohne Live-Kurse – ausgeblendet)`);
+  }
+
   radar() {
     const s = this.settings, N = Math.max(3, Math.min(60, Number(s.radar_n) || 10)), X = Number(s.radar_x) || 1, K = Math.max(1, Number(s.radar_k) || 3), PAY = Math.max(0, Number(s.radar_pay) || 0), TTF = [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, ATR = Math.max(0, Number(s.radar_atr) || 0), DN = Math.max(1, Math.min(60, Number(s.radar_dn) || N)); // radar_dn: candles for the first arrow // radar_pay: minimum payout % (user 21.11.2026)
-    const out = [];
+    const out = []; let nFresh = 0, nLag = 0;
     for (const a of this.selectedAssets()) {
       if (PAY && !(Number(a.payout) >= PAY)) continue;
-      const c = this.candles.get(a.symbol); if (!c || c.length < N + 60) continue;
-      if (Date.now() / 1000 - c[c.length - 1].time > 240) continue; // stale candles of this pair (22.11.2026)
+      if (!this.candles.get(a.symbol)) continue;
+      const c = this._freshM1(a.symbol); if (!c) { nLag++; continue; } nFresh++;
+      if (c.length < N + 60) continue;
       const atr = this.radarAtr(c); if (ATR && atr < ATR) continue;
       const w = c.slice(-N), base = c.slice(Math.max(0, c.length - N - 120), c.length - N);
       const avg = base.reduce((t, k) => t + k.high - k.low, 0) / base.length; if (!(avg > 0)) continue;
@@ -1158,6 +1173,7 @@ class Engine extends EventEmitter {
       out.push({ symbol: a.symbol, name: a.name, otc: !!a.otc, payout: a.payout, big, n: N, size: +size.toFixed(1), dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[w.length - 1].time, since,
         trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, TTF, c)] || '', m1n: c.length, atr }); // higher-TF trend (EMA 9/21), TF chosen by the user (radar_ttf)
     }
+    this._logFresh(nFresh, nLag);
     out.sort((p, q) => q.since - p.since || q.big - p.big || q.size - p.size); // newest active pair on top (user 22.11.2026)
     return { on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
   }
@@ -1169,12 +1185,11 @@ class Engine extends EventEmitter {
     this._patCache = this._patCache || new Map();
     for (const a of this.selectedAssets()) {
       if (Number(s.radar_pay) > 0 && !(Number(a.payout) >= Number(s.radar_pay))) continue; // same minimum payout as the pairs radar
-      const c = this.candles.get(a.symbol); if (!c || c.length < PAT.MIN + 5) continue;
+      const c = this._freshM1(a.symbol); if (!c || c.length < PAT.MIN + 5) continue; // only pairs with fresh candles (22.11.2026)
       // Own ATR / ADX filters of the pattern radar (user 21.11.2026), each with an on/off switch.
       const atr = this.radarAtr(c); if (s.pat_atr_on && atr < (s.pat_atr != null ? Number(s.pat_atr) : 0.02)) continue;
       const ad = I.adx(c, 14), adx = ad[ad.length - 1] ? Math.round(ad[ad.length - 1].adx) : 0; if (s.pat_adx_on && adx < (s.pat_adx != null ? Number(s.pat_adx) : 20)) continue;
       const last = c[c.length - 1].time, key = a.symbol, nowS = Date.now() / 1000; let e = this._patCache.get(key);
-      if (nowS - last > 240) continue; // 22.11.2026 (user saw 2-hour-old patterns): candles of this pair are stale – show nothing
       if (!e || e.last !== last) { const w = c.slice(-160); e = { last, act: PAT.active(w, PAT.prep(w), null) }; this._patCache.set(key, e); }
       for (const x of e.act) if (ids.includes(x.id)) { const p = PAT.LIST.find(q => q.id === x.id);
         if (nowS - (x.time + 60) > Math.min(p.life || 15, 15) * 60) continue;
