@@ -211,6 +211,15 @@ class Engine extends EventEmitter {
       if (ss.ludo_bot_otc) ss.ludo_bot_otc = { expiry: 60 };
       s.ludo_reset_2111 = true; writeJson(this.settingsFile, s);
     }
+    // 23.11.2026 (user): Ludo became a swing strategy (support/resistance turns, S15–M5). Old Ludo keys (S5 micro, ludo_new
+    // M1 series) are dropped once and an S5 timeframe becomes M1; whether it is switched on stays as the user had it.
+    if (!this.settings.ludo_swing_2311) {
+      const s = this.settings, ss = s.strategy_settings || {};
+      if (ss.ludo_bot_otc) ss.ludo_bot_otc = {};
+      const tf = s.strat_tfs && s.strat_tfs.ludo_bot_otc;
+      if (tf) { const ok = (Array.isArray(tf) ? tf : [tf]).filter(x => ['S15', 'S30', 'M1', 'M2', 'M3', 'M4', 'M5'].includes(x)); s.strat_tfs = { ...s.strat_tfs, ludo_bot_otc: ok.length ? ok : ['M1'] }; }
+      s.ludo_swing_2311 = true; writeJson(this.settingsFile, s);
+    }
     // 21.11.2026: "Начало движения: наклон EMA" (n_emastart) removed – cleaned out of the switched-on and favourite lists.
     { const s = this.settings, no = l => (l || []).filter(k => k !== 'n_emastart');
       if ((s.strategies || []).includes('n_emastart') || (s.favorite_strategies || []).includes('n_emastart')) { s.strategies = no(s.strategies); s.favorite_strategies = no(s.favorite_strategies); s.es_1511 = true; writeJson(this.settingsFile, s); } }
@@ -744,9 +753,16 @@ class Engine extends EventEmitter {
   _flushScan() {
     // The limit counts per minute (per entry time), however often we scan.
     const max = this.settings.max_per_scan || 99;
+    // 23.11.2026 (user): signal selection for every strategy – minimum score (50 weak / 70 working / 85 strong) and at most
+    // sig_per_hour signals in the last 60 min (0 = no limit); the strongest go first.
+    const minSc = Number(this.settings.sig_score_min ?? 50) || 0, perHour = Number(this.settings.sig_per_hour) || 0;
+    let lastHour = perHour ? this.signals.filter(x => !x.manual && Date.now() - (x.created || 0) < 3600000).length : 0;
     for (const s of (this.scanSignals || []).sort((a, b) => b.strength - a.strength)) {
       const entry = s.entry || s.candle.time + 60;
+      if ((Number(s.strength) || 0) < minSc) continue;
+      if (perHour && lastHour >= perHour) continue;
       if (this.signals.filter(x => x.entryTime === entry).length >= max) continue;
+      lastHour++;
       this._emitSignal(s);
     }
     this.scanSignals = [];
@@ -1027,7 +1043,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf', 'sig_score_min', 'sig_per_hour'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1336,7 +1352,7 @@ class Engine extends EventEmitter {
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,
         assets_off: this.settings.assets_off || [],
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
-        min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0,
+        min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0, sig_score_min: Number(this.settings.sig_score_min ?? 50), sig_per_hour: Number(this.settings.sig_per_hour) || 0,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
         ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', mkt_level: Number(this.settings.mkt_level) || 0, smart_exp: this.settings.smart_exp === true, quotes_demo: this.settings.quotes_demo === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         deposit: Number(this.settings.deposit) || 1000,

@@ -121,6 +121,7 @@ function render() {
 
   applyCards(); syncCards();
   try { renderWatch(); } catch {}
+  try { renderSel(); } catch {}
   renderRadar();
   renderLive();
   if (window.labRender) window.labRender();
@@ -885,7 +886,7 @@ function renderRadar(force) {
   // 22.11.2026 (user): each part has its own on/off (⏻ green = on); off = the engine does not compute it at all.
   const autoB = (k, on) => `<button type="button" class="rauto${on ? ' on' : ''}" data-rauto="${k}" title="${T('Автопереключение графика PO на новый', 'Auto-Wechsel des PO-Charts', 'Auto switch the PO chart')}">⇄</button>`;
   const pwr = (k, on) => `<button type="button" class="rpwr${on ? ' on' : ''}" data-pwr="${k}" title="${on ? T('Выключить', 'Ausschalten', 'Switch off') : T('Включить', 'Einschalten', 'Switch on')}">⏻</button>`;
-  const rhead = `<summary><button type="button" class="rhead${radarTab === 'pairs' ? ' on' : ''}${R.on === false ? ' off' : ''}" data-rtab="pairs">${T('Радар', 'Radar', 'Radar')} <span class="cnt">${R.on === false ? '–' : R.list.length}</span></button>${pwr('radar_on', R.on !== false)}${autoB('radar_auto', !!R.auto)}${gear('pairs')}<button type="button" class="rhead${radarTab === 'pat' ? ' on' : ''}${PR.on === false ? ' off' : ''}" data-rtab="pat">${T('Паттерны', 'Muster', 'Patterns')} <span class="cnt">${PR.on === false ? '–' : PR.list.length}</span></button>${pwr('pat_on', PR.on !== false)}${autoB('pat_auto', !!PR.auto)}${gear('pat')}</summary>`;
+  const rhead = `<summary><button type="button" class="rhead${radarTab === 'pairs' ? ' on' : ''}${R.on === false ? ' off' : ''}" data-rtab="pairs">${T('Радар', 'Radar', 'Radar')} <span class="cnt">${R.on === false ? '–' : R.list.length}</span></button>${pwr('radar_on', R.on !== false)}${autoB('radar_auto', !!R.auto)}${gear('pairs')}<i class="rbr"></i><button type="button" class="rhead${radarTab === 'pat' ? ' on' : ''}${PR.on === false ? ' off' : ''}" data-rtab="pat">${T('Паттерны', 'Muster', 'Patterns')} <span class="cnt">${PR.on === false ? '–' : PR.list.length}</span></button>${pwr('pat_on', PR.on !== false)}${autoB('pat_auto', !!PR.auto)}${gear('pat')}</summary>`;
   const tabs = `<div class="rtabs"><button type="button" data-rtab="pairs" class="${radarTab === 'pairs' ? 'on' : ''}">${T('Активные пары', 'Aktive Paare', 'Active pairs')} ${R.list.length}</button><button type="button" data-rtab="pat" class="${radarTab === 'pat' ? 'on' : ''}">${T('Паттерны', 'Muster', 'Patterns')} ${PR.list.length}</button></div>`;
   if (radarTab === 'pat') {
     const nm = p => ru ? p.ru : p.en;
@@ -1162,6 +1163,31 @@ $('#copyLogBtn').onclick = async () => {
 };
 // 22.11.2026 (user): watchdog warning – sound + notification once, and a red bar on the main screen with
 // "Copy log" (paste it into the chat with Claude) and ✕. The bar goes away by itself once the problem is gone.
+// 23.11.2026 (user): "Signal selection" – minimum score (50 weak / 70 working / 85 strong) and signals per hour, each with
+// − / + (score in steps of 5, per hour in steps of 5, 0 = no limit), explanation in a spoiler. Applies to all strategies.
+let selOpen = (() => { try { return localStorage.getItem('selOpen') === '1'; } catch { return false; } })();
+function renderSel() {
+  const el = document.getElementById('selBox'); if (!el || !state || !state.settings) return;
+  const s = state.settings, ru = LANG === 'ru', de = LANG === 'de', T = (r, d, e) => ru ? r : de ? d : e;
+  const sc = Number(s.sig_score_min ?? 50), ph = Number(s.sig_per_hour) || 0;
+  const lvl = sc >= 85 ? T('только сильные', 'nur starke', 'strong only') : sc >= 70 ? T('рабочие и сильные', 'brauchbare + starke', 'working + strong') : sc >= 50 ? T('слабые, рабочие, сильные', 'schwache, brauchbare, starke', 'weak, working, strong') : T('все, даже отклонённые', 'alle', 'all');
+  const hour = (state.signals || []).filter(x => !x.manual && Date.now() - (x.created || 0) < 3600000).length;
+  const html = `<details class="setfold selfold"${selOpen ? ' open' : ''}><summary><h3>${T('Отбор сигналов', 'Signalauswahl', 'Signal selection')}</h3><small>score ≥ ${sc} · ${ph ? T(`≤ ${ph} в час`, `≤ ${ph}/h`, `≤ ${ph}/h`) : T('без лимита', 'ohne Limit', 'no limit')} · ${T('за час', 'letzte Std.', 'last hour')}: ${hour}</small></summary>
+    <div class="selrow"><span>${T('Мин. score', 'Min. Score', 'Min score')}</span><button type="button" data-sel="sig_score_min" data-d="-5">−</button><b>${sc}</b><button type="button" data-sel="sig_score_min" data-d="5">+</button><em>${lvl}</em></div>
+    <div class="selrow"><span>${T('Сигналов в час, макс.', 'Signale pro Stunde, max.', 'Signals per hour, max')}</span><button type="button" data-sel="sig_per_hour" data-d="-5">−</button><b>${ph || '∞'}</b><button type="button" data-sel="sig_per_hour" data-d="5">+</button><em>${ph ? T('сильнейшие первыми', 'stärkste zuerst', 'strongest first') : T('0 = без лимита', '0 = ohne Limit', '0 = no limit')}</em></div>
+    <details class="pfold"><summary>${T('Как это работает', 'Wie es funktioniert', 'How it works')}</summary><div class="selhelp">${T(
+      `<p><b>Score</b> — оценка сигнала от 0 до 100, её ставит стратегия за то, насколько полно выполнены её условия.</p><p>50–69 — <b>слабый</b> сетап · 70–84 — <b>рабочий</b> · 85–100 — <b>сильный</b>. Ниже 50 — отклонён.</p><p><b>Мин. score</b>: сигналы ниже порога не приходят. 50 = приходят слабые, рабочие и сильные (по умолчанию). 70 = слабые отсеяны. 85 = только сильные. Шаг 5.</p><p><b>Сигналов в час</b>: если за последние 60 минут пришло столько сигналов, новые не приходят, пока час не освободится. Из одновременных первым проходит сильнейший. 0 (∞) = без лимита. Шаг 5.</p><p>Важно: высокий score — это «ситуация похожа на учебный пример», а не доказанно больше выигрышей. Порог уменьшает поток сигналов; проверяйте на демо.</p>`,
+      `<p><b>Score</b> 0–100: wie vollständig die Bedingungen der Strategie erfüllt sind. 50–69 schwach · 70–84 brauchbar · 85–100 stark.</p><p><b>Min. Score</b>: Signale darunter kommen nicht. <b>Signale pro Stunde</b>: Limit über die letzten 60 min, stärkste zuerst, 0 = ohne Limit.</p><p>Hoher Score ist kein Beweis für mehr Gewinne.</p>`,
+      `<p><b>Score</b> 0–100: how fully the strategy's conditions are met. 50–69 weak · 70–84 working · 85–100 strong.</p><p><b>Min score</b>: signals below do not come. <b>Signals per hour</b>: limit over the last 60 min, strongest first, 0 = no limit.</p><p>A high score is no proof of more wins.</p>`)}</div></details></details>`;
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+}
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('selfold')) { selOpen = e.target.open; try { localStorage.setItem('selOpen', selOpen ? '1' : '0'); } catch {} } }, true);
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-sel]'); if (!b || !state || !state.settings) return; e.preventDefault();
+  const k = b.dataset.sel, cur = k === 'sig_score_min' ? Number(state.settings.sig_score_min ?? 50) : Number(state.settings.sig_per_hour) || 0;
+  const v = k === 'sig_score_min' ? Math.max(0, Math.min(100, cur + +b.dataset.d)) : Math.max(0, Math.min(500, cur + +b.dataset.d));
+  state.settings = { ...state.settings, [k]: v }; call({ action: 'settings', patch: { [k]: v } }); renderSel();
+});
 let watchSeen = null, watchClosed = 0;
 function renderWatch() {
   const el = document.getElementById('watchBox'); if (!el || !state) return;

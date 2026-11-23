@@ -48,7 +48,7 @@ const CATALOG = [
   C('candle_bot_otc', 'Candle Bot', 'price_action', 'OTC', ['1M'], { min: 55, max: 70 }, 'HIGH', ST(L('Последние 3–5 свечей', 'Letzte 3–5 Kerzen', 'Last 3–5 candles'), L('Давление: 3 из 4 закрытий', 'Druck: 3 von 4 Schlüssen', 'Pressure: 3 of 4 closes'), L('Сигнал за 10–15 с до закрытия минуты', 'Signal 10–15 s vor Minutenschluss', 'Signal 10–15 s before the minute closes')), { manual_hard: true }),
   C('candle_bot_forex', 'Candle Bot Forex', 'price_action', 'FOREX', ['1M'], { min: 55, max: 70 }, 'HIGH', ST(L('Последние 3–5 свечей', 'Letzte 3–5 Kerzen', 'Last 3–5 candles'), L('Давление: 3 из 4 закрытий', 'Druck: 3 von 4 Schlüssen', 'Pressure: 3 of 4 closes'), L('Сигнал за 10–15 с до закрытия минуты', 'Signal 10–15 s vor Minutenschluss', 'Signal 10–15 s before the minute closes')), { manual_hard: true }),
   C('meanrev_bot_forex', 'MeanRev Bot Forex', 'mean_reversion', 'FOREX', ['2M'], { min: 55, max: 65 }, 'MEDIUM', ST(L('Среднее SMA 20, ADX < 20', 'Mittel SMA 20, ADX < 20', 'Mean SMA 20, ADX < 20'), L('Цена за полосой Боллинджера', 'Preis jenseits des Bollinger-Bands', 'Price beyond the Bollinger band'), L('Свеча ослабления, вход к SMA', 'Schwächekerze, Einstieg zur SMA', 'Weakening candle, entry to the SMA'))),
-  C('ludo_bot_otc', 'Ludo Bot', 'ultra_short', 'OTC', ['15s'], null, 'VERY_HIGH', ST(L('Микродвижения 20 тиков', 'Mikrobewegungen 20 Ticks', 'Micro moves, 20 ticks'), L('Серия ≥ 4 движений', 'Serie ≥ 4 Bewegungen', 'Series ≥ 4 moves'), L('Вход при сохранении направления', 'Einstieg, wenn Richtung hält', 'Entry while direction holds')), { mode: 'PAPER', manual_hard: true }),
+  C('ludo_bot_otc', 'Ludo Bot (свинг)', 'reversal', 'OTC', ['2 свечи'], null, 'MEDIUM', ST(L('Зоны поддержки и сопротивления: ≥ 2 разворота у одного уровня', 'Unterstützung/Widerstand: ≥ 2 Wenden am selben Niveau', 'Support/resistance zones: >= 2 turns at one level'), L('Цена у зоны, пробоя нет; флэт (ADX) и выдох движения', 'Preis an der Zone, kein Ausbruch; Seitwärts (ADX) und erschöpfte Bewegung', 'Price at the zone, no breakout; range (ADX) and exhausted move'), L('Свеча разворота закрылась от зоны → сигнал', 'Wendekerze schloss von der Zone weg → Signal', 'Turn candle closed away from the zone → signal')), {}),
   C('scanner_bot_otc', 'Scanner Bot', 'scanner', 'OTC', ['1M'], { min: 50, max: 70 }, 'MEDIUM', ST(L('Пул активов', 'Asset-Pool', 'Asset pool'), L('Выбор лучшего кандидата', 'Bester Kandidat', 'Best candidate'), L('Подтверждение перед свечой', 'Bestätigung vor der Kerze', 'Confirmation before the candle'))),
   C('volatility_bot_otc', 'Volatility Bot', 'volatility', 'OTC', ['25s'], { min: 50, max: 75 }, 'HIGH', ST(L('Сжатие ATR 5/50 < 0,7', 'Kompression ATR 5/50 < 0,7', 'Squeeze ATR 5/50 < 0.7'), L('Расширение ≥ 2×ATR 50', 'Ausdehnung ≥ 2×ATR 50', 'Expansion ≥ 2×ATR 50'), L('Вход по направлению', 'Einstieg in Richtung', 'Entry in direction')), { mode: 'PAPER', manual_hard: true }),
   C('overheat_bot_otc', 'Overheat Bot', 'counter_trend', 'OTC', ['1M', '10M', '15M'], { min: 45, max: 70 }, 'MEDIUM', ST(L('Z-score(20) ≥ 2,5 у экстремума', 'Z-Score(20) ≥ 2,5 am Extrem', 'Z-score(20) ≥ 2.5 at an extreme'), L('Свеча отказа', 'Ablehnungskerze', 'Rejection candle'), L('ATR-фильтр 20–80 перцентиль', 'ATR-Filter 20.–80. Perzentil', 'ATR filter 20–80 percentile')), { impl: 'overheat' }),
@@ -92,7 +92,7 @@ Object.assign(PARAMS, {
   pro_bot: { adx_min: 20, min_body_atr: 0.6, min_closes: 3, pullback_atr: 0.3, break_atr: 0.2 },
   candle_bot: { sec_from: 45, sec_to: 50, min_closes: 3, max_opposite_wick_pct: 50, min_level_distance_atr: 0.5 },
   meanrev: { adx_max: 20, atr_pct_lo: 20, atr_pct_hi: 80, bb_mult: 2, max_body_atr: 1, wick_pct: 50 },
-  ludo: { window: 20, max_chaos: 0.6, min_series: 4, min_candles: 30 },
+  ludo: { sw_window: 60, sw_frac: 2, sw_touches: 2, sw_tol: 0.25, sw_room: 1.5, sw_adx: 25, sw_rsi_period: 7, sw_rsi_hi: 65, sw_rsi_lo: 35, sw_wick: 40, sw_need: 4, sw_exp_candles: 2, min_candles: 70 }, // swing (23.11.2026)
   fun5s: { window: 15, max_chaos: 0.6, min_series: 3, min_candles: 30 },
   volatility: { squeeze: 0.7, min_squeeze: 5, expansion_atr: 2, max_expansion: 3 },
   scanner: {},
@@ -113,11 +113,11 @@ const EXPIRY_SEC = { impulse: 60, range: 60, fractal: 120, trap: 60, overheat: 6
 Object.assign(EXPIRY_SEC, { mini_vip: 60, pro_bot: 60, candle_bot: 60, meanrev: 120, ludo: 15, fun5s: 5, volatility: 25, scanner: 60, smart_money: 60, smart_money_5m: 300, spring: 60, pressure: 60, correction: 60, double_strike: 60, neuro: 60 });
 // Catalog id → parameter set (impl) and run logic (when they differ).
 const IMPL = { mini_vip_otc: 'mini_vip', mini_vip_forex: 'mini_vip', pro_bot_otc: 'pro_bot', candle_bot_otc: 'candle_bot', candle_bot_forex: 'candle_bot', meanrev_bot_forex: 'meanrev',
-  ludo_bot_otc: ['ludo', 'micro'], fun_bot_5s_otc: ['fun5s', 'micro'], volatility_bot_otc: 'volatility', scanner_bot_otc: 'scanner', smart_money_otc: 'smart_money', smart_money_forex: 'smart_money',
+  ludo_bot_otc: ['ludo', 'ludo_swing'], fun_bot_5s_otc: ['fun5s', 'micro'], volatility_bot_otc: 'volatility', scanner_bot_otc: 'scanner', smart_money_otc: 'smart_money', smart_money_forex: 'smart_money',
   smart_money_5m_otc: ['smart_money_5m', 'smart_money'], spring_bot_otc: 'spring', candle_pressure_otc: 'pressure', correction_bot_otc: 'correction', double_strike_otc: 'double_strike', neuro_bot_otc: 'neuro' };
 for (const [id, v] of Object.entries(IMPL)) { const s = CATALOG.find(c => c.id === id); if (!s) continue; s.impl = Array.isArray(v) ? v[0] : v; if (Array.isArray(v)) s.logic = v[1]; s.status = 'BACKTEST'; }
 // Second-candle strategies run on S5 candles; the candle bot on the forming M1 candle.
-const SECOND_TF = { ludo: 'S5', fun5s: 'S5', volatility: 'S5' };
+const SECOND_TF = { fun5s: 'S5', volatility: 'S5' }; // Ludo is a swing strategy on S15–M5 since 23.11.2026 (default M1)
 // Readable parameter names for the settings (3 languages).
 const PARAM_LABELS = {
   expiry: L('Экспирация, с', 'Ablauf, s', 'Expiry, s'),
@@ -145,6 +145,18 @@ const PARAM_LABELS = {
   trend_ema: L('EMA тренда на 5M: период', 'Trend-EMA auf 5M: Periode', 'Trend EMA on 5M period'), entry_ema: L('EMA отката: период', 'Rücksetzer-EMA: Periode', 'Pullback EMA period'),
   bb_period: L('Боллинджер: период', 'Bollinger: Periode', 'Bollinger period'), atr_fast: L('Короткий ATR: период', 'Kurzer ATR: Periode', 'Short ATR period'), atr_slow: L('Длинный ATR: период', 'Langer ATR: Periode', 'Long ATR period'),
   ma_filter: L('Подтверждение скользящими EMA 20/50', 'Bestätigung durch EMA 20/50', 'Confirmation by EMA 20/50'),
+  sw_window: L('Свинг: окно поиска зон, свечей', 'Swing: Fenster für Zonen, Kerzen', 'Swing: zone search window, candles'),
+  sw_frac: L('Свинг: ширина разворота (свечей с каждой стороны)', 'Swing: Wendebreite (Kerzen je Seite)', 'Swing: turn width (candles each side)'),
+  sw_touches: L('Свинг: разворотов у зоны минимум', 'Swing: Wenden an der Zone mindestens', 'Swing: turns at the zone at least'),
+  sw_tol: L('Свинг: ширина зоны, ATR', 'Swing: Zonenbreite, ATR', 'Swing: zone width, ATR'),
+  sw_room: L('Свинг: до противоположной зоны минимум, ATR', 'Swing: bis zur Gegenzone mindestens, ATR', 'Swing: to the opposite zone at least, ATR'),
+  sw_adx: L('Свинг: флэт — ADX меньше', 'Swing: Seitwärts – ADX unter', 'Swing: range – ADX below'),
+  sw_rsi_period: L('Свинг: RSI выдоха, период', 'Swing: Erschöpfungs-RSI, Periode', 'Swing: exhaustion RSI period'),
+  sw_rsi_hi: L('Свинг: RSI у сопротивления от', 'Swing: RSI am Widerstand ab', 'Swing: RSI at resistance from'),
+  sw_rsi_lo: L('Свинг: RSI у поддержки до', 'Swing: RSI an der Unterstützung bis', 'Swing: RSI at support up to'),
+  sw_wick: L('Свинг: тень свечи разворота в зону от, %', 'Swing: Docht der Wendekerze in die Zone ab, %', 'Swing: turn candle wick into the zone from, %'),
+  sw_need: L('Свинг: уверенность — условий из 4 (4 = все, 3 = мягче)', 'Swing: Sicherheit – Bedingungen von 4 (4 = alle, 3 = milder)', 'Swing: confidence – conditions of 4 (4 = all, 3 = milder)'),
+  sw_exp_candles: L('Свинг: экспирация, свечей таймфрейма', 'Swing: Ablauf, Kerzen des Zeitrahmens', 'Swing: expiry, candles of the timeframe'),
   ludo_new: L('Новый режим (M1, экспирация 60 с); выкл = старый режим (5-секундные свечи, 15 с)', 'Neuer Modus (M1, Ablauf 60 s); aus = alter Modus (5-Sekunden-Kerzen, 15 s)', 'New mode (M1, 60 s expiry); off = old mode (5-second candles, 15 s)'),
   ser_body_atr: L('Тело каждой свечи серии минимум, ATR (0 = выкл)', 'Körper jeder Serienkerze mindestens, ATR (0 = aus)', 'Body of every series candle at least, ATR (0 = off)'),
   ludo_cross: L('Сигнал на пересечении EMA (выкл = сигнал по серии свечей)', 'Signal bei EMA-Kreuzung (aus = Signal durch die Kerzenserie)', 'Signal on the EMA cross (off = signal by the candle series)'),
@@ -225,6 +237,15 @@ const T = {
   no_series: v => L(`серия ${v.n} — мало`, `Serie ${v.n} – zu kurz`, `series ${v.n} – too short`),
   counter_move: () => L('контрдвижение больше половины серии', 'Gegenbewegung über die Hälfte der Serie', 'counter move over half the series'),
   ser_small: v => L(`мелкая свеча в серии: тело ${v.b} ATR < ${v.m}`, `kleine Kerze in der Serie: Körper ${v.b} ATR < ${v.m}`, `small candle in the series: body ${v.b} ATR < ${v.m}`),
+  sw_zone: v => L(`цена у зоны ${v.z} (${v.n} разворота)`, `Preis an der Zone (${v.n} Wenden)`, `price at the zone (${v.n} turns)`),
+  sw_no_zone: () => L('цена не у зоны поддержки/сопротивления', 'Preis nicht an einer Zone', 'price not at a support/resistance zone'),
+  sw_breakout: () => L('пробой зоны — не разворот', 'Ausbruch aus der Zone – keine Wende', 'zone breakout – not a turn'),
+  sw_room: v => L(`до противоположной зоны ${v.r} ATR < ${v.m}`, `bis zur Gegenzone ${v.r} ATR < ${v.m}`, `to the opposite zone ${v.r} ATR < ${v.m}`),
+  sw_no_turn: () => L('нет свечи разворота', 'keine Wendekerze', 'no turn candle'),
+  sw_turn: v => L(`свеча разворота (тень в зону ${v.w} %)`, `Wendekerze (Docht ${v.w} %)`, `turn candle (wick ${v.w} %)`),
+  sw_trend: v => L(`сильный тренд, ADX ${v.a}`, `starker Trend, ADX ${v.a}`, `strong trend, ADX ${v.a}`),
+  sw_not_tired: v => L(`движение к зоне не выдохлось (RSI ${v.r})`, `Bewegung nicht erschöpft (RSI ${v.r})`, `move not exhausted (RSI ${v.r})`),
+  sw_confirmed: v => L(`разворот подтверждён: ${v.k} из 4 условий (ADX ${v.a}, RSI ${v.r})`, `Wende bestätigt: ${v.k} von 4 (ADX ${v.a}, RSI ${v.r})`, `turn confirmed: ${v.k} of 4 (ADX ${v.a}, RSI ${v.r})`),
   ludo_series: v => L(`серия: ${v.n} ${v.c} свечи M1 подряд, каждая от ${v.b} ATR`, `Serie: ${v.n} Kerzen M1 in Folge, jede ab ${v.b} ATR`, `series: ${v.n} M1 candles in a row, each from ${v.b} ATR`),
   no_ema_cross: v => L(`нет пересечения EMA ${v.f} / EMA ${v.s} на этой свече`, `keine Kreuzung EMA ${v.f} / EMA ${v.s} auf dieser Kerze`, `no EMA ${v.f} / EMA ${v.s} cross on this candle`),
   ludo_late: v => L(`движение уже прошло ${v.p} ATR (макс. ${v.m})`, `Bewegung schon ${v.p} ATR (max ${v.m})`, `move already ${v.p} ATR (max ${v.m})`),
@@ -399,6 +420,51 @@ const MORE = {
     const wick = 100 * (d < 0 ? k.high - Math.max(k.open, k.close) : Math.min(k.open, k.close) - k.low) / (rng(k) || 1);
     if (wick < p.wick_pct || (d < 0 ? k.close > bb.up : k.close < bb.lo)) return fail(2, 'no_rejection', { w: f0(wick) });
     pass(2, 'rejection', { w: f0(wick) }); out.score = Math.round(55 + 25 * Math.min(1, (wick - 50) / 40) + 20 * (1 - adx / p.adx_max));
+  },
+  // Ludo swing (user 23.11.2026): price swings between support and resistance zones; signal only at a confirmed turn.
+  // Zone = >= sw_touches swing highs (lows) within sw_tol ATR in the last sw_window candles (swing = fractal of width sw_frac).
+  // Conditions: (1) the candle touched the zone and closed back inside (no breakout) – required; (2) no strong trend
+  // (ADX < sw_adx); (3) the move into the zone is exhausted (RSI beyond sw_rsi_hi/lo, or bodies shrinking); (4) turn candle:
+  // closes away from the zone with a wick >= sw_wick % into it, or beyond the middle of the previous candle – required.
+  // sw_need 4 = all four, 3 = (2) or (3) may miss. Room to the opposite zone >= sw_room ATR.
+  ludo_swing({ c, p, i, a, k, fail, pass, out }) {
+    const W = Math.max(20, Number(p.sw_window) || 60), F = Math.max(1, Number(p.sw_frac) || 2), tol = (Number(p.sw_tol) || 0.25) * a;
+    if (i - W < F) return fail(0, 'no_data', { n: c.length });
+    const hs = [], ls = [];
+    for (let j = i - W; j <= i - 1 - F; j++) {
+      let hi = true, lo = true;
+      for (let q = 1; q <= F; q++) { if (c[j - q].high >= c[j].high || c[j + q].high > c[j].high) hi = false; if (c[j - q].low <= c[j].low || c[j + q].low < c[j].low) lo = false; }
+      if (hi) hs.push(c[j].high); if (lo) ls.push(c[j].low);
+    }
+    const zone = (pts, near) => { // densest cluster of swing points close to the current price side
+      let best = null;
+      for (const v of pts) { const n = pts.filter(x => Math.abs(x - v) <= tol).length; if (!best || n > best.n || (n === best.n && Math.abs(v - near) < Math.abs(best.v - near))) best = { v, n }; }
+      if (!best) return null; const m = pts.filter(x => Math.abs(x - best.v) <= tol); return { lvl: m.reduce((s, x) => s + x, 0) / m.length, n: m.length };
+    };
+    const R = zone(hs, k.high), S = zone(ls, k.low), need = Math.max(2, Number(p.sw_touches) || 2);
+    let d = 0, Z = null;
+    if (R && R.n >= need && k.high >= R.lvl - tol && k.close <= R.lvl + tol * 0.5) { d = -1; Z = R; }
+    else if (S && S.n >= need && k.low <= S.lvl + tol && k.close >= S.lvl - tol * 0.5) { d = 1; Z = S; }
+    if (!d) return fail(0, R && k.close > R.lvl + tol * 0.5 || S && k.close < S.lvl - tol * 0.5 ? 'sw_breakout' : 'sw_no_zone', {});
+    const opp = d < 0 ? S : R, room = opp ? Math.abs(Z.lvl - opp.lvl) / a : 99;
+    if (room < (Number(p.sw_room) || 1.5)) return fail(0, 'sw_room', { r: f1(room), m: Number(p.sw_room) || 1.5 });
+    pass(0, 'sw_zone', { z: d < 0 ? 'сопротивления' : 'поддержки', n: Z.n }); out.dir = d;
+    Object.assign(out.feats, { zone_touches: Z.n, room_atr: room });
+    // (4) turn candle – required
+    const pv = c[i - 1], mid = (pv.open + pv.close) / 2, wickIn = 100 * (d < 0 ? k.high - Math.max(k.open, k.close) : Math.min(k.open, k.close) - k.low) / (rng(k) || 1);
+    const turn = dirOf(k) === d && (wickIn >= (Number(p.sw_wick) || 40) || (d < 0 ? k.close < Math.min(mid, pv.close) : k.close > Math.max(mid, pv.close)));
+    if (!turn) return fail(1, 'sw_no_turn', {});
+    // (2) range, not trend  (3) exhaustion
+    const ad = I.adx(c, p.adx_period || 14)[i], adx = ad ? ad.adx : 0, flat = adx < (Number(p.sw_adx) || 25);
+    const rs = I.rsi(closes(c), Number(p.sw_rsi_period) || 7)[i - 1] || 50;
+    const shrink = body(c[i - 1]) < body(c[i - 2]) && body(c[i - 2]) < body(c[i - 3]);
+    const tired = (d < 0 ? rs >= (Number(p.sw_rsi_hi) || 65) : rs <= (Number(p.sw_rsi_lo) || 35)) || shrink;
+    const got = 2 + (flat ? 1 : 0) + (tired ? 1 : 0), want = Math.min(4, Math.max(3, Number(p.sw_need) || 4));
+    Object.assign(out.feats, { adx, rsi_prev: rs, wick_in: wickIn });
+    if (got < want) return fail(2, !flat ? 'sw_trend' : 'sw_not_tired', { a: f0(adx), r: f0(rs) });
+    pass(1, 'sw_turn', { w: f0(wickIn) });
+    pass(2, 'sw_confirmed', { k: got, a: f0(adx), r: f0(rs) });
+    out.score = Math.round(55 + 10 * Math.min(2, Z.n - need) + 10 * (flat ? 1 : 0) + 10 * (tired ? 1 : 0) + 5 * Math.min(1, room / 4));
   },
   micro({ c, p, i, a, k, fail, pass, out }) { // Ludo 15 s / Fun 5 s on second candles
     const ch = chaosShare(c, i, p.window); out.feats.chaos = ch;
@@ -738,7 +804,7 @@ for (const s of CATALOG.filter(s => s.impl)) {
     if (r.status !== 'SIGNAL') return null;
     const why = joinL(r.reasons.map(q => T[q.code](q.v)));
     return {
-      dir: r.dir, strength: r.score, reason: why, expiry: ludoNew ? (Number(p.ludo_exp) || 60) : Number(user && user.expiry) || EXPIRY_SEC[s.impl], noFlip: true, bar: ludoNew ? cc[cc.length - 1].time : x.c[x.last].time,
+      dir: r.dir, strength: r.score, reason: why, expiry: ludoNew ? (Number(p.ludo_exp) || 60) : s.impl === 'ludo' ? Math.round((step > 0 ? step : 60) * Math.max(1, Number(p.sw_exp_candles) || 2)) : Number(user && user.expiry) || EXPIRY_SEC[s.impl], noFlip: true, bar: ludoNew ? cc[cc.length - 1].time : x.c[x.last].time,
       lab: { id: s.id, v: VERSION, score: r.score, stages: r.stages, reasons: r.reasons.map(q => q.code), feats: roundFeats(r.feats), type: s.asset_type },
     };
   };
@@ -821,8 +887,8 @@ const DESC = {
     L('Направление закрытий, HH/HL, тени, фракталы (уровень), EMA 20/50 (подтверждение, включено).', 'Schlussrichtung, HH/HL, Dochte, Fraktale, EMA 20/50 (an).', 'Close direction, HH/HL, wicks, fractals, EMA 20/50 (on).')],
   meanrev: [L('Во флэте цена выходит за полосу Боллинджера и возвращается свечой с длинной тенью — вход к средней.', 'Im Seitwärtsmarkt geht der Preis über das Bollinger-Band und kehrt mit langem Docht zurück – Einstieg zur Mitte.', 'In a flat market price leaves the Bollinger band and returns with a long wick – entry to the mean.'),
     L('Полосы Боллинджера (средняя SMA), ADX (флэт), ATR-перцентиль, тень свечи.', 'Bollinger-Bänder (Mitte SMA), ADX, ATR-Perzentil, Docht.', 'Bollinger bands (SMA middle), ADX, ATR percentile, wick.')],
-  ludo: [L('Сверхкороткая (15 с) на 5-секундных свечах: спокойный рынок и серия движений в одну сторону. Вручную почти невозможно успеть.', 'Ultrakurz (15 s) auf 5-Sekunden-Kerzen: ruhiger Markt und Serie in eine Richtung. Manuell kaum machbar.', 'Ultra short (15 s) on 5-second candles: calm market and a series one way. Hardly possible by hand.'),
-    L('Доля разворотов (шум), длина серии, тени свечей.', 'Anteil Wechsel (Rauschen), Serienlänge, Dochte.', 'Share of reversals (noise), series length, wicks.')],
+  ludo: [L('Свинг: цена ходит между зонами поддержки и сопротивления. Зона — уровень, где цена уже разворачивалась не меньше 2 раз. Сигнал только когда цена дошла до зоны, не пробила её и свеча разворота закрылась обратно (против движения к зоне). Таймфрейм S15–M5 (выбирается у стратегии), экспирация — 2 свечи этого таймфрейма.', 'Swing: Preis pendelt zwischen Unterstützung und Widerstand. Zone = Niveau mit mindestens 2 Wenden. Signal nur, wenn der Preis die Zone erreicht, nicht ausbricht und die Wendekerze zurück schließt. Zeitrahmen S15–M5, Ablauf 2 Kerzen.', 'Swing: price moves between support and resistance. Zone = level with at least 2 turns. Signal only when price reached the zone, did not break it and the turn candle closed back. TF S15–M5, expiry 2 candles.'),
+    L('Развороты-фракталы (зоны), ADX (флэт), RSI или сжатие тел (выдох), тень и закрытие свечи разворота. «Уверенность» 4 = все условия, 3 = можно без флэта или выдоха.', 'Fraktale (Zonen), ADX (Seitwärts), RSI oder schrumpfende Körper (Erschöpfung), Docht und Schluss der Wendekerze. Sicherheit 4 = alle, 3 = ohne Seitwärts oder Erschöpfung.', 'Fractals (zones), ADX (range), RSI or shrinking bodies (exhaustion), wick and close of the turn candle. Confidence 4 = all, 3 = without range or exhaustion.')],
   fun5s: [L('Экспирация 5 с на 5-секундных свечах: микротренд без хаоса. Критически высокий риск.', 'Ablauf 5 s auf 5-Sekunden-Kerzen: Mikrotrend ohne Chaos. Kritisch hohes Risiko.', '5 s expiry on 5-second candles: micro trend without chaos. Critical risk.'),
     L('Доля разворотов (шум), длина серии.', 'Anteil Wechsel, Serienlänge.', 'Share of reversals, series length.')],
   volatility: [L('Сжатие волатильности, затем резкое расширение — вход по направлению (25 с, 5-секундные свечи).', 'Kompression der Volatilität, dann scharfe Ausdehnung – Einstieg in Richtung (25 s, 5-Sekunden-Kerzen).', 'Volatility squeeze, then a sharp expansion – entry in its direction (25 s, 5-second candles).'),
