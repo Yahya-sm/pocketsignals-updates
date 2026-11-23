@@ -1047,7 +1047,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf', 'sig_score_min', 'sig_per_hour', 'sig_clean_min', 'sig_clean_n'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf', 'sig_score_min', 'sig_per_hour', 'sig_clean_min', 'sig_clean_n', 'pat_clean_min', 'pat_clean_n', 'pat_per_hour'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1319,8 +1319,22 @@ class Engine extends EventEmitter {
           trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '',
           trend15: Number(s.radar_ttf) === 15 ? '' : { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, 15, c)] || '' }); }
     }
+    // 23.11.2026 (user): pattern selection – cleanliness of the last pat_clean_n M1 candles >= pat_clean_min % (0 = off) and
+    // at most pat_per_hour new patterns admitted in the last 60 min (0 = no limit). An admitted pattern stays while valid.
+    const pcMin = Number(s.pat_clean_min) || 0, pcN = Math.max(3, Math.min(30, Number(s.pat_clean_n) || 10)), pph = Number(s.pat_per_hour) || 0;
+    let list = out;
+    if (pcMin) { const cc = {}; list = list.filter(p => { if (!(p.symbol in cc)) cc[p.symbol] = this._cleanness(p.symbol, pcN); return cc[p.symbol] == null || cc[p.symbol] >= pcMin; }); }
+    if (pph) {
+      const adm = this._patAdmit = this._patAdmit || new Map(), now = Date.now();
+      for (const [k, t] of adm) if (now - t > 3600000) adm.delete(k);
+      list = list.slice().sort((p, q) => q.time - p.time).filter(p => {
+        const key = p.symbol + '|' + p.id + '|' + p.time; if (adm.has(key)) return true;
+        if (adm.size >= pph) return false; adm.set(key, now); return true;
+      });
+    }
+    out.length = 0; out.push(...list);
     out.sort((p, q) => (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || q.time - p.time || (q.payout || 0) - (p.payout || 0)); // favourites ★ first, then newest (user 21–22.11.2026)
-    return { soldAtr: sAtr, soldBig: sBig, soldRev: sRev, twOn: !!s.tw_trend_on, twTf: this.twTf(), pre: !!s.pat_pre, auto: !!s.pat_auto, on: true, tf: this.patTf(), alert: s.pat_alert !== false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
+    return { cleanMin: pcMin, cleanN: pcN, perHour: pph, soldAtr: sAtr, soldBig: sBig, soldRev: sRev, twOn: !!s.tw_trend_on, twTf: this.twTf(), pre: !!s.pat_pre, auto: !!s.pat_auto, on: true, tf: this.patTf(), alert: s.pat_alert !== false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
   }
 
   state() {
