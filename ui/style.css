@@ -699,3 +699,18 @@ body.nocards .setfold.nosig { display: none !important; }
 .watchbox span{flex:1 1 100%}
 .watchbox button{background:var(--card);color:inherit;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:4px 10px;font-size:12px}
 
+
+/* Radar / patterns on-off (22.11.2026) */
+.pradar > summary .rpwr { background: none; border: 1px solid var(--line); border-radius: 6px; width: 22px; height: 20px; padding: 0; font-size: 11px; line-height: 1; color: var(--muted); cursor: pointer; flex: none; }
+.pradar > summary .rpwr.on { color: var(--call); border-color: var(--call); }
+.pradar > summary .rhead.off { opacity: .5; }
+
+/* Pattern mini chart with an arrow at the pattern candle (22.11.2026) */
+.pradar .rrow .pchart { grid-column: 1 / -1; display: block; width: 100%; max-width: 360px; height: 100px; margin-top: 2px; background: rgba(127,127,127,.06); border-radius: 4px; }
+
+/* Auto switch buttons (23.11.2026) */
+.pradar > summary .rauto { background: none; border: 1px solid var(--line); border-radius: 6px; width: 22px; height: 20px; padding: 0; font-size: 12px; line-height: 1; color: var(--muted); cursor: pointer; flex: none; }
+.pradar > summary .rauto.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+
+/* Tweezers trend TF select (23.11.2026) */
+.pradar select.twtf { margin-left: auto; background: var(--panel, #1b2230); color: inherit; border: 1px solid var(--line); border-radius: 6px; font-size: 11px; padding: 1px 4px; }

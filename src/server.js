@@ -70,7 +70,16 @@ function startServer(engine, { port = 7777, onOpenPO } = {}) {
   }
 
   const wss = new WebSocketServer({ server, path: '/ws' });
-  const push = () => { const s = JSON.stringify({ type: 'state', state: { ...engine.state(), lan: lanAddresses(port) } }); wss.clients.forEach(c => c.readyState === 1 && c.send(s)); };
+  // 22.11.2026: an update identical to the last one is not sent again (the engine asks every 5 s); at least every 15 s anyway.
+  let lastPush = '', lastAt = 0;
+  const push = () => { const s = JSON.stringify({ type: 'state', state: { ...engine.state(), lan: lanAddresses(port) } });
+    if (s === lastPush && Date.now() - lastAt < 15000) return; lastPush = s; lastAt = Date.now();
+    wss.clients.forEach(c => c.readyState === 1 && c.send(slim(s))); };
+  // The strategy catalogue (settings.allStrategies, ~0.5 MB) rarely changes: sent in full on connect and when it changed,
+  // otherwise left out – the page keeps the one it has (app.js).
+  let lastCat = '';
+  const slim = s => { const m = JSON.parse(s), cat = JSON.stringify(m.state.settings && m.state.settings.allStrategies || null);
+    if (cat === lastCat) { delete m.state.settings.allStrategies; m.state.catSame = true; return JSON.stringify(m); } lastCat = cat; return s; };
   engine.on('state', push);
   engine.on('signal', sig => { const s = JSON.stringify({ type: 'signal', signal: sig }); wss.clients.forEach(c => c.readyState === 1 && c.send(s)); push(); });
   wss.on('connection', ws => {

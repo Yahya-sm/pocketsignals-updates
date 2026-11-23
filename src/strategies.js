@@ -27,6 +27,7 @@ const META = {
   n_fractal: [L('🧪 Пробой фрактала', '🧪 Fraktal-Ausbruch', '🧪 Fractal breakout'), 'trend'],
   n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
   n_run: [L('Серия свечей по тренду', 'Kerzenserie mit dem Trend', 'Candle series with the trend'), 'trend'],
+  n_tweezer: [L('Пинцет', 'Pinzette', 'Tweezers'), 'reversal'],
   n_pin: [L('Разворот после импульса (пин-бар)', 'Umkehr nach Impuls (Pinbar)', 'Reversal after an impulse (pin bar)'), 'reversal'],
   n_spike5: [L('Скачок в начале пятиминутки', 'Sprung am Anfang der 5-Minuten-Kerze', 'Jump at the start of the 5-minute candle'), 'reversal'],
   n_emastart: [L('Начало движения: наклон EMA', 'Bewegungsbeginn: EMA-Neigung', 'Move start: EMA slope'), 'trend'],
@@ -105,6 +106,7 @@ const DEFAULTS = {
   n_run: { rs_chaos_on: true, rs_chaos: 0.4, rs_chaos_n: 12, rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_series: true, rs_cross_fast: 5, rs_cross_slow: 21, rs_cross_after: 0,
     rs_m_zone: false, rs_z_tf: 'M5', rs_z_exp: 120, rs_z_buy: true, rs_z_sell: true, rs_z_n: 2, rs_z_touch: 2, rs_z_width: 0.5, rs_z_gap: 5,
     rs_m_pull: false, rs_p_tf: 'M5', rs_p_exp: 120, rs_p_buy: true, rs_p_sell: true, rs_p_trend: 3, rs_p_max: 2, rs_p_depth: 50, rs_p_di: true, rs_p_adx: 0 },
+  n_tweezer: { expiry: 120, tw_tf: 'M1', tw_buy: true, tw_sell: true, tw_tol: 0.1, tw_ext: 10, tw_trend: 'OFF', tw_early: 10 },
   n_pin: { expiry: 180, pn_tf: 'M1', pn_buy: true, pn_sell: true, pn_imp_n: 3, pn_big_n: 3, pn_big_atr: 0.8, pn_min_atr: 0, pn_stop: 0.5, pn_tail: 50, pn_early: 0 },
   n_emastart: { expiry: 120, es_mode: 'START', es_tf: 'M5', es_ma: 'EMA', es_period: 50, es_bars: 5, es_slope: 20, es_side: true, es_adx: 0, es_adx_period: 14, es_fresh: 0, es_fast: 20, es_pull: 6, es_ext: 1.5, es_confirm: true, es_buy: true, es_sell: true },
   n_market: { expiry: 120, rk_ma: 'EMA', rk_period: 50, rk_slope: 3, rk_slope_pct: 0, rk_fresh: 1 },
@@ -618,6 +620,7 @@ function liveMode(name, settings) {
   if (name === 'n_preclose') return 'live';
   if (name === 'n_run') return 'closed';
   if (name === 'n_pin') return Number(p.pn_early) > 0 ? 'both' : 'closed';
+  if (name === 'n_tweezer') return Number(p.tw_early) > 0 ? 'both' : 'closed';
   if (name === 'n_spike5') return Number(p.sp_early) > 0 ? 'both' : 'closed';
   if (name === 'n_fractal') return p.fr_early ? 'both' : 'closed';
   if (name === 'n_ma25') return p.m25_live ? 'live' : 'closed';
@@ -1416,6 +1419,31 @@ const S = {
     return out[0];
   },
   // Reversal after an impulse (pin bar), user 19.11.2026. Early mode: the forming candle in its last pn_early s (server time).
+  // 23.11.2026 (user): Tweezers as a strategy (same rule as the pattern radar). Candle 1 in the move, candle 2 of the other colour with
+  // the same high (top) / low (bottom) within tw_tol ATR, at the extreme of the last tw_ext candles -> signal against candle 1.
+  // Early: in the last tw_early s of candle 2 it is checked as if it closed now (may not confirm). Optional higher-TF trend filter (EMA 9/21).
+  n_tweezer(x, p) {
+    const tf = p.tw_tf || 'M1', pm = parseInt(tf.slice(1), 10) || 1, now = serverNow(), m1 = x.c; if (!m1 || m1.length < 40) return null;
+    const early = Number(p.tw_early) || 0, all = pm === 1 ? m1.slice() : I.resample(m1, pm, true), last = all.length - 1, formingK = all[last].time + pm * 60 > now;
+    let q, left = 0;
+    if (formingK) { left = all[last].time + pm * 60 - now; if (early > 0 && left > 0 && left <= early) q = last; else q = last - 1; } else q = last;
+    const c = all.slice(0, q + 1), a = I.atr(c, 14)[q], N = Math.max(3, Number(p.tw_ext) || 10); if (!(a > 0) || q < N + 2) return null;
+    const pv = c[q - 1], k = c[q], col = z => (z.close > z.open ? 1 : z.close < z.open ? -1 : 0), tol = (Number(p.tw_tol) || 0.1) * a;
+    let hiN = -Infinity, loN = Infinity; for (let j = q - N; j <= q; j++) { hiN = Math.max(hiN, c[j].high); loN = Math.min(loN, c[j].low); }
+    let d = 0;
+    if (Math.abs(k.high - pv.high) <= tol && col(pv) > 0 && col(k) < 0 && Math.max(k.high, pv.high) >= hiN) d = -1;
+    else if (Math.abs(k.low - pv.low) <= tol && col(pv) < 0 && col(k) > 0 && Math.min(k.low, pv.low) <= loN) d = 1;
+    if (!d || (d > 0 ? p.tw_buy === false : p.tw_sell === false)) return null;
+    let tr = '';
+    if (p.tw_trend && p.tw_trend !== 'OFF') { const tm = parseInt(String(p.tw_trend).slice(1), 10) || 5, tc = I.resample(m1.filter(z => z.time + 60 <= now), tm);
+      if (!tc || tc.length < 22) return null; const cl = tc.map(z => z.close), f = I.ema(cl, 9), sl = I.ema(cl, 21), n = cl.length - 1;
+      const t = f[n] > sl[n] && cl[n] > sl[n] ? 1 : f[n] < sl[n] && cl[n] < sl[n] ? -1 : 0; if (t !== d) return null; tr = ' M' + tm; }
+    const isEarly = q === last && formingK, TF = 'M' + pm;
+    const txt = L(`${isEarly ? `⏰ за ${Math.round(left)} с до закрытия: ` : ''}пинцет ${d < 0 ? 'сверху (одинаковые максимумы)' : 'снизу (одинаковые минимумы)'} на ${TF}${tr ? ', по тренду' + tr : ''} → ${d > 0 ? 'вверх' : 'вниз'}`,
+      `${isEarly ? `⏰ ${Math.round(left)} s vor Schluss: ` : ''}Pinzette ${d < 0 ? 'oben' : 'unten'} auf ${TF}${tr ? ', mit Trend' + tr : ''}`,
+      `${isEarly ? `⏰ ${Math.round(left)} s before the close: ` : ''}tweezers ${d < 0 ? 'top' : 'bottom'} on ${TF}${tr ? ', with trend' + tr : ''}`);
+    return Object.assign(sig(d, 75, txt), { noFlip: true, bar: c[q].time, expiry: Number(p.expiry) || 120, ...(isEarly ? { entry: c[q].time + pm * 60 } : {}) });
+  },
   n_pin(x, p) {
     const tf = p.pn_tf || 'M1', pm = parseInt(tf.slice(1), 10) || 1, now = serverNow();
     const m1 = x.c; if (!m1 || m1.length < 40) return null;
@@ -1688,7 +1716,7 @@ function evaluate(candlesByTf, enabled, settings) {
         if (r && r.dir) {
           wkey = `${candlesByTf.asset || '?'}|${tf}|${c[c.length - 1].time}|${r.bar || ''}|${r.dir}`;
           if (set === sets[0] || !wfound) { whyAdd(name, wkey, 'found'); wfound = true; }
-          if (name === 'n_spike5' || passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
+          if (name === 'n_spike5' || name === 'n_tweezer' || passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
           wlast = 'filters';
         }
       }
@@ -1698,11 +1726,11 @@ function evaluate(candlesByTf, enabled, settings) {
       if (x.rg === undefined) x.rg = I.regime(c, c.length - 1, settings);
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
-      if (name !== 'n_spike5' && x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
+      if (name !== 'n_spike5' && name !== 'n_tweezer' && x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
       // General market strictness for all strategies and pairs (mkt_level 0–3, user 08.11.2026): weak markets are skipped.
       // ATR now / the pair's average ATR in the window, ADX, and a big candle among the last 10 (× average range).
       const ML = MKT_LEVELS[Number(settings.mkt_level) || 0];
-      if (ML && name !== 'n_spike5') {
+      if (ML && name !== 'n_spike5' && name !== 'n_tweezer') {
         if (x.mkt === undefined) {
           const n = c.length - 1, a = x.atr, ad = x.adx[n];
           let sum = 0, cnt = 0; for (let j = 14; j < n; j++) if (a[j] > 0) { sum += a[j]; cnt++; }
@@ -1714,7 +1742,7 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       // Small candles (rg_vol, 0 = off): average size of the last 5 candles / average of the pair's other candles on this timeframe.
       const minVol = Number(settings.rg_vol ?? 0.7);
-      if (minVol > 0 && name !== 'n_spike5') {
+      if (minVol > 0 && name !== 'n_spike5' && name !== 'n_tweezer') {
         if (x.volRatio === undefined) {
           const sz = k => k.high - k.low, n5 = c.length - 5;
           const a5 = c.slice(n5).reduce((t, k) => t + sz(k), 0) / 5, rest = c.slice(0, n5).reduce((t, k) => t + sz(k), 0) / n5;
@@ -1724,7 +1752,7 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       // regime_mode: off | auto (by strategy type) | trend (only in TREND) | range (only in RANGE, ADX below rg_range_adx).
       const rm = settings.regime_mode || (settings.regime_filter ? 'auto' : 'off');
-      if (x.rg && rm !== 'off' && name !== 'n_spike5') {
+      if (x.rg && rm !== 'off' && name !== 'n_spike5' && name !== 'n_tweezer') {
         const want = rm === 'auto' ? (META[name][1] === 'trend' ? 'TREND' : 'RANGE') : rm.toUpperCase();
         if (x.rg.regime !== want) { whyAdd(name, wkey, 'regime'); continue; }
         if (want === 'RANGE' && x.rg.adx >= (Number(settings.rg_range_adx) || 25)) { whyAdd(name, wkey, 'regime'); continue; }
@@ -1852,7 +1880,7 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_spike5', 'n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin'];
+}, LABELS = {}, OWN_LOGIC = ['n_tweezer', 'n_spike5', 'n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin'];
 // Move start: EMA slope (user 15.11.2026).
 LABELS.n_emastart = {
   es_mode: L('Режим сигнала', 'Signalart', 'Signal mode'), es_tf: L('Таймфрейм скользящей', 'Zeitrahmen des Durchschnitts', 'Moving average timeframe'),
@@ -1899,6 +1927,19 @@ HELP.n_run = [{ title: L3('Описание стратегии', 'Strategiebesch
   L3('Три независимых режима, у каждого свой таймфрейм, экспирация, CALL/PUT и фильтры. Если два режима на одной свече дали разные направления — сигнала нет. M5/M15 проверяются только в момент закрытия своей свечи. В причине — расстояние до ближайшей точки разворота против сигнала (в ATR) и DI. На истории (OTC): серия с запасом 2–4 ATR 51–56 %, зоны ≈ 50 %, откат M15 52–55 %. Это не доказательство.',
     'Drei unabhängige Modi mit eigenem Zeitrahmen, Ablauf, CALL/PUT und Filtern. Geben zwei Modi auf einer Kerze verschiedene Richtungen – kein Signal. M5/M15 nur beim Schluss ihrer Kerze. Im Grund: Abstand zum nächsten Wendepunkt gegen das Signal (ATR) und DI. Historie (OTC): Serie mit 2–4 ATR Raum 51–56 %, Zonen ≈ 50 %, Rücklauf M15 52–55 %. Kein Beweis.',
     'Three independent modes, each with its own TF, expiry, CALL/PUT and filters. Opposite directions on one candle = no signal. M5/M15 only at their candle close. The reason shows the distance to the nearest swing against the signal (ATR) and DI. History (OTC): series with 2–4 ATR room 51–56 %, zones ≈ 50 %, M15 pullback 52–55 %. Not proof.')] }];
+LABELS.n_tweezer = {
+  expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), tw_tf: L3('Таймфрейм пинцета', 'Zeitrahmen', 'Timeframe'), tw_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), tw_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
+  tw_tol: L3('Максимумы / минимумы совпадают в пределах … ATR', 'Hochs / Tiefs gleich innerhalb … ATR', 'Highs / lows equal within … ATR'),
+  tw_ext: L3('Пинцет на экстремуме последних … свечей', 'Am Extrem der letzten … Kerzen', 'At the extreme of the last … candles'),
+  tw_trend: L3('Только по тренду старшего ТФ (OFF = выкл)', 'Nur mit dem Trend des höheren ZR (OFF = aus)', 'Only with the higher-TF trend (OFF = off)'),
+  tw_early: L3('Ранний сигнал: за … с до закрытия второй свечи (0 = только по закрытию)', 'Frühes Signal: … s vor Schluss der 2. Kerze (0 = nur beim Schluss)', 'Early signal: … s before the 2nd candle closes (0 = only at the close)') };
+GROUPS.n_tweezer = [
+  { title: L3('Общие', 'Allgemein', 'General'), desc: L3('', '', ''), keys: ['expiry', 'tw_tf', 'tw_buy', 'tw_sell', 'tw_early'] },
+  { title: L3('Пинцет', 'Pinzette', 'Tweezers'), desc: L3('Свеча 1 по движению, свеча 2 обратного цвета с тем же максимумом (вершина) или минимумом (дно). Сигнал — против свечи 1. Тренд — EMA 9/21 на выбранном ТФ.', 'Kerze 1 mit der Bewegung, Kerze 2 Gegenfarbe mit gleichem Hoch/Tief. Signal gegen Kerze 1.', 'Candle 1 with the move, candle 2 opposite colour with the same high/low. Signal against candle 1.'), keys: ['tw_tol', 'tw_ext', 'tw_trend'] },
+];
+HELP.n_tweezer = [{ title: L3('История', 'Historie', 'History'), body: [
+  L3('Пинцет M1 на истории OTC (15,8 дня, все пары, ~1400 в день): 49–51 % на экспирации 1–5 мин, ровнее всего 2 мин (50 / 51 %). Это не вероятность успеха, преимущества на истории нет.',
+    'Pinzette M1 in der OTC-Historie: 49–51 % bei 1–5 Min. Keine Erfolgswahrscheinlichkeit.', 'Tweezers M1 in OTC history: 49–51 % at 1–5 min. Not a success probability.')] }];
 LABELS.n_pin = {
   expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), pn_tf: L3('Таймфрейм', 'Zeitrahmen', 'Timeframe'), pn_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), pn_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
   pn_imp_n: L3('Импульс: свечей одного цвета подряд, минимум', 'Impuls: Kerzen einer Farbe in Folge, mindestens', 'Impulse: candles of one colour in a row, at least'),

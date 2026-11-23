@@ -32,6 +32,10 @@ const isPivH = (c, j, w) => { for (let k = j - w; k <= j + w; k++) if (k !== j &
 const isPivL = (c, j, w) => { for (let k = j - w; k <= j + w; k++) if (k !== j && c[k].low <= c[j].low) return false; return true; };
 function pivots(c, a, b, w, high) { const r = []; for (let j = Math.max(a, w); j <= b; j++) if (high ? isPivH(c, j, w) : isPivL(c, j, w)) r.push(j); return r; }
 
+// 23.11.2026 (user): user options – three soldiers: min body (ATR) and reversal instead of continuation.
+const OPT = { soldAtr: 1.0, soldBig: 1, soldRev: false }; // each candle body >= 0.3 ATR, at least soldBig of the 3 >= soldAtr (impulse)
+function setOpts(o) { Object.assign(OPT, o || {}); }
+
 const D = {
   // --- candle patterns ---
   pin(c, i, a) { const k = c[i], R = rng(k); if (R < 0.8 * a || body(k) > 0.3 * R) return null;
@@ -56,7 +60,10 @@ const D = {
     const mid = (f.open + f.close) / 2; if (X > 0 ? k.close > mid : k.close < mid) return null;
     return { dir: -X, stop: X > 0 ? Math.max(f.high, m.high, k.high) : Math.min(f.low, m.low, k.low) }; },
   soldiers(c, i, a) { const X = col(c[i]); if (!X) return null;
-    for (let j = i - 2; j <= i; j++) { if (col(c[j]) !== X || body(c[j]) < 0.6 * a) return null; if (j > i - 2 && (c[j].close - c[j - 1].close) * X <= 0) return null; }
+    if (col(c[i - 3]) !== -X) return null; // 23.11.2026 (user): soldier 1 IS the reversal candle (candle before it has the opposite colour) – 3 candles in total, not 4
+    let big = 0; for (let j = i - 2; j <= i; j++) { if (col(c[j]) !== X || (j > i - 2 && body(c[j]) < 0.3 * a)) return null; if (body(c[j]) >= OPT.soldAtr * a) big++; if (j > i - 2 && (c[j].close - c[j - 1].close) * X <= 0) return null; }
+    if (big < OPT.soldBig) return null;
+    if (OPT.soldRev) return { dir: -X, stop: X > 0 ? c[i].high : c[i].low }; // reversal after three big candles
     return { dir: X, stop: X > 0 ? c[i - 2].low : c[i - 2].high }; },
   tweezer(c, i, a) { const p = c[i - 1], k = c[i];
     if (Math.abs(k.high - p.high) <= 0.1 * a && col(p) > 0 && col(k) < 0 && Math.max(k.high, p.high) >= hi(c, i - 10, i)) return { dir: -1, stop: Math.max(k.high, p.high) };
@@ -119,12 +126,22 @@ const D = {
   squeeze(c, i, a, P) { let m = Infinity; for (let j = i - 100; j < i - 5; j++) m = Math.min(m, P.bbW[j]);
     let sq = false; for (let j = i - 5; j < i; j++) if (P.bbW[j] <= m) sq = true; if (!sq) return null;
     const k = c[i]; if (k.close > P.bbU[i]) return { dir: 1, stop: (P.bbU[i] + P.bbL[i]) / 2 }; if (k.close < P.bbL[i]) return { dir: -1, stop: (P.bbU[i] + P.bbL[i]) / 2 }; return null; },
-  bbout(c, i, a, P) { const k = c[i], X = col(k); if (!X) return null; for (let j = i - 2; j <= i; j++) if (col(c[j]) !== X) return null;
+  bbout(c, i, a, P) { const k = c[i], X = col(k); if (!X) return null; for (let j = i - 2; j <= i; j++) if (col(c[j]) !== X) return null; if (col(c[i - 3]) === X && (X > 0 ? c[i - 1].close > P.bbU[i - 1] : c[i - 1].close < P.bbL[i - 1])) return null; // already signalled on the previous candle
     if (X > 0 && k.close > P.bbU[i]) return { dir: -1, stop: k.high + 0.3 * a }; if (X < 0 && k.close < P.bbL[i]) return { dir: 1, stop: k.low - 0.3 * a }; return null; },
   rsidiv(c, i, a, P) {
     const ph = pivots(c, i - 20, i - 3, 3, true).pop(); if (ph != null && c[i].high > c[ph].high && P.rsi[i] < P.rsi[ph] - 5 && P.rsi[ph] > 60) return { dir: -1, stop: c[i].high + 0.3 * a };
     const pl = pivots(c, i - 20, i - 3, 3, false).pop(); if (pl != null && c[i].low < c[pl].low && P.rsi[i] > P.rsi[pl] + 5 && P.rsi[pl] < 40) return { dir: 1, stop: c[i].low - 0.3 * a };
     return null; },
+  // Correction Bot (user 23.11.2026, same rules as the Lab strategy): impulse >= 3 ATR within <= 5 candles that ended 2..12 candles ago,
+  // pullback 38-62 % with shrinking bodies to a level with >= 2 reactions, last candle closes in the impulse direction.
+  correction(c, i, a) { let best = null;
+    for (let e = i - 2; e >= i - 12; e--) for (let s = e - 1; s >= e - 5; s--) { const mv = c[e].close - c[s].open; if (Math.abs(mv) >= 3 * a && (!best || Math.abs(mv) > Math.abs(best.mv))) best = { s, e, mv }; }
+    if (!best) return null; const d = Math.sign(best.mv), ext = d > 0 ? hi(c, best.s, best.e) : lo(c, best.s, best.e);
+    const deep = d > 0 ? lo(c, best.e + 1, i - 1) : hi(c, best.e + 1, i - 1), depth = Math.abs(ext - deep) / Math.abs(ext - c[best.s].open);
+    if (depth < 0.38 || depth > 0.62 || col(c[i]) !== d) return null;
+    const pb0 = c[best.e + 1], pb1 = c[i - 1]; if (i - 1 - (best.e + 1) < 1 || body(pb1) >= body(pb0)) return null;
+    const lv = pivots(c, i - 80, i - 3, 2, d < 0).filter(j => Math.abs((d < 0 ? c[j].high : c[j].low) - deep) <= 0.3 * a).length + 1; if (lv < 2) return null;
+    return { dir: d, stop: deep }; },
 };
 
 // id, group (c = candle, g = chart, v = volatility), LIFE (min in the radar), EXP (expiry for the history check, min)
@@ -141,10 +158,11 @@ const LIST = [
   ['bounce', 'g', 3, 3, 'Отбой от уровня', 'Level bounce'], ['channel', 'g', 3, 3, 'Граница канала', 'Channel edge'],
   ['squeeze', 'v', 3, 3, 'Сжатие Боллинджера: выход', 'Bollinger squeeze breakout'], ['bbout', 'v', 2, 2, 'Выход за Боллинджер после серии', 'Close outside Bollinger after a run'],
   ['rsidiv', 'v', 3, 3, 'Дивергенция RSI', 'RSI divergence'],
+  ['correction', 'g', 2, 1, 'Коррекция (Correction Bot)', 'Correction (Correction Bot)'],
 ].map(([id, g, life, exp, ru, en]) => ({ id, g, life, exp, ru, en }));
 
 // History check 21.11.2026 (13.5 days, 53 OTC pairs, entry on the close, expiry EXP): first / second half, %. Not a probability.
-const WR = {"pin": "50/49", "pinimp": "53/54", "engulf": "50/50", "hammer": "50/50", "star": "50/50", "doji": "50/50", "harami": "50/51", "mstar": "49/49", "soldiers": "50/51", "tweezer": "50/51", "inside": "50/50", "double": "50/50", "triple": "50/51", "hs": "50/53", "triangle": "49/48", "flag": "50/52", "retest": "49/51", "bounce": "50/49", "channel": "50/50", "squeeze": "50/50", "bbout": "50/49", "rsidiv": "50/50"};
+const WR = {"pin": "50/49", "pinimp": "53/54", "engulf": "50/50", "hammer": "50/50", "star": "50/50", "doji": "50/50", "harami": "50/51", "mstar": "49/49", "soldiers": "50/51", "tweezer": "50/51", "inside": "50/50", "double": "50/50", "triple": "50/51", "hs": "50/53", "triangle": "49/48", "flag": "50/52", "retest": "49/51", "bounce": "50/49", "channel": "50/50", "squeeze": "50/50", "bbout": "50/49", "rsidiv": "50/50", "correction": "50/50"};
 LIST.forEach(p => { p.wr = WR[p.id]; });
 
 const MIN = 110; // candles needed before i (the squeeze looks 100 back)
@@ -160,4 +178,4 @@ function active(c, P, ids) {
   return out;
 }
 
-module.exports = { LIST, prep, at, active, MIN };
+module.exports = { LIST, prep, at, active, MIN, setOpts };

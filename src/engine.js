@@ -10,7 +10,7 @@ const PAT = require('./patterns'); // pattern radar (21.11.2026)
 // Market-regime thresholds (settings, see I.regime).
 const LAB = require('./lab');
 // 13.11.2026 (Strategy Lab, user): only "Pin bar + Stochastic" stays from the old strategies; the rest is hidden (code stays).
-const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin', 'n_spike5']; // + its copy with market weather filters (14.11.2026)
+const KEEP = ['n_levelstoch', 'n_lsweather', 'n_market', 'n_trend15', 'n_sharp', 'n_deeprev', 'n_run', 'n_pin', 'n_spike5', 'n_tweezer']; // + its copy with market weather filters (14.11.2026)
 const HIDDEN = strategies.list.filter(k => !KEEP.includes(k) && !LAB.STRAT[k]);
 const RG_DEFAULTS = { rg_adx: 25, rg_slope: 0.08, rg_dist: 2, rg_range_adx: 25, rg_chaos_atr: 2, rg_spike: 3.5, rg_vol: 0.7 };
 const { parseSymbol, tvUrl, tvSymbol } = require('./assets');
@@ -167,6 +167,14 @@ class Engine extends EventEmitter {
       s.strategy_settings = ss;
       s.strategies = [...new Set([...(s.strategies || []), ...Object.keys(want)])];
       s.user_1711 = true; writeJson(this.settingsFile, s);
+    }
+    // 23.11.2026 (user): new strategy n_tweezer – favourite + switched on, M1.
+    if (!this.settings.tweezer_2311) {
+      const s = this.settings;
+      s.favorite_strategies = [...new Set([...(s.favorite_strategies || []), 'n_tweezer'])];
+      s.strategies = [...new Set([...(s.strategies || []), 'n_tweezer'])];
+      s.strat_tfs = { ...s.strat_tfs }; if (!s.strat_tfs.n_tweezer) s.strat_tfs.n_tweezer = ['M1'];
+      s.tweezer_2311 = true; writeJson(this.settingsFile, s);
     }
     // 19.11.2026: new n_run / n_pin – favourites only (not switched on), entry TF M1.
     if (!this.settings.runpin_1911) {
@@ -573,8 +581,8 @@ class Engine extends EventEmitter {
     const nowS = Date.now() / 1000, shared = /"isDemo"\s*:\s*1/.test(this.po.ssid || '');
     list.filter(a => {
       const t = this.ticks.get(a.symbol), last = t && t.length ? t[t.length - 1][0] : 0;
-      return !this.subscribed.has(a.symbol) || (!shared && nowS - last > 20 && Date.now() - (this._subAt.get(a.symbol) || 0) > 15000);
-    }).forEach((a, i) => {
+      return !this.subscribed.has(a.symbol) || (!shared && nowS - last > 20 && Date.now() - (this._subAt.get(a.symbol) || 0) > 120000);
+    }).filter((a, i, arr) => !this.subscribed.has(a.symbol) || arr.slice(0, i + 1).filter(b => this.subscribed.has(b.symbol)).length <= 3).forEach((a, i) => { // 22.11.2026: re-subscribe a stale pair at most every 2 min, max 3 per scan
       this.subscribed.add(a.symbol); this._subAt.set(a.symbol, Date.now());
       setTimeout(() => this.po.subscribe(a.symbol), i * 150);
     });
@@ -584,8 +592,8 @@ class Engine extends EventEmitter {
     // too few one-minute candles for M10+). Fetched at most once a minute per pair.
     // + the radar's trend TF (radar_ttf, user 21.11.2026) so M10/M15 trends work in the radar too.
     const rtf = this.settings.radar_on !== false ? Number(this.settings.radar_ttf) || 5 : 0;
-    const ptf = this.patTf(); // pattern timeframe M2–M5 (22.11.2026): 150 own candles, patterns need ~110
-    const tms = (this.settings.show_m5 !== false || this.settings.trend_filter ? this.trendMinutes : []).concat(rtf && !this.trendMinutes.includes(rtf) ? [rtf] : (rtf && !(this.settings.show_m5 !== false || this.settings.trend_filter) ? [rtf] : [])).concat(ptf > 1 ? [ptf] : []);
+    const ptf = this.settings.pat_on === false ? 1 : this.patTf(); // pattern timeframe M2–M5 (22.11.2026): 150 own candles, patterns need ~110
+    const tms = (this.settings.show_m5 !== false || this.settings.trend_filter ? this.trendMinutes : []).concat(rtf && !this.trendMinutes.includes(rtf) ? [rtf] : (rtf && !(this.settings.show_m5 !== false || this.settings.trend_filter) ? [rtf] : [])).concat(ptf > 1 ? [ptf] : []).concat(this.settings.radar_on !== false || this.settings.pat_on !== false ? [15] : []).concat(this.settings.pat_on !== false && this.settings.tw_trend_on ? [this.twTf()] : []); // M15 trend arrow (22.11.2026)
     if (tms.length) {
       [...new Set(tms)].filter(tm => tm > 1).forEach((tm, n) => list.forEach((a, i) => {
         const have = this.trendCandles.get(a.symbol + '|' + tm);
@@ -1019,7 +1027,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1213,6 +1221,8 @@ class Engine extends EventEmitter {
   }
 
   radar() {
+    // 22.11.2026 (user): radar switchable – off = nothing computed, no trend candles loaded, no sound.
+    if (this.settings.radar_on === false) { this._freshN = 0; this._lagN = 0; return { on: false, alert: false, list: [], n: 10, x: 1, k: 3, pay: 0, ttf: 5, atr: 0, dn: 10 }; }
     const s = this.settings, N = Math.max(3, Math.min(60, Number(s.radar_n) || 10)), X = Number(s.radar_x) || 1, K = Math.max(1, Number(s.radar_k) || 3), PAY = Math.max(0, Number(s.radar_pay) || 0), TTF = [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, ATR = Math.max(0, Number(s.radar_atr) || 0), DN = Math.max(1, Math.min(60, Number(s.radar_dn) || N)); // radar_dn: candles for the first arrow // radar_pay: minimum payout % (user 21.11.2026)
     const out = []; let nFresh = 0, nLag = 0;
     for (const a of this.selectedAssets()) {
@@ -1230,18 +1240,24 @@ class Engine extends EventEmitter {
       const since = c[e].time + 60;
       const size = w.reduce((t, k) => t + k.high - k.low, 0) / w.length / avg, mv = c[c.length - 1].close - c[c.length - DN].open; // first arrow: move over the last DN candles (user 21.11.2026)
       out.push({ symbol: a.symbol, name: a.name, otc: !!a.otc, payout: a.payout, big, n: N, size: +size.toFixed(1), dir: mv > 0 ? 'up' : mv < 0 ? 'down' : '', last: w[w.length - 1].time, since,
-        trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, TTF, c)] || '', m1n: c.length, atr }); // higher-TF trend (EMA 9/21), TF chosen by the user (radar_ttf)
+        trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, TTF, c)] || '', trend15: TTF === 15 ? '' : { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, 15, c)] || '', m1n: c.length, atr }); // + M15 trend always (user 22.11.2026) // higher-TF trend (EMA 9/21), TF chosen by the user (radar_ttf)
     }
     this._logFresh(nFresh, nLag);
     out.sort((p, q) => q.since - p.since || q.big - p.big || q.size - p.size); // newest active pair on top (user 22.11.2026)
-    return { alert: s.radar_alert !== false, sound: s.radar_sound || 'double', on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
+    return { auto: !!s.radar_auto, alert: s.radar_alert !== false, sound: s.radar_sound || 'double', on: s.radar_on !== false, n: N, x: X, k: K, pay: PAY, ttf: TTF, atr: ATR, dn: DN, list: out.slice(0, 15) };
   }
 
   // Pattern radar (user 21.11.2026): known trading patterns on closed M1 candles, only while valid. Not a signal.
   // pat_ids = patterns the user wants to see (default all). Cached per pair by the last candle time.
+  // 23.11.2026 (user): tweezers only in the direction of the trend on a chosen higher TF (2/3/4/5/10/15), on/off.
+  twTf() { const v = Number(this.settings.tw_trend_tf); return [2, 3, 4, 5, 10, 15].includes(v) ? v : 5; }
+  _twOk(sym, id, dir, c) { if (id !== 'tweezer' || !this.settings.tw_trend_on) return true; const t = this.radarTrend(sym, this.twTf(), c); return dir > 0 ? t === 'CALL' : t === 'PUT'; }
   patRadar() {
+    if (this.settings.pat_on === false) { const s = this.settings; return { on: false, tf: this.patTf(), alert: false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: 0.02, adxOn: !!s.pat_adx_on, adxMin: 20, ids: Array.isArray(s.pat_ids) ? s.pat_ids : PAT.LIST.map(p => p.id), fav: s.pat_fav || [], all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: [] }; }
     const s = this.settings, ids = Array.isArray(s.pat_ids) ? s.pat_ids : PAT.LIST.map(p => p.id), fav = Array.isArray(s.pat_fav) ? s.pat_fav : [], out = [];
     this._patCache = this._patCache || new Map();
+    const sAtr = s.pat_sold_atr != null ? Number(s.pat_sold_atr) : 1.0, sBig = Math.min(3, Math.max(1, Number(s.pat_sold_big) || 1)), sRev = !!s.pat_sold_rev, optKey = sAtr + '|' + sBig + '|' + sRev;
+    PAT.setOpts({ soldAtr: sAtr, soldBig: sBig, soldRev: sRev }); if (this._patOptKey !== optKey) { this._patCache.clear(); this._patOptKey = optKey; }
     for (const a of this.selectedAssets()) {
       if (Number(s.radar_pay) > 0 && !(Number(a.payout) >= Number(s.radar_pay))) continue; // same minimum payout as the pairs radar
       const tf = this.patTf(), sec = tf * 60; // pattern timeframe M1–M5 (user 22.11.2026)
@@ -1253,18 +1269,33 @@ class Engine extends EventEmitter {
       if (!e || e.last !== last) { const w = c.slice(-160); e = { last, act: PAT.active(w, PAT.prep(w), null) }; this._patCache.set(key, e); }
       const atrAbs = (() => { const v = I.atr(c, 14); return v[v.length - 1] || 0; })();
       const tk = this.ticks.get(a.symbol), lp = tk && tk.length && nowS - tk[tk.length - 1][0] < 120 ? +tk[tk.length - 1][1] : null;
+      // 23.11.2026 (user, experiment, pat_pre): early warning while the candle is still forming – the patterns are checked on the
+      // live candle as if it closed now, in the last 15 s of an M1 candle (20 % of the bar on M2–M5, 60 s on M5). May not confirm.
+      if (s.pat_pre) { const bar = Math.floor(nowS / sec) * sec, win = Math.max(15, sec * 0.2), lt = tk && tk.length ? tk[tk.length - 1][0] : 0;
+        const base = tf === 1 ? this.candles.get(a.symbol) : (this.trendCandles.get(a.symbol + '|' + tf) || {}).candles;
+        if (base && base.length && bar + sec - nowS <= win && nowS - lt < 10) { const lv = this._withLive(a.symbol, base, sec), fk = lv[lv.length - 1];
+          if (fk && fk.time === bar && lv.length > PAT.MIN + 5) { const w = lv.slice(-160), X = PAT.prep(w), dg = v => +v.toPrecision(7);
+            for (const id of ids) { const r = PAT.at(w, w.length - 1, X, id); if (!r || !this._twOk(a.symbol, id, r.dir, c)) continue; const p = PAT.LIST.find(q => q.id === id);
+              out.push({ pre: true, sleft: Math.max(0, Math.round(bar + sec - nowS)), k: w.slice(-20).map(k => [dg(k.open), dg(k.high), dg(k.low), dg(k.close)]), ki: 19, symbol: a.symbol, name: a.name, payout: a.payout, id, ru: p.ru, en: p.en, dir: r.dir > 0 ? 'up' : 'down', left: p.life, wr: p.wr, time: bar, at: bar + sec, tf, fav: fav.includes(id), atr, adx,
+                trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '',
+                trend15: Number(s.radar_ttf) === 15 ? '' : { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, 15, c)] || '' }); } } } }
       for (const x of e.act) if (ids.includes(x.id)) { const p = PAT.LIST.find(q => q.id === x.id);
         // 22.11.2026 (user): late entry = no signal. Entry window = the minute after the pattern candle closed (M1);
         // also gone once the live price already ran 0.5 ATR the pattern's way from that close, or is beyond its stop.
         if (nowS - (x.time + sec) > sec) continue; // one candle of the pattern TF
+        if (!this._twOk(a.symbol, x.id, x.dir, c)) continue;
         const pc = c.find(k => k.time === x.time);
         if (lp != null && pc && atrAbs > 0 && (lp - pc.close) * x.dir > 0.5 * atrAbs) continue;
         if (lp != null && x.stop != null && (x.dir > 0 ? lp < x.stop : lp > x.stop)) continue;
-        out.push({ symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, at: x.time + sec, tf, fav: fav.includes(x.id), atr, adx,
-          trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '' }); }
+        // Mini chart for the radar row (22.11.2026): up to 20 candles ending with the newest closed one; ki = the pattern candle.
+        const pi = c.findIndex(k => k.time === x.time), k0 = Math.max(0, c.length - 20), dg = v => +v.toPrecision(7);
+        const mk = pi >= k0 ? c.slice(k0).map(k => [dg(k.open), dg(k.high), dg(k.low), dg(k.close)]) : null;
+        out.push({ k: mk, ki: pi - k0, symbol: a.symbol, name: a.name, payout: a.payout, id: x.id, ru: p.ru, en: p.en, dir: x.dir > 0 ? 'up' : 'down', left: x.left, wr: p.wr, time: x.time, at: x.time + sec, tf, fav: fav.includes(x.id), atr, adx,
+          trend: { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, [2, 3, 4, 5, 10, 15].includes(Number(s.radar_ttf)) ? Number(s.radar_ttf) : 5, c)] || '',
+          trend15: Number(s.radar_ttf) === 15 ? '' : { CALL: 'up', PUT: 'down', FLAT: 'flat' }[this.radarTrend(a.symbol, 15, c)] || '' }); }
     }
-    out.sort((p, q) => q.time - p.time || (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || /* newest pattern on top (user 22.11.2026) */ (q.payout || 0) - (p.payout || 0)); // favourites first (user 21.11.2026)
-    return { tf: this.patTf(), alert: s.pat_alert !== false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
+    out.sort((p, q) => (q.fav ? 1 : 0) - (p.fav ? 1 : 0) || q.time - p.time || (q.payout || 0) - (p.payout || 0)); // favourites ★ first, then newest (user 21–22.11.2026)
+    return { soldAtr: sAtr, soldBig: sBig, soldRev: sRev, twOn: !!s.tw_trend_on, twTf: this.twTf(), pre: !!s.pat_pre, auto: !!s.pat_auto, on: true, tf: this.patTf(), alert: s.pat_alert !== false, sound: s.pat_sound || 'bell', atrOn: !!s.pat_atr_on, atrMin: s.pat_atr != null ? Number(s.pat_atr) : 0.02, adxOn: !!s.pat_adx_on, adxMin: s.pat_adx != null ? Number(s.pat_adx) : 20, ids, fav, all: PAT.LIST.map(p => ({ id: p.id, ru: p.ru, en: p.en, g: p.g, wr: p.wr })), list: out.slice(0, 25) };
   }
 
   state() {
@@ -1278,7 +1309,9 @@ class Engine extends EventEmitter {
       otcRec: { rows: this.otcRec?.rows || 0, pairs: this.otcLast?.size || 0, error: this.otcRec?.error || null, dir: path.join(DATA, 'otc') },
       watching: this.selectedAssets().length, assetsKnown: this.assets.size,
       // Running signals carry the pair's current M5 trend (recomputed from the latest candles).
-      signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, trends: this.trendMinutes.map(m => ({ tf: 'M' + m, dir: this.m5Trend(s.symbol, m) })).filter(x => x.dir) } : s)),
+      // 22.11.2026: the screen update was ~3 MB (every signal carried its candle chart). Charts only for the 30 newest
+      // signals (the cards); older ones go without m1/m5 – the journal does not draw them. signals.json keeps everything.
+      signals: this.signals.map((s, i) => (i < 30 && !s.result ? { ...s, trends: this.trendMinutes.map(m => ({ tf: 'M' + m, dir: this.m5Trend(s.symbol, m) })).filter(x => x.dir) } : i < 30 ? s : (({ m1, m5, adTf, recWhy, recShort, adxLive, tv, ...r }) => r)(s))), // card-only fields dropped too
       stats: { total: done.length, wins, rate: done.length ? Math.round(100 * wins / done.length) : null },
       why: strategies.whyHour(), // "Why (last hour)": found / filtered / delivered per strategy
       lab: {

@@ -20,7 +20,7 @@ window.addEventListener('error', e => {
 });
 
 function onMessage(m) {
-  if (m.type === 'state') { state = m.state; render(); }
+  if (m.type === 'state') { if (m.state.catSame && state && state.settings && m.state.settings) m.state.settings.allStrategies = state.settings.allStrategies; state = m.state; render(); } // catalogue kept when not resent (22.11.2026)
   if (m.type === 'signal') onSignal(m.signal);
   if (m.type === 'reply' && replies[m.reqId]) { replies[m.reqId](m); delete replies[m.reqId]; }
 }
@@ -585,11 +585,12 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B', 'C'] };
+const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], tw_tf: ['M1', 'M2', 'M3', 'M5'], tw_trend: ['OFF', 'M2', 'M3', 'M4', 'M5', 'M10', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B', 'C'] };
 const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start', MANUAL: 'mode_manual' };
 // Step and minimum for the − / + buttons (19.11.2026). Known keys from the prompt; else 1 for whole numbers, 0.1 for fractions, min 0.
 const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
   rs_z_n: [1, 1], rs_z_touch: [1, 2], rs_z_width: [0.1, 0.1], rs_z_gap: [1, 1], rs_p_trend: [1, 2], rs_p_max: [1, 1], rs_p_depth: [5, 5], rs_p_adx: [1, 0],
+  tw_tol: [0.05, 0.05], tw_ext: [1, 3], tw_early: [1, 0],
   pn_imp_n: [1, 1], pn_big_n: [1, 1], pn_big_atr: [0.1, 0], pn_min_atr: [0.1, 0], pn_stop: [0.1, 0.1], pn_tail: [5, 0], pn_early: [1, 0],
   rs_cross_after: [1, 0], ludo_cross_after: [1, 0], rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0], ludo_path: [0.1, 0], ludo_body_min: [0.1, 0], ludo_body_max: [0.1, 0], ludo_clean: [1, 0], ludo_wick: [5, 0], ludo_fast: [1, 1], ludo_slow: [1, 2],
   corr_body_min: [0.1, 0], corr_body_max: [0.1, 0], sp_early: [1, 0], sp_atr: [0.1, 0.1], sp_atr10: [0.1, 0.1], sp_atr15: [0.1, 0.1], sp_rev_exp: [60, 60], sp_rev_exp10: [60, 60], sp_rev_exp15: [60, 60],
@@ -726,11 +727,26 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-ptg]'); if (!b || !state.patRadar) return; e.preventDefault(); e.stopPropagation();
   const k = b.dataset.ptg, v = !b.classList.contains('on'); call({ action: 'settings', patch: { [k]: v } });
   if (k === 'radar_alert') { state.radar = { ...state.radar, alert: v }; renderRadar(true); return; }
-  state.patRadar = { ...state.patRadar, [k === 'pat_atr_on' ? 'atrOn' : k === 'pat_alert' ? 'alert' : 'adxOn']: v }; renderRadar(true);
+  state.patRadar = { ...state.patRadar, [k === 'pat_atr_on' ? 'atrOn' : k === 'pat_pre' ? 'pre' : k === 'tw_trend_on' ? 'twOn' : k === 'pat_sold_rev' ? 'soldRev' : k === 'pat_alert' ? 'alert' : 'adxOn']: v }; renderRadar(true);
 }, true);
 // 22.11.2026 (user): a new pattern gives a signal like the strategies – sound + notification (switch + own sound in its settings).
 // Only patterns that appeared within the last 90 s and were not in the list before; the first list after start is not announced.
 let patSeen = null;
+// Auto switch of the PO chart from the radar / patterns (user 23.11.2026), each with its own ⇄ button.
+// Several new at once: the pattern that agrees most with the chart – ★ favourite, pattern direction = M5 trend and
+// = M15 trend, ADX ≥ 25 (a trend is there), then payout. This is an order of preference, not a win probability.
+function patScore(p) {
+  return (p.fav ? 4 : 0) + (p.trend === p.dir ? 2 : 0) + (p.trend15 === p.dir ? 2 : 0) + ((p.adx || 0) >= 25 ? 1 : 0) + (p.payout || 0) / 1000;
+}
+let lastPairAuto = 0;
+function autoOpenPair(sym, badge, up) {
+  if (Date.now() - lastPairAuto < 10000 || Date.now() - (typeof lastAuto === 'number' ? lastAuto : 0) < 10000) return; // not more often than every 10 s, and not right after a signal switched it
+  if (!(isDesktop || isAndroid)) return; lastPairAuto = Date.now(); radarPoSym = sym;
+  call({ action: 'openPO', symbol: sym, tf: 'M1', lang: LANG }).then(x => {
+    if (isAndroid && window.AndroidApp) { if (badge && window.AndroidApp.setDirBadge) { try { window.AndroidApp.setDirBadge(badge, !!up, 240); } catch {} } poOpen((x && x.name) || sym, (x && x.symbol) || sym, 'M1'); return; }
+    if (x && x.name && typeof toast === 'function') toast('⇄ ' + t('toast_po', { name: x.name }) + ' · M1');
+  });
+}
 function patAlerts(PR) {
   if (!PR || !Array.isArray(PR.list)) return;
   const keys = PR.list.map(p => `${p.symbol}|${p.id}|${p.time}`);
@@ -739,6 +755,7 @@ function patAlerts(PR) {
   // is still on time (<= 1 min), so every pattern new to the list rings (22.11.2026).
   const fresh = PR.list.filter((p, i) => !patSeen.has(keys[i]));
   keys.forEach(k => patSeen.add(k)); if (patSeen.size > 3000) patSeen = new Set(keys);
+  if (PR.auto && fresh.length) { const b = fresh.slice().sort((x, y) => patScore(y) - patScore(x))[0]; autoOpenPair(b.symbol, `${b.dir === 'up' ? '▲' : '▼'} ${LANG === 'ru' ? b.ru : b.en} · ${LANG === 'ru' ? 'свеча' : 'candle'} ${new Date(b.time * 1000).toTimeString().slice(0, 5)}`, b.dir === 'up'); }
   if (!PR.alert || !fresh.length) return;
   const p = fresh[0], ru = LANG === 'ru', snd = PR.sound || 'bell';
   const title = `${p.name} ${p.dir === 'up' ? '▲ CALL' : '▼ PUT'}`;
@@ -763,6 +780,7 @@ function radarAlerts(R) {
   if (!radSeen) { radSeen = new Set(keys); return; }
   const fresh = R.list.filter((p, i) => !radSeen.has(keys[i]) && Date.now() / 1000 - p.since < 180);
   keys.forEach(k => radSeen.add(k)); if (radSeen.size > 3000) radSeen = new Set(keys);
+  if (R.auto && fresh.length) { const b = fresh.slice().sort((x, y) => y.big - x.big || y.size - x.size || (y.payout || 0) - (x.payout || 0))[0]; autoOpenPair(b.symbol, '', b.dir === 'up'); }
   if (!R.alert || !fresh.length) return;
   const p = fresh[0], ru = LANG === 'ru';
   const title = `${p.name} ${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : ''}`;
@@ -773,6 +791,7 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-ptf]
   const v = +b.dataset.ptf; call({ action: 'settings', patch: { pat_tf: v } }); state.patRadar = { ...state.patRadar, tf: v, list: [] }; patSeen = null; renderRadar(true); }, true);
 document.addEventListener('change', e => {
   const el = e.target; if (!el.dataset) return;
+  if (el.dataset.twtf !== undefined) { const v = +el.value; call({ action: 'settings', patch: { tw_trend_tf: v } }); if (state.patRadar) state.patRadar = { ...state.patRadar, twTf: v }; }
   if (el.dataset.psound) { call({ action: 'settings', patch: { pat_sound: el.value } }); beep(el.value); if (state.patRadar) state.patRadar = { ...state.patRadar, sound: el.value }; }
   if (el.dataset.rsound) { call({ action: 'settings', patch: { radar_sound: el.value } }); beep(el.value); if (state.radar) state.radar = { ...state.radar, sound: el.value }; }
 });
@@ -805,6 +824,15 @@ let radarOpen = (() => { try { return localStorage.getItem('radarOpen') === '1';
 // 21.11.2026 (user): the radar must not jump while scrolling or ticking patterns. No refresh while the pattern list
 // is open or the pointer is over the radar (unless the user clicked something there); scroll positions are kept.
 let radarHover = false;
+document.addEventListener('click', e => { const b = e.target.closest('[data-rauto]'); if (!b || !state) return; e.preventDefault(); e.stopPropagation();
+  const k = b.dataset.rauto, v = !b.classList.contains('on'); call({ action: 'settings', patch: { [k]: v } });
+  if (k === 'radar_auto') state.radar = { ...state.radar, auto: v }; else state.patRadar = { ...state.patRadar, auto: v };
+  if (typeof toast === 'function') toast((v ? '⇄ ' : '') + (k === 'radar_auto' ? (LANG === 'ru' ? 'Радар' : 'Radar') : (LANG === 'ru' ? 'Паттерны' : 'Patterns')) + (LANG === 'ru' ? (v ? ': автопереключение графика включено' : ': автопереключение выключено') : (v ? ': auto switch on' : ': auto switch off')));
+  renderRadar(true); }, true);
+document.addEventListener('click', e => { const b = e.target.closest('[data-pwr]'); if (!b || !state) return; e.preventDefault(); e.stopPropagation();
+  const k = b.dataset.pwr, v = !b.classList.contains('on'); call({ action: 'settings', patch: { [k]: v } });
+  if (k === 'radar_on') state.radar = { ...state.radar, on: v, list: v ? state.radar.list : [] }; else state.patRadar = { ...state.patRadar, on: v, list: v ? state.patRadar.list : [] };
+  if (k === 'pat_on') patSeen = null; else radSeen = null; renderRadar(true); }, true);
 let radarPoSym = null; // pair last opened in Pocket Option from the app (radar or a card)
 // 22.11.2026 (user: a 7-minute-old pattern stayed on the phone): a touch has no "leave", so after one tap the radar stayed
 // frozen for good. Only a mouse pauses the redraw now, and never longer than 4 s after the last movement.
@@ -821,6 +849,21 @@ function radarWrite(el, html, force) {
   el.querySelectorAll('.rlist, .pset').forEach((x, i) => { if (keep[i] != null) x.scrollTop = keep[i]; });
 }
 // 21.11.2026 (user): pattern age instead of the history win rate – ticks every second (pattern appeared when its candle closed).
+// Mini chart in a pattern row (22.11.2026): the last candles; a thin arrow at the pattern candle – up = green under it,
+// down = red above it. Drawn by the app itself, so the arrow is always on the right candle.
+function patChart(p) {
+  const k = p.k; if (!Array.isArray(k) || k.length < 3 || !(p.ki >= 0)) return '';
+  const W = 240, H = 100, P = 9, n = k.length, cw = (W - 4) / n; let lo = Infinity, hi = -Infinity; // 22.11.2026: taller so candle sizes can be compared
+  for (const q of k) { lo = Math.min(lo, q[2]); hi = Math.max(hi, q[1]); }
+  const sp = hi - lo || 1, y = v => (P + (hi - v) / sp * (H - 2 * P)).toFixed(1); let s = '';
+  k.forEach((q, i) => { const [o, h, l, c] = q, x = 2 + i * cw + cw / 2, col = c >= o ? '#22c55e' : '#ef4444', t = y(Math.max(o, c)), bh = Math.max(1, y(Math.min(o, c)) - t);
+    s += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(h)}" y2="${y(l)}" stroke="${col}" stroke-width="1"/><rect x="${(x - cw * 0.35).toFixed(1)}" y="${t}" width="${(cw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}" opacity="${i === p.ki ? 1 : 0.55}"/>`; });
+  const q = k[p.ki], x = (2 + p.ki * cw + cw / 2).toFixed(1), up = p.dir === 'up', ac = up ? '#22c55e' : '#ef4444';
+  const a = up ? [H - 0.5, +y(q[2]) + 1.5] : [0.5, +y(q[1]) - 1.5]; // tail → tip (tip next to the candle)
+  const hd = up ? `${x - 2.5},${a[1] + 3} ${x},${a[1]} ${+x + 2.5},${a[1] + 3}` : `${x - 2.5},${a[1] - 3} ${x},${a[1]} ${+x + 2.5},${a[1] - 3}`;
+  s += `<line x1="${x}" x2="${x}" y1="${a[0]}" y2="${a[1]}" stroke="${ac}" stroke-width="1.2"/><polyline points="${hd}" fill="none" stroke="${ac}" stroke-width="1.2"/>`;
+  return `<svg class="pchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${s}</svg>`;
+}
 function patAge(t) {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - (Number(t) + 60)));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -829,32 +872,39 @@ setInterval(() => document.querySelectorAll('#radar .page[data-pt]').forEach(x =
 function renderRadar(force) {
   if (state) { patAlerts(state.patRadar); radarAlerts(state.radar); }
   const el = document.getElementById('radar'), R = state && state.radar; if (!el || !R) return;
-  if (!R.on) { el.innerHTML = ''; return; }
   const ru = LANG === 'ru', de = LANG === 'de';
   const T = (r, d, e) => ru ? r : de ? d : e;
   const step = (key, v, st, min) => `<span class="numbox"><button type="button" class="nb" data-rk="${key}" data-rs="${-st}" data-rm="${min}">−</button><b class="rv">${String(v).replace('.', ',')}</b><button type="button" class="nb" data-rk="${key}" data-rs="${st}" data-rm="${min}">+</button></span>`;
-  const rows = R.list.map(p => `<button class="rrow" data-rsym="${esc(p.symbol)}"><b>${esc(p.name)}</b><span class="${p.dir}">${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : '•'}${p.trend ? `<em class="rtr ${p.trend}" title="${T('тренд M', 'Trend M', 'trend M')}${R.ttf || 5}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}</span><small>${p.since ? `⏱ <i class="page" data-pt="${p.since - 60}">${patAge(p.since - 60)}</i> · ` : ''}${T(`${p.big}/${p.n} кр ·${String(p.size).replace('.', ',')}× об`, `${p.big}/${p.n} gr · ${String(p.size).replace('.', ',')}× n`, `${p.big}/${p.n} big · ${p.size}× us`)}${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
+  const rows = R.list.map(p => `<button class="rrow" data-rsym="${esc(p.symbol)}"><b>${esc(p.name)}</b><span class="${p.dir}">${p.dir === 'up' ? '▲' : p.dir === 'down' ? '▼' : '•'}${p.trend ? `<em class="rtr ${p.trend}" title="${T('тренд M', 'Trend M', 'trend M')}${R.ttf || 5}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}${p.trend15 ? `<em class="rtr ${p.trend15}">${p.trend15 === 'up' ? '▲' : p.trend15 === 'down' ? '▼' : '◆'}<sub>15</sub></em>` : ''}</span><small>${p.since ? `⏱ <i class="page" data-pt="${p.since - 60}">${patAge(p.since - 60)}</i> · ` : ''}${T(`${p.big}/${p.n} кр ·${String(p.size).replace('.', ',')}× об`, `${p.big}/${p.n} gr · ${String(p.size).replace('.', ',')}× n`, `${p.big}/${p.n} big · ${p.size}× us`)}${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
   const PR = state.patRadar || { list: [], all: [], ids: [] };
   // Settings row above the tabs (user 21.11.2026): name of the open tab + small arrow, like the radar header; no extra words.
   const cfgRow = `<button type="button" class="rcfgrow${radarCfg ? ' on' : ''}" data-rcfg="1">${radarTab === 'pat' ? T('Паттерны', 'Muster', 'Patterns') : T('Активные пары', 'Aktive Paare', 'Active pairs')}</button>`;
   // 21.11.2026 (user): header = "РАДАР N ⚙" (the active pairs) and "ПАТТЕРНЫ N ⚙" side by side; the ▾ arrow folds the radar,
   // a name switches the list, ⚙ opens that list's settings. No separate tab buttons or "Активные пары" line.
   const gear = k => `<button type="button" class="rgear${radarCfg && radarTab === k ? ' on' : ''}" data-rcfg="${k}" title="${T('Настройки', 'Einstellungen', 'Settings')}">⚙</button>`;
-  const rhead = `<summary><button type="button" class="rhead${radarTab === 'pairs' ? ' on' : ''}" data-rtab="pairs">${T('Радар', 'Radar', 'Radar')} <span class="cnt">${R.list.length}</span></button>${gear('pairs')}<button type="button" class="rhead${radarTab === 'pat' ? ' on' : ''}" data-rtab="pat">${T('Паттерны', 'Muster', 'Patterns')} <span class="cnt">${PR.list.length}</span></button>${gear('pat')}</summary>`;
+  // 22.11.2026 (user): each part has its own on/off (⏻ green = on); off = the engine does not compute it at all.
+  const autoB = (k, on) => `<button type="button" class="rauto${on ? ' on' : ''}" data-rauto="${k}" title="${T('Автопереключение графика PO на новый', 'Auto-Wechsel des PO-Charts', 'Auto switch the PO chart')}">⇄</button>`;
+  const pwr = (k, on) => `<button type="button" class="rpwr${on ? ' on' : ''}" data-pwr="${k}" title="${on ? T('Выключить', 'Ausschalten', 'Switch off') : T('Включить', 'Einschalten', 'Switch on')}">⏻</button>`;
+  const rhead = `<summary><button type="button" class="rhead${radarTab === 'pairs' ? ' on' : ''}${R.on === false ? ' off' : ''}" data-rtab="pairs">${T('Радар', 'Radar', 'Radar')} <span class="cnt">${R.on === false ? '–' : R.list.length}</span></button>${pwr('radar_on', R.on !== false)}${autoB('radar_auto', !!R.auto)}${gear('pairs')}<button type="button" class="rhead${radarTab === 'pat' ? ' on' : ''}${PR.on === false ? ' off' : ''}" data-rtab="pat">${T('Паттерны', 'Muster', 'Patterns')} <span class="cnt">${PR.on === false ? '–' : PR.list.length}</span></button>${pwr('pat_on', PR.on !== false)}${autoB('pat_auto', !!PR.auto)}${gear('pat')}</summary>`;
   const tabs = `<div class="rtabs"><button type="button" data-rtab="pairs" class="${radarTab === 'pairs' ? 'on' : ''}">${T('Активные пары', 'Aktive Paare', 'Active pairs')} ${R.list.length}</button><button type="button" data-rtab="pat" class="${radarTab === 'pat' ? 'on' : ''}">${T('Паттерны', 'Muster', 'Patterns')} ${PR.list.length}</button></div>`;
   if (radarTab === 'pat') {
     const nm = p => ru ? p.ru : p.en;
-    const prow = PR.list.map(p => `<button class="rrow${p.fav ? ' fav' : ''}" data-rsym="${esc(p.symbol)}"><b>${p.fav ? '★ ' : ''}${esc(p.name)} <span class="pnm">${esc(nm(p))}</span></b><span class="${p.dir}">${p.dir === 'up' ? '▲' : '▼'}${p.trend ? `<em class="rtr ${p.trend}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}</span><small>${p.tf > 1 ? `M${p.tf} · ` : ''}⏱ <i class="page" data-pt="${(p.at || p.time + 60) - 60}">${patAge((p.at || p.time + 60) - 60)}</i>${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') : ''}${p.adx ? ' · ADX ' + p.adx : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small></button>`).join('');
+    const prow = PR.list.map(p => `<button class="rrow${p.fav ? ' fav' : ''}" data-rsym="${esc(p.symbol)}" data-pbadge="${esc(`${p.dir === 'up' ? '▲' : '▼'} ${ru ? p.ru : p.en} · ${ru ? 'свеча' : 'candle'} ${new Date((p.time) * 1000).toTimeString().slice(0, 5)}`)}" data-pup="${p.dir === 'up' ? 1 : 0}"><b>${p.fav ? '★ ' : ''}${esc(p.name)} <span class="pnm">${p.pre ? `⏳ ${T('складывается', 'bildet sich', 'forming')} ${p.sleft} с · ` : ''}${esc(nm(p))}</span></b><span class="${p.dir}">${p.dir === 'up' ? '▲' : '▼'}${p.trend ? `<em class="rtr ${p.trend}">${p.trend === 'up' ? '▲' : p.trend === 'down' ? '▼' : '◆'}<sub>${R.ttf || 5}</sub></em>` : ''}${p.trend15 ? `<em class="rtr ${p.trend15}">${p.trend15 === 'up' ? '▲' : p.trend15 === 'down' ? '▼' : '◆'}<sub>15</sub></em>` : ''}</span><small>${p.tf > 1 ? `M${p.tf} · ` : ''}⏱ <i class="page" data-pt="${(p.at || p.time + 60) - 60}">${patAge((p.at || p.time + 60) - 60)}</i>${p.atr ? ' · ATR ' + String(p.atr).replace('.', ',') : ''}${p.adx ? ' · ADX ' + p.adx : ''}${p.payout ? ' · ' + p.payout + ' %' : ''}</small>${patChart(p)}</button>`).join('');
     const G = { c: T('Свечные', 'Kerzen', 'Candles'), g: T('Графические', 'Chartmuster', 'Chart'), v: T('Волатильность и индикаторы', 'Volatilität', 'Volatility') };
     const chk = ['c', 'g', 'v'].map(g => `<b class="pg">${G[g]}</b>` + PR.all.filter(p => p.g === g).map(p => `<label class="pchk"><button type="button" class="pstar${(PR.fav || []).includes(p.id) ? ' on' : ''}" data-pfav="${p.id}">${(PR.fav || []).includes(p.id) ? '★' : '☆'}</button><input type="checkbox" data-pid="${p.id}"${PR.ids.includes(p.id) ? ' checked' : ''}> ${esc(nm(p))}</label>`).join('')).join('');
     const html = `<details class="setfold pradar"${radarOpen ? ' open' : ''}>${rhead}
     ${radarCfg ? `<div class="rcfg"><div class="rset"><label>${T('Таймфрейм паттернов', 'Muster-Zeitrahmen', 'Pattern timeframe')} ${[1, 2, 3, 4, 5].map(m => `<button type="button" class="ptg${(PR.tf || 1) === m ? ' on' : ''}" data-ptf="${m}">M${m}</button>`).join('')}</label><small class="pnote">${T('Сигнал — на закрытии свечи этого таймфрейма; вход актуален одну такую свечу.', 'Signal beim Schluss einer Kerze dieses Zeitrahmens; Einstieg gilt eine Kerze lang.', 'Signal at the close of a candle of this timeframe; entry valid for one such candle.')}</small><label>${pTg('pat_alert', PR.alert)} ${T('Сигнал о новом паттерне', 'Signal bei neuem Muster', 'Signal on a new pattern')} <select data-psound>${(window.SOUND_KEYS || ['default']).map(k => `<option value="${k}"${k === (PR.sound || 'bell') ? ' selected' : ''}>${t('snd_' + k)}</option>`).join('')}</select></label></div><details class="pfold psfold"${psetOpen ? ' open' : ''}><summary>${T('Фильтры ATR и ADX', 'ATR- und ADX-Filter', 'ATR and ADX filters')} (ATR ${PR.atrOn ? '≥' + String(PR.atrMin).replace('.', ',') + ' %' : T('выкл', 'aus', 'off')} · ADX ${PR.adxOn ? '≥' + PR.adxMin : T('выкл', 'aus', 'off')})</summary><div class="rset">
       <label>${pTg('pat_atr_on', PR.atrOn)} ${T('ATR не меньше, % от цены', 'ATR mindestens, % vom Preis', 'ATR at least, % of price')} ${step('pat_atr', PR.atrMin, 0.005, 0)}</label>
+      <label>${pTg('pat_pre', !!PR.pre)} ${T('Ранний сигнал (эксперимент): до закрытия свечи — 15 с на M1, 1 мин на M5. Может не подтвердиться', 'Früher Hinweis (Experiment) vor Kerzenschluss – kann ausbleiben', 'Early warning (experiment) before the candle closes – may not confirm')}</label>
+      <label>${pTg('tw_trend_on', !!PR.twOn)} ${T('Пинцет только по тренду', 'Pinzette nur mit dem Trend', 'Tweezers only with the trend')} <select class="twtf" data-twtf>${[2, 3, 4, 5, 10, 15].map(m => `<option value="${m}"${(PR.twTf || 5) === m ? ' selected' : ''}>M${m}</option>`).join('')}</select></label>
+      <label>${T('Три солдата: импульсная свеча — тело от … ATR', 'Drei Soldaten: Impulskerze – Körper ab … ATR', 'Three soldiers: impulse candle – body from … ATR')} ${step('pat_sold_atr', PR.soldAtr != null ? PR.soldAtr : 1, 0.1, 0.1)}</label>
+      <label>${T('Три солдата: импульсных из трёх, минимум', 'Drei Soldaten: Impulskerzen von drei, mindestens', 'Three soldiers: impulse candles of three, at least')} ${step('pat_sold_big', PR.soldBig || 1, 1, 1)}</label>
+      <label>${pTg('pat_sold_rev', !!PR.soldRev)} ${T('Три солдата: сигнал на разворот (выкл = по движению)', 'Drei Soldaten: Umkehrsignal (aus = mit der Bewegung)', 'Three soldiers: reversal signal (off = with the move)')}</label>
       <label>${pTg('pat_adx_on', PR.adxOn)} ${T('ADX не меньше (сила тренда M1)', 'ADX mindestens (Trendstärke M1)', 'ADX at least (M1 trend strength)')} ${step('pat_adx', PR.adxMin, 1, 0)}</label>
       <small class="pnote">${T('ATR — размер свечей (живость пары). ADX — есть ли движение: до 20 флэт, 20–25 начало тренда, от 25 тренд, от 40 сильный. Подсказка по ATR — в «Активных парах».', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.', 'ATR = candle size. ADX: below 20 flat, 20–25 starting trend, above 25 trend, above 40 strong.')}</small></div></details>
     <details class="rleg"><summary>${T('Что значат стрелки', 'Was die Pfeile bedeuten', 'What the arrows mean')}</summary>${T(`Стрелки: первая — направление паттерна (куда он обещает цену); вторая с цифрой — тренд старшего ТФ (₅ = M5, выбирается в «Активных парах»). ◆ = флэт.`, 'Arrows: first = pattern direction; second with number = higher-TF trend.', 'Arrows: first = pattern direction; second with number = higher-TF trend.')}</details>
     <details class="pfold"${patSetOpen ? ' open' : ''}><summary>${T('Какие паттерны показывать', 'Welche Muster anzeigen', 'Which patterns to show')} (${PR.ids.length}/${PR.all.length})</summary><div class="pset">${chk}</div></details></div>` : ''}
-    <div class="rlist">${prow || `<p class="empty">${T('Сейчас нет действующих паттернов', 'Zurzeit keine aktiven Muster', 'No active patterns right now')}</p>`}</div></details>`;
+    <div class="rlist">${prow || `<p class="empty">${PR.on === false ? T('Паттерны выключены — включите кнопкой ⏻ рядом с «Паттерны»', 'Muster aus – mit ⏻ einschalten', 'Patterns off – switch on with ⏻') : T('Сейчас нет действующих паттернов', 'Zurzeit keine aktiven Muster', 'No active patterns right now')}</p>`}</div></details>`;
     radarWrite(el, html, force);
     return;
   }
@@ -874,14 +924,14 @@ function renderRadar(force) {
       <b>от 0,1 %</b> — очень подвижные: быстрые сильные свечи, больше возможностей и больше риска.<br>
       Совет: <b>0,02</b> — убрать мёртвые; <b>0,05</b> — только живые; <b>0,1</b> — только самые резкие.`, 'ATR = average M1 candle size in % of price. 0 = off; below 0.005 % dead; 0.005–0.03 % slow; 0.03–0.1 % normal; above 0.1 % very volatile.', 'ATR = average M1 candle size in % of price. 0 = off; below 0.005 % dead; 0.005–0.03 % slow; 0.03–0.1 % normal; above 0.1 % very volatile.')}</div></details>
     <label>${T('Выплата не меньше, % (0 = все)', 'Auszahlung mindestens, % (0 = alle)', 'Payout at least, % (0 = all)')} ${step('radar_pay', R.pay || 0, 5, 0)}</label></div></details></div>` : ''}
-    <div class="rlist">${rows || `<p class="empty">${T('Сейчас нет пар с крупными свечами по этим настройкам', 'Zurzeit keine Paare mit großen Kerzen', 'No pairs with big candles right now')}</p>`}</div></details>`;
+    <div class="rlist">${rows || `<p class="empty">${R.on === false ? T('Радар выключен — включите кнопкой ⏻ рядом с «Радар»', 'Radar aus – mit ⏻ einschalten', 'Radar off – switch on with ⏻') : T('Сейчас нет пар с крупными свечами по этим настройкам', 'Zurzeit keine Paare mit großen Kerzen', 'No pairs with big candles right now')}</p>`}</div></details>`;
   radarWrite(el, html, force);
 }
 document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('pradar')) { radarOpen = e.target.open; try { localStorage.setItem('radarOpen', radarOpen ? '1' : '0'); } catch {} } }, true);
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-rk]');
-  if (b && (b.dataset.rk === 'pat_atr' || b.dataset.rk === 'pat_adx')) { e.preventDefault(); const k = b.dataset.rk, P = state.patRadar, f = k === 'pat_atr' ? 'atrMin' : 'adxMin';
-    const v = Math.max(+b.dataset.rm, Math.round((P[f] + +b.dataset.rs) * 1000) / 1000); call({ action: 'settings', patch: { [k]: v } }); state.patRadar = { ...P, [f]: v }; renderRadar(true); return; }
+  if (b && (b.dataset.rk === 'pat_atr' || b.dataset.rk === 'pat_adx' || b.dataset.rk === 'pat_sold_atr' || b.dataset.rk === 'pat_sold_big')) { e.preventDefault(); const k = b.dataset.rk, P = state.patRadar, f = k === 'pat_atr' ? 'atrMin' : k === 'pat_sold_atr' ? 'soldAtr' : k === 'pat_sold_big' ? 'soldBig' : 'adxMin';
+    const v = k === 'pat_sold_big' ? Math.min(3, Math.max(1, (P.soldBig || 1) + +b.dataset.rs)) : Math.max(+b.dataset.rm, Math.round((P[f] + +b.dataset.rs) * 1000) / 1000); call({ action: 'settings', patch: { [k]: v } }); state.patRadar = { ...P, [f]: v }; renderRadar(true); return; }
   if (b) { e.preventDefault(); const k = b.dataset.rk, R = state.radar, cur = { radar_n: R.n, radar_x: R.x, radar_k: R.k, radar_pay: R.pay || 0, radar_atr: R.atr || 0, radar_dn: R.dn || R.n }[k], st = +b.dataset.rs;
     const v = Math.max(+b.dataset.rm, Math.round((cur + st) * 1000) / 1000); call({ action: 'settings', patch: { [k]: v } }); state.radar = { ...R, [k.slice(6)]: v }; renderRadar(true); return; }
   const tf = e.target.closest('[data-ttf]');
@@ -889,10 +939,12 @@ document.addEventListener('click', e => {
   const r = e.target.closest('[data-rsym]');
   // Phone: switch to the Pocket Option tab like the signal cards do (user 21.11.2026); PC: toast as before.
   // Phone, same pair as the last radar tap (user 21.11.2026): the chart already shows it – just switch to the PO tab, no reload.
-  if (r && isAndroid && window.AndroidApp && window.AndroidApp.showPocketOption && radarPoSym === r.dataset.rsym) { window.AndroidApp.showPocketOption(); return; }
+  if (r && isAndroid && window.AndroidApp && window.AndroidApp.showPocketOption && radarPoSym === r.dataset.rsym) { if (r.dataset.pbadge && window.AndroidApp.setDirBadge) { try { window.AndroidApp.setDirBadge(r.dataset.pbadge, r.dataset.pup === '1', 240); } catch {} } window.AndroidApp.showPocketOption(); return; }
   if (r) radarPoSym = r.dataset.rsym;
   if (r) call({ action: 'openPO', symbol: r.dataset.rsym, tf: 'M1', lang: LANG }).then(x => {
     if (isAndroid && window.AndroidApp) { const nm = (x && x.name) || r.dataset.rsym;
+      // Pattern row (22.11.2026): plaque over the PO chart with direction, pattern and candle time; a touch hides it.
+      if (r.dataset.pbadge && window.AndroidApp.setDirBadge) { try { window.AndroidApp.setDirBadge(r.dataset.pbadge, r.dataset.pup === '1', 240); } catch {} }
       poOpen(nm, (x && x.symbol) || r.dataset.rsym, 'M1'); return; }
     if (x && x.name && typeof toast === 'function') toast(t('toast_po', { name: x.name }) + ' · M1'); });
 });
