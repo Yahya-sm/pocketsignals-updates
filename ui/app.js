@@ -793,6 +793,7 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-ptf]
 document.addEventListener('change', e => {
   const el = e.target; if (!el.dataset) return;
   if (el.dataset.twtf !== undefined) { const v = +el.value; call({ action: 'settings', patch: { tw_trend_tf: v } }); if (state.patRadar) state.patRadar = { ...state.patRadar, twTf: v }; }
+  if (el.dataset.psound || el.dataset.rsound) { window.__selChangedAt = Date.now(); setTimeout(() => { try { el.blur(); renderRadar(true); } catch {} }, 50); }
   if (el.dataset.psound) { call({ action: 'settings', patch: { pat_sound: el.value } }); beep(el.value); if (state.patRadar) state.patRadar = { ...state.patRadar, sound: el.value }; }
   if (el.dataset.rsound) { call({ action: 'settings', patch: { radar_sound: el.value } }); beep(el.value); if (state.radar) state.radar = { ...state.radar, sound: el.value }; }
 });
@@ -845,6 +846,11 @@ function radarWrite(el, html, force) {
   if (el.dataset.html === html) return;
   // Pause only briefly (mouse over the list, or the pattern check list just touched); the list never stays frozen.
   if (!force && el.dataset.html && ((radarHover && Date.now() - radarHoverAt < 4000) || (patSetOpen && Date.now() - patSetAt < 8000))) return;
+  // 23.11.2026 (user: the sound choice jumped back): never redraw while a select of the radar is open (phone picker),
+  // and not for 1 s after it changed – the redraw destroyed the open picker with the user's choice.
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'SELECT' && el.contains(ae)) return;
+  if (Date.now() - (window.__selChangedAt || 0) < 1000 && !force) return;
   const keep = [...el.querySelectorAll('.rlist, .pset')].map(x => x.scrollTop);
   el.innerHTML = html; el.dataset.html = html;
   el.querySelectorAll('.rlist, .pset').forEach((x, i) => { if (keep[i] != null) x.scrollTop = keep[i]; });
