@@ -146,8 +146,7 @@
     const w = today.filter(s => s.trade.result === 'WIN').length, l = today.filter(s => s.trade.result === 'LOSS').length;
     const units = today.reduce((a, s) => a + (s.trade.result === 'WIN' ? (s.payout || 80) / 100 : s.trade.result === 'LOSS' ? -1 : 0), 0);
     // 21.11.2026 (user): both boxes folded (spoilers) to leave room for the radar; open/closed is remembered.
-    setHtml(el, `<details class="sidebox sfold" data-sf="last"${sfOpen('last') ? ' open' : ''}><summary><b>${t('last_trades')}</b></summary>${last}<button class="linkbtn" data-tab="history">${t('tab_journal')} →</button></details>
-      <details class="sidebox sfold" data-sf="today"${sfOpen('today') ? ' open' : ''}><summary><b>${t('today_mine')}</b> <small>${today.length} · W ${w} / L ${l}</small></summary><p class="num">${today.length} · W ${w} / L ${l} · ${units >= 0 ? '+' : ''}${units.toFixed(2)} ${t('rk_units')}</p><p class="hint">${t('today_hint', { n: today.length })}</p></details>`);
+    setHtml(el, `<details class="sidebox sfold" data-sf="last"${sfOpen('last') ? ' open' : ''}><summary><b>${t('last_trades')}</b></summary>${last}<button class="linkbtn" data-tab="history">${t('tab_journal')} →</button></details>`); // 23.11.2026 (user): 'Today · my trades' removed, 'Signal selection' sits below
   }
 
   // ---------- catalog ----------

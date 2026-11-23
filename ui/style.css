@@ -719,10 +719,8 @@ body.nocards .setfold.nosig { display: none !important; }
 .setfold.pradar > summary::before { font-size: 18px; width: 32px; height: 32px; margin: -4px 0 -4px -6px; display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 8px; color: var(--text, #e6edf3); }
 .setfold.pradar > summary:active::before { background: rgba(255,255,255,.08); }
 
-.setfold.pradar > summary { flex-wrap: wrap; row-gap: 4px; }
 
 .pradar > summary .rbr { display: none; }
-@media (max-width: 440px) { .pradar > summary .rbr { display: block; flex-basis: 100%; height: 0; } .pradar > summary .rbr + .rhead { margin-left: 34px; } }
 
 
 /* signal selection block (23.11.2026) */
@@ -734,4 +732,26 @@ body.nocards .setfold.nosig { display: none !important; }
 .selrow em { flex-basis: 100%; order: 9; font-style: normal; font-size: 11px; color: var(--muted); text-align: right; }
 .selrow { flex-wrap: wrap; }
 .selhelp { font-size: 12px; line-height: 1.45; color: var(--muted); } .selhelp p { margin: 4px 0; }
+
+/* 23.11.2026 (user): header back in ONE line; room for the big fold arrow from tighter gaps */
+.setfold.pradar > summary { flex-wrap: nowrap; gap: 4px; }
+.pradar > summary .rgear + .rbr + .rhead, .pradar > summary .rgear + .rhead { margin-left: 6px; }
+.setfold.pradar > summary { gap: 3px; padding-right: 2px; }
+.pradar > summary .rpwr, .pradar > summary .rauto, .pradar > summary .rgear { width: 21px; }
+.pradar > summary .rhead { letter-spacing: .02em; padding: 0 1px; }
+
+/* 23.11.2026 (user): 'Signal selection' at the bottom in place of 'Today · my trades', narrow and small */
+#selBox { margin-top: 8px; }
+@media (min-width: 1100px) { #selBox { grid-column: 2; margin-top: -8px; } }
+.setfold.selfold > summary { padding: 4px 10px; min-height: 0; gap: 6px; }
+.setfold.selfold > summary h3 { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; margin: 0; }
+.setfold.selfold > summary small { font-size: 10.5px; margin-left: 4px; }
+.selfold .selrow { padding: 3px 4px; font-size: 12px; gap: 6px; }
+.selfold .selrow button { width: 30px; height: 26px; font-size: 16px; border-radius: 8px; }
+.selfold .selrow b { min-width: 28px; font-size: 13px; }
+.selfold .selrow em { font-size: 10px; }
+.selfold .pfold > summary { font-size: 11px; }
+
+.selfold .selrow { flex-wrap: nowrap; padding: 2px 4px; } .selfold .selrow em { display: none; }
+.selfold .selrow button { width: 28px; height: 24px; }
 
