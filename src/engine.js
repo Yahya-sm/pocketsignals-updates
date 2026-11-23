@@ -1020,6 +1020,9 @@ class Engine extends EventEmitter {
     for (const k of ['account', 'trade_mode', 'strategies', 'risk_daily_loss_units', 'risk_max_trades', 'risk_max_losses', 'risk_min_payout', 'risk_stake_pct', 'cooldown_candles', 'daily_signal_limit', 'min_payout'])
       if (k in patch) this._logParam('settings', k, this.settings[k], patch[k]);
     Object.assign(this.settings, patch);
+    // 24.11.2026 (user: radar/pattern values jump back on the phone): every radar/pattern/selection change goes to the
+    // connection log, so the log shows whether the engine got it.
+    { const ks = Object.keys(patch).filter(k => /^(radar_|pat_|sig_)/.test(k)); if (ks.length && this.po && this.po._log) this.po._log('Einstellung: ' + ks.map(k => k + ' = ' + JSON.stringify(patch[k])).join(', ').slice(0, 180)); }
     if ('stale_sec' in patch) LAB.setStale(patch.stale_sec);
     writeJson(this.settingsFile, this.settings);
     if ('scan_interval' in patch) this.restartTimer();
