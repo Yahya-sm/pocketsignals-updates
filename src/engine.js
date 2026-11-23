@@ -757,9 +757,13 @@ class Engine extends EventEmitter {
     // sig_per_hour signals in the last 60 min (0 = no limit); the strongest go first.
     const minSc = Number(this.settings.sig_score_min ?? 50) || 0, perHour = Number(this.settings.sig_per_hour) || 0;
     let lastHour = perHour ? this.signals.filter(x => !x.manual && Date.now() - (x.created || 0) < 3600000).length : 0;
+    // 23.11.2026 (user): cleanliness = how straight the price went over the last sig_clean_n M1 candles:
+    // |net move| / sum of candle bodies (100 % = all one colour, low = saw). sig_clean_min 0 = off.
+    const cleanMin = Number(this.settings.sig_clean_min) || 0, cleanN = Math.max(3, Math.min(30, Number(this.settings.sig_clean_n) || 10));
     for (const s of (this.scanSignals || []).sort((a, b) => b.strength - a.strength)) {
       const entry = s.entry || s.candle.time + 60;
       if ((Number(s.strength) || 0) < minSc) continue;
+      if (cleanMin) { const er = this._cleanness(s.asset, cleanN); if (er != null && er < cleanMin) continue; }
       if (perHour && lastHour >= perHour) continue;
       if (this.signals.filter(x => x.entryTime === entry).length >= max) continue;
       lastHour++;
@@ -1043,7 +1047,7 @@ class Engine extends EventEmitter {
   // Settings exported from the Telegram bot / original app (same JSON shape as signal-app-einstellungen.json).
   importSettings(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'err_json' };
-    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf', 'sig_score_min', 'sig_per_hour'];
+    const known = ['strategy_settings', 'strategies', 'strat_tfs', 'pairs', 'min_strength', 'max_per_scan', 'min_payout', 'market', 'assets_off', 'favorite_strategies', 'radar_on', 'pat_on', 'radar_auto', 'pat_auto', 'pat_pre', 'tw_trend_on', 'tw_trend_tf', 'pat_sold_atr', 'pat_sold_big', 'pat_sold_rev', 'radar_n', 'radar_x', 'radar_k', 'radar_dn', 'radar_ttf', 'radar_atr', 'radar_pay', 'pat_ids', 'pat_fav', 'pat_atr_on', 'pat_atr', 'pat_adx_on', 'pat_adx', 'pat_alert', 'pat_sound', 'radar_alert', 'radar_sound', 'pat_tf', 'sig_score_min', 'sig_per_hour', 'sig_clean_min', 'sig_clean_n'];
     if (!known.some(k => k in data)) return { ok: false, error: 'err_nosettings' };
     const s = this.settings;
     for (const [k, v] of Object.entries(data)) {
@@ -1217,6 +1221,11 @@ class Engine extends EventEmitter {
     } else { W.staleSince = 0; W.resubAt = 0; }
   }
 
+  _cleanness(sym, n) { // % 0–100 over the last n closed M1 candles, null = no candles
+    const c = (this._freshM1 && this._freshM1(sym)) || this.candles.get(sym); if (!c || c.length < n) return null;
+    const seg = c.slice(-n), path = seg.reduce((a, k) => a + Math.abs(k.close - k.open), 0);
+    return path > 0 ? Math.round(100 * Math.abs(seg[n - 1].close - seg[0].open) / path) : 0;
+  }
   patTf() { const v = Number(this.settings.pat_tf) || 1; return [1, 2, 3, 4, 5].includes(v) ? v : 1; }
   // Closed candles of the pattern timeframe with the newest bars rebuilt from live prices; null = no fresh data.
   _patCandles(sym, tf) {
@@ -1352,7 +1361,7 @@ class Engine extends EventEmitter {
         min_payout: this.settings.min_payout || 0, otc_po_on: this.settings.otc_po_on !== false,
         assets_off: this.settings.assets_off || [],
         markets: this.marketsForUi(), pairs: this.settings.pairs || [],
-        min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0, sig_score_min: Number(this.settings.sig_score_min ?? 50), sig_per_hour: Number(this.settings.sig_per_hour) || 0,
+        min_strength: this.settings.min_strength || 0, max_per_scan: this.settings.max_per_scan || 0, sig_score_min: Number(this.settings.sig_score_min ?? 50), sig_per_hour: Number(this.settings.sig_per_hour) || 0, sig_clean_min: Number(this.settings.sig_clean_min) || 0, sig_clean_n: Number(this.settings.sig_clean_n) || 10,
         market: this.settings.market || 'both', signals_on: this.settings.signals_on !== false, sound: this.settings.sound !== false, auto_po: !!this.settings.auto_po, regime_mode: this.settings.regime_mode || (this.settings.regime_filter ? 'auto' : 'off'),
         ...Object.fromEntries(Object.entries(RG_DEFAULTS).map(([k, d]) => [k, this.settings[k] ?? d])), chaos_skip: this.settings.chaos_skip !== false, po_click_toggle: this.settings.po_click_toggle !== false, scan_interval: this.scanInterval, mini_on_blur: this.settings.mini_on_blur === true, quick_trade: this.settings.quick_trade === true, quick_real: this.settings.quick_real === true, mini_tf: this.settings.mini_tf || 'M5', mkt_level: Number(this.settings.mkt_level) || 0, smart_exp: this.settings.smart_exp === true, quotes_demo: this.settings.quotes_demo === true, show_m5: this.settings.show_m5 !== false, trend_tfs: this.trendMinutes.map(m => 'M' + m), otc_record: this.settings.otc_record !== false, trend_filter: !!this.settings.trend_filter,
         deposit: Number(this.settings.deposit) || 1000,

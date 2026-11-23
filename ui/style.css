@@ -755,3 +755,5 @@ body.nocards .setfold.nosig { display: none !important; }
 .selfold .selrow { flex-wrap: nowrap; padding: 2px 4px; } .selfold .selrow em { display: none; }
 .selfold .selrow button { width: 28px; height: 24px; }
 
+.setfold.selfold > summary h3 { white-space: nowrap; flex: none; }
+
