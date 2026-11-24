@@ -27,6 +27,7 @@ const META = {
   n_fractal: [L('🧪 Пробой фрактала', '🧪 Fraktal-Ausbruch', '🧪 Fractal breakout'), 'trend'],
   n_market: [L('Рынок: цена пересекла скользящую', 'Markt: Preis kreuzt den gleitenden Durchschnitt', 'Market: price crosses the moving average'), 'trend'],
   n_run: [L('Серия свечей по тренду', 'Kerzenserie mit dem Trend', 'Candle series with the trend'), 'trend'],
+  n_macross: [L('Скользящие 2/5 + M5/M15', 'MA 2/5 + M5/M15', 'MA 2/5 + M5/M15'), 'trend'],
   n_tweezer: [L('Пинцет', 'Pinzette', 'Tweezers'), 'reversal'],
   n_pin: [L('Разворот после импульса (пин-бар)', 'Umkehr nach Impuls (Pinbar)', 'Reversal after an impulse (pin bar)'), 'reversal'],
   n_spike5: [L('Скачок в начале пятиминутки', 'Sprung am Anfang der 5-Minuten-Kerze', 'Jump at the start of the 5-minute candle'), 'reversal'],
@@ -106,6 +107,7 @@ const DEFAULTS = {
   n_run: { rs_chaos_on: true, rs_chaos: 0.4, rs_chaos_n: 12, rs_m_run: true, rs_tf: 'M1', expiry: 120, rs_buy: true, rs_sell: true, rs_min: 4, rs_atr: 0.5, rs_adx_on: true, rs_adx_min: 0, rs_room: 0, rs_cross: false, rs_series: true, rs_cross_fast: 5, rs_cross_slow: 21, rs_cross_after: 0,
     rs_m_zone: false, rs_z_tf: 'M5', rs_z_exp: 120, rs_z_buy: true, rs_z_sell: true, rs_z_n: 2, rs_z_touch: 2, rs_z_width: 0.5, rs_z_gap: 5,
     rs_m_pull: false, rs_p_tf: 'M5', rs_p_exp: 120, rs_p_buy: true, rs_p_sell: true, rs_p_trend: 3, rs_p_max: 2, rs_p_depth: 50, rs_p_di: true, rs_p_adx: 0 },
+  n_macross: { expiry: 120, ma_tf: 'M2', ma_type: 'EMA', ma_fast: 2, ma_slow: 5, ma_m5: true, ma_m15: true, ma_m15age: false, ma_prev: false, ma_buy: true, ma_sell: true },
   n_tweezer: { expiry: 120, tw_tf: 'M1', tw_buy: true, tw_sell: true, tw_tol: 0.1, tw_ext: 10, tw_trend: 'OFF', tw_early: 10 },
   n_pin: { expiry: 180, pn_tf: 'M1', pn_buy: true, pn_sell: true, pn_imp_n: 3, pn_big_n: 3, pn_big_atr: 0.8, pn_min_atr: 0, pn_stop: 0.5, pn_tail: 50, pn_early: 0 },
   n_emastart: { expiry: 120, es_mode: 'START', es_tf: 'M5', es_ma: 'EMA', es_period: 50, es_bars: 5, es_slope: 20, es_side: true, es_adx: 0, es_adx_period: 14, es_fresh: 0, es_fast: 20, es_pull: 6, es_ext: 1.5, es_confirm: true, es_buy: true, es_sell: true },
@@ -1422,6 +1424,26 @@ const S = {
   // 23.11.2026 (user): Tweezers as a strategy (same rule as the pattern radar). Candle 1 in the move, candle 2 of the other colour with
   // the same high (top) / low (bottom) within tw_tol ATR, at the extreme of the last tw_ext candles -> signal against candle 1.
   // Early: in the last tw_early s of candle 2 it is checked as if it closed now (may not confirm). Optional higher-TF trend filter (EMA 9/21).
+  // 24.11.2026 (user): MA cross 2/5 on M2 = entry trigger; direction confirmed by the same MAs (fast above/below slow) on M5 and M15,
+  // each switchable. Only closed candles. History 16.7 days OTC: ~50 % at 2/4/6 min with any combination – no proven edge.
+  n_macross(x, p) {
+    const now = serverNow(), m1 = x.c; if (!m1 || m1.length < 60) return null;
+    const closed = m1.filter(z => z.time + 60 <= now), F = Math.max(1, Number(p.ma_fast) || 2), SL = Math.max(F + 1, Number(p.ma_slow) || 5), TY = p.ma_type === 'SMA' ? 'SMA' : 'EMA';
+    const tf = parseInt(String(p.ma_tf || 'M2').slice(1), 10) || 2;
+    const side = (c, i) => { const cl = c.map(z => z.close), f = I.ma(cl, F, TY), s = I.ma(cl, SL, TY); const k = i < 0 ? cl.length + i : i; return f[k] > s[k] ? 1 : f[k] < s[k] ? -1 : 0; };
+    const c2 = I.resample(closed, tf); if (!c2 || c2.length < SL + 3) return null;
+    const a = side(c2, -1), b = side(c2, -2); if (!a || !b || a === b) return null; const d = a;
+    if (d > 0 ? p.ma_buy === false : p.ma_sell === false) return null;
+    // 24.11.2026 (user, off by default): history 16.8 d OTC – both rules together at 2 min 54 / 55 % (~93/day), not proven.
+    if (p.ma_prev) { const pc = c2[c2.length - 2]; if (!pc || (pc.close - pc.open) * d <= 0) return null; } // a candle of the signal colour right before the cross candle
+    if (p.ma_m15age) { const h = I.resample(closed, 15); if (!h || h.length < SL + 6) return null; let age = 0; for (let k = h.length - 1; k >= SL + 1 && side(h, k) === d; k--) age++; if (age < 2 || age > 3) return null; } // M15 in the signal direction for 2–3 candles
+    const conf = [], htf = {}; // 24.11.2026 (user): M15 (and M5) direction shown on the card even when its confirmation is off
+    for (const [on, tm] of [[p.ma_m5 !== false, 5], [p.ma_m15 !== false, 15]]) { const h = I.resample(closed, tm), sd = h && h.length >= SL + 2 ? side(h, -1) : 0; htf['M' + tm] = sd; if (!on) continue;
+      if (!sd || sd !== d) return null; conf.push('M' + tm); }
+    const txt = L(`пересечение ${TY} ${F}/${SL} на M${tf} ${d > 0 ? 'вверх' : 'вниз'}${conf.length ? ', ' + conf.join(' и ') + ' в ту же сторону' : ''}`,
+      `${TY} ${F}/${SL} Kreuzung auf M${tf}${conf.length ? ', ' + conf.join('+') + ' gleich' : ''}`, `${TY} ${F}/${SL} cross on M${tf}${conf.length ? ', ' + conf.join('+') + ' agree' : ''}`);
+    return Object.assign(sig(d, 85, txt), { htf, noFlip: true, bar: c2[c2.length - 1].time, expiry: Number(p.expiry) || 120 });
+  },
   n_tweezer(x, p) {
     const tf = p.tw_tf || 'M1', pm = parseInt(tf.slice(1), 10) || 1, now = serverNow(), m1 = x.c; if (!m1 || m1.length < 40) return null;
     const early = Number(p.tw_early) || 0, all = pm === 1 ? m1.slice() : I.resample(m1, pm, true), last = all.length - 1, formingK = all[last].time + pm * 60 > now;
@@ -1442,7 +1464,7 @@ const S = {
     const txt = L(`${isEarly ? `⏰ за ${Math.round(left)} с до закрытия: ` : ''}пинцет ${d < 0 ? 'сверху (одинаковые максимумы)' : 'снизу (одинаковые минимумы)'} на ${TF}${tr ? ', по тренду' + tr : ''} → ${d > 0 ? 'вверх' : 'вниз'}`,
       `${isEarly ? `⏰ ${Math.round(left)} s vor Schluss: ` : ''}Pinzette ${d < 0 ? 'oben' : 'unten'} auf ${TF}${tr ? ', mit Trend' + tr : ''}`,
       `${isEarly ? `⏰ ${Math.round(left)} s before the close: ` : ''}tweezers ${d < 0 ? 'top' : 'bottom'} on ${TF}${tr ? ', with trend' + tr : ''}`);
-    return Object.assign(sig(d, 75, txt), { noFlip: true, bar: c[q].time, expiry: Number(p.expiry) || 120, ...(isEarly ? { entry: c[q].time + pm * 60 } : {}) });
+    return Object.assign(sig(d, 85, txt), { noFlip: true, bar: c[q].time, expiry: Number(p.expiry) || 120, ...(isEarly ? { entry: c[q].time + pm * 60 } : {}) });
   },
   n_pin(x, p) {
     const tf = p.pn_tf || 'M1', pm = parseInt(tf.slice(1), 10) || 1, now = serverNow();
@@ -1716,7 +1738,7 @@ function evaluate(candlesByTf, enabled, settings) {
         if (r && r.dir) {
           wkey = `${candlesByTf.asset || '?'}|${tf}|${c[c.length - 1].time}|${r.bar || ''}|${r.dir}`;
           if (set === sets[0] || !wfound) { whyAdd(name, wkey, 'found'); wfound = true; }
-          if (name === 'n_spike5' || name === 'n_tweezer' || passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
+          if (name === 'n_spike5' || name === 'n_tweezer' || name === 'n_macross' || passesFilters(x, set.p, r, META[name][1]) && marketOk(x, set.p, set.p.follow_move && !r.noFlip ? -r.dir : r.dir)) { s = r; p = set.p; pr = set.pr; break; }
           wlast = 'filters';
         }
       }
@@ -1726,11 +1748,11 @@ function evaluate(candlesByTf, enabled, settings) {
       if (x.rg === undefined) x.rg = I.regime(c, c.length - 1, settings);
       // Backtest 04.11.2026 (17 OTC pairs, 5 days M1): CHAOS 36 % (n 70, CI up to 47 %) → skipped by default (chaos_skip);
       // the type mapping gave no gain (trend strategies not better in TREND, reversal ones not better in RANGE) → opt-in.
-      if (name !== 'n_spike5' && name !== 'n_tweezer' && x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
+      if (name !== 'n_spike5' && name !== 'n_tweezer' && name !== 'n_macross' && x.rg && x.rg.regime === 'CHAOS' && settings.chaos_skip !== false) { whyAdd(name, wkey, 'chaos'); continue; }
       // General market strictness for all strategies and pairs (mkt_level 0–3, user 08.11.2026): weak markets are skipped.
       // ATR now / the pair's average ATR in the window, ADX, and a big candle among the last 10 (× average range).
       const ML = MKT_LEVELS[Number(settings.mkt_level) || 0];
-      if (ML && name !== 'n_spike5' && name !== 'n_tweezer') {
+      if (ML && name !== 'n_spike5' && name !== 'n_tweezer' && name !== 'n_macross') {
         if (x.mkt === undefined) {
           const n = c.length - 1, a = x.atr, ad = x.adx[n];
           let sum = 0, cnt = 0; for (let j = 14; j < n; j++) if (a[j] > 0) { sum += a[j]; cnt++; }
@@ -1742,7 +1764,7 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       // Small candles (rg_vol, 0 = off): average size of the last 5 candles / average of the pair's other candles on this timeframe.
       const minVol = Number(settings.rg_vol ?? 0.7);
-      if (minVol > 0 && name !== 'n_spike5' && name !== 'n_tweezer') {
+      if (minVol > 0 && name !== 'n_spike5' && name !== 'n_tweezer' && name !== 'n_macross') {
         if (x.volRatio === undefined) {
           const sz = k => k.high - k.low, n5 = c.length - 5;
           const a5 = c.slice(n5).reduce((t, k) => t + sz(k), 0) / 5, rest = c.slice(0, n5).reduce((t, k) => t + sz(k), 0) / n5;
@@ -1752,7 +1774,7 @@ function evaluate(candlesByTf, enabled, settings) {
       }
       // regime_mode: off | auto (by strategy type) | trend (only in TREND) | range (only in RANGE, ADX below rg_range_adx).
       const rm = settings.regime_mode || (settings.regime_filter ? 'auto' : 'off');
-      if (x.rg && rm !== 'off' && name !== 'n_spike5' && name !== 'n_tweezer') {
+      if (x.rg && rm !== 'off' && name !== 'n_spike5' && name !== 'n_tweezer' && name !== 'n_macross') {
         const want = rm === 'auto' ? (META[name][1] === 'trend' ? 'TREND' : 'RANGE') : rm.toUpperCase();
         if (x.rg.regime !== want) { whyAdd(name, wkey, 'regime'); continue; }
         if (want === 'RANGE' && x.rg.adx >= (Number(settings.rg_range_adx) || 25)) { whyAdd(name, wkey, 'regime'); continue; }
@@ -1880,7 +1902,7 @@ const HELP = {
       L('Строже — не значит прибыльнее: см. таблицу проверки. Проверяйте только на демо.', 'Strenger heißt nicht profitabler: siehe Prüftabelle. Nur auf Demo testen.', 'Stricter does not mean more profitable: see the test table. Test on demo only.'),
     ],
   }],
-}, LABELS = {}, OWN_LOGIC = ['n_tweezer', 'n_spike5', 'n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin'];
+}, LABELS = {}, OWN_LOGIC = ['n_macross', 'n_tweezer', 'n_spike5', 'n_levelrev', 'n_deeprev', 'n_strongtrend', 'n_trendpull', 'n_levelstoch', 'n_lsweather', 'n_bbrsi', 'n_adxonly', 'n_serrev', 'n_trend15', 'n_preclose', 'n_fractal', 'n_market', 'n_emastart', 'n_run', 'n_pin'];
 // Move start: EMA slope (user 15.11.2026).
 LABELS.n_emastart = {
   es_mode: L('Режим сигнала', 'Signalart', 'Signal mode'), es_tf: L('Таймфрейм скользящей', 'Zeitrahmen des Durchschnitts', 'Moving average timeframe'),
@@ -1927,6 +1949,19 @@ HELP.n_run = [{ title: L3('Описание стратегии', 'Strategiebesch
   L3('Три независимых режима, у каждого свой таймфрейм, экспирация, CALL/PUT и фильтры. Если два режима на одной свече дали разные направления — сигнала нет. M5/M15 проверяются только в момент закрытия своей свечи. В причине — расстояние до ближайшей точки разворота против сигнала (в ATR) и DI. На истории (OTC): серия с запасом 2–4 ATR 51–56 %, зоны ≈ 50 %, откат M15 52–55 %. Это не доказательство.',
     'Drei unabhängige Modi mit eigenem Zeitrahmen, Ablauf, CALL/PUT und Filtern. Geben zwei Modi auf einer Kerze verschiedene Richtungen – kein Signal. M5/M15 nur beim Schluss ihrer Kerze. Im Grund: Abstand zum nächsten Wendepunkt gegen das Signal (ATR) und DI. Historie (OTC): Serie mit 2–4 ATR Raum 51–56 %, Zonen ≈ 50 %, Rücklauf M15 52–55 %. Kein Beweis.',
     'Three independent modes, each with its own TF, expiry, CALL/PUT and filters. Opposite directions on one candle = no signal. M5/M15 only at their candle close. The reason shows the distance to the nearest swing against the signal (ATR) and DI. History (OTC): series with 2–4 ATR room 51–56 %, zones ≈ 50 %, M15 pullback 52–55 %. Not proof.')] }];
+LABELS.n_macross = {
+  expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), ma_tf: L3('Таймфрейм входа', 'Einstiegs-ZR', 'Entry TF'), ma_type: L3('Тип скользящих', 'MA-Typ', 'MA type'),
+  ma_fast: L3('Быстрая скользящая, длина', 'Schnelle MA, Länge', 'Fast MA length'), ma_slow: L3('Медленная скользящая, длина', 'Langsame MA, Länge', 'Slow MA length'),
+  ma_m15age: L3('M15 держит направление 2–3 свечи (не свежий и не старый)', 'M15 seit 2–3 Kerzen in Richtung', 'M15 in direction for 2–3 candles'), ma_prev: L3('Перед пересечением есть свеча цвета сигнала', 'Vor der Kreuzung eine Kerze in Signalfarbe', 'A signal-coloured candle before the cross'),
+  ma_m5: L3('Подтверждение M5', 'Bestätigung M5', 'Confirm M5'), ma_m15: L3('Подтверждение M15', 'Bestätigung M15', 'Confirm M15'),
+  ma_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), ma_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals') };
+GROUPS.n_macross = [
+  { title: L3('Общие', 'Allgemein', 'General'), desc: L3('', '', ''), keys: ['expiry', 'ma_tf', 'ma_buy', 'ma_sell'] },
+  { title: L3('Скользящие', 'Gleitende Durchschnitte', 'Moving averages'), desc: L3('Вход — пересечение быстрой и медленной на таймфрейме входа. На M5 / M15 те же скользящие должны смотреть в ту же сторону (быстрая выше медленной для CALL).', 'Einstieg = Kreuzung; M5/M15 müssen in dieselbe Richtung zeigen.', 'Entry = cross; M5/M15 must point the same way.'), keys: ['ma_type', 'ma_fast', 'ma_slow', 'ma_m5', 'ma_m15', 'ma_m15age', 'ma_prev'] },
+];
+HELP.n_macross = [{ title: L3('История', 'Historie', 'History'), body: [
+  L3('EMA 2/5 на M2, история OTC 16,7 дня, все пары: без подтверждения ~50 %, с M5, M15 или обоими — 49–51 % на экспирации 2, 4 и 6 мин. SMA так же. Два правила вместе («M15 держит направление 2–3 свечи» + «перед пересечением свеча цвета сигнала»): ~93 в день, на 2 мин 54 / 55 %, на 4–6 мин ~50 %. Найдено перебором ~10 вариантов, не доказано — перепроверить через неделю. Это не вероятность успеха.',
+    'EMA 2/5 M2, OTC-Historie: 49–51 % mit jeder Bestätigung. Keine Erfolgswahrscheinlichkeit.', 'EMA 2/5 M2, OTC history: 49–51 % with any confirmation. Not a success probability.')] }];
 LABELS.n_tweezer = {
   expiry: L3('Экспирация, с', 'Ablauf, s', 'Expiry, s'), tw_tf: L3('Таймфрейм пинцета', 'Zeitrahmen', 'Timeframe'), tw_buy: L3('Сигналы CALL', 'CALL-Signale', 'CALL signals'), tw_sell: L3('Сигналы PUT', 'PUT-Signale', 'PUT signals'),
   tw_tol: L3('Максимумы / минимумы совпадают в пределах … ATR', 'Hochs / Tiefs gleich innerhalb … ATR', 'Highs / lows equal within … ATR'),

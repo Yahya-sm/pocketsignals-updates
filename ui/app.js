@@ -329,7 +329,7 @@ function card(s) {
     <div class="sig-top">
       <button class="star${pinned ? ' on' : ''}" data-pin="${esc(s.id)}" title="${t('pin')}">${pinned ? '★' : '☆'}</button>
       <div class="pairbox"><div class="pair">${esc(s.name)}</div>
-        <div class="pairmeta" style="display:flex;align-items:center;gap:4px;white-space:nowrap;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(cardName(tr(s.strategyName)))}</span>${cardMode(s)}${miniTrendBadge(s)}<span style="flex:none">· ${s.tf || 'M1'}</span></div></div>
+        <div class="pairmeta" style="display:flex;align-items:center;gap:4px;white-space:nowrap;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(cardName(tr(s.strategyName)))}</span>${cardMode(s)}${miniTrendBadge(s)}${s.htf && s.htf.M15 != null ? `<span class="m5 ${s.htf.M15 > 0 ? 'CALL' : s.htf.M15 < 0 ? 'PUT' : ''}" title="M15 EMA">M15 ${s.htf.M15 > 0 ? '▲' : s.htf.M15 < 0 ? '▼' : '◆'}</span>` : ''}<span style="flex:none">· ${s.tf || 'M1'}</span></div></div>
       ${done && s.result ? resultBadge(s) : `<div class="dir ${s.dir}"><span class="arrow">${s.dir === 'CALL' ? '▲' : '▼'}</span>${s.dir}</div>`}
     </div>
     <div class="sig-now"><div class="timer" data-id="${esc(s.id)}" data-entry="${s.entryTime}" data-exp="${s.expiry}">${timerText(s.entryTime, s.expiry)}</div>
@@ -586,11 +586,12 @@ function paramRows(x) {
   return (x.groups || []).map((g, n) => fold(tr(g.title), tr(g.desc), g.keys, n)).join('') + fold(t(x.groups ? 'params_other' : 'params_all'), '', rest, 'r');
 }
 // Parameters with a fixed choice are shown as a select.
-const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], tw_tf: ['M1', 'M2', 'M3', 'M5'], tw_trend: ['OFF', 'M2', 'M3', 'M4', 'M5', 'M10', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B', 'C'] };
+const PARAM_CHOICES = { ls_level_tf: ['PIN', 'M15'], sharp_trig: ['STOCH', 'RSI', 'ANY'], ax_dir: ['BOTH', 'UP', 'DOWN'], im_dir: ['WITH', 'AGAINST'], tr_cross_tf: ['ENTRY', 'M5'], tr_mode: ['BOUNCE', 'CROSS', 'TURN', 'TREND'], tr_tf: ['M1', 'M2', 'M3', 'M5'], ls_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], ls_flat_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], lw_adx_tf: ['M1', 'M2', 'M3', 'M4', 'M5'], tr_ma: ['EMA', 'SMA'], rk_ma: ['EMA', 'SMA'], rs_tf: ['M1', 'M5', 'M15'], rs_z_tf: ['M1', 'M5', 'M15'], rs_p_tf: ['M1', 'M5', 'M15'], pn_tf: ['M1', 'M5', 'M15'], tw_tf: ['M1', 'M2', 'M3', 'M5'], ma_tf: ['M1', 'M2', 'M3', 'M5'], ma_type: ['EMA', 'SMA'], tw_trend: ['OFF', 'M2', 'M3', 'M4', 'M5', 'M10', 'M15'], es_mode: ['START', 'BOUNCE', 'TREND'], es_tf: ['M1', 'M2', 'M3', 'M5'], es_ma: ['EMA', 'SMA'], ludo_mode: ['MANUAL', 'A', 'B', 'C'] };
 const CHOICE_TEXT = { PIN: 'levtf_pin', ANY: 'trig_any', BOTH: 'axdir_both', UP: 'axdir_up', DOWN: 'axdir_down', WITH: 'imdir_with', AGAINST: 'imdir_against', ENTRY: 'crosstf_entry', BOUNCE: 'trmode_bounce', CROSS: 'trmode_cross', TURN: 'trmode_turn', TREND: 'trmode_trend', START: 'esmode_start', MANUAL: 'mode_manual' };
 // Step and minimum for the − / + buttons (19.11.2026). Known keys from the prompt; else 1 for whole numbers, 0.1 for fractions, min 0.
 const NUM_STEP = { expiry: [60, 60], rs_z_exp: [60, 60], rs_p_exp: [60, 60], ludo_exp: [15, 15], rs_min: [1, 2], rs_atr: [0.1, 0], rs_adx_min: [1, 0], rs_room: [0.5, 0], rs_cross_fast: [1, 1], rs_cross_slow: [1, 2],
   rs_z_n: [1, 1], rs_z_touch: [1, 2], rs_z_width: [0.1, 0.1], rs_z_gap: [1, 1], rs_p_trend: [1, 2], rs_p_max: [1, 1], rs_p_depth: [5, 5], rs_p_adx: [1, 0],
+  ma_fast: [1, 1], ma_slow: [1, 2],
   tw_tol: [0.05, 0.05], tw_ext: [1, 3], tw_early: [1, 0],
   pn_imp_n: [1, 1], pn_big_n: [1, 1], pn_big_atr: [0.1, 0], pn_min_atr: [0.1, 0], pn_stop: [0.1, 0.1], pn_tail: [5, 0], pn_early: [1, 0],
   rs_cross_after: [1, 0], ludo_cross_after: [1, 0], rs_chaos: [0.05, 0], rs_chaos_n: [1, 5], max_chaos: [0.05, 0.05], min_series: [1, 1], ser_body_atr: [0.1, 0], ludo_path: [0.1, 0], ludo_body_min: [0.1, 0], ludo_body_max: [0.1, 0], ludo_clean: [1, 0], ludo_wick: [5, 0], ludo_fast: [1, 1], ludo_slow: [1, 2],
@@ -617,6 +618,17 @@ function modeSpoilers(x) {
     return `<div class="tests"><button class="tests-h" data-tests="${key}" aria-expanded="${open}">${open ? '▾' : '▸'} ${on ? '✓ ' : ''}${esc(t('ludo_mode_n', { m }))}</button>${open ? `<div class="tests-b pfold">${rows}</div>` : ''}</div>`;
   }).join('');
 }
+// 24.11.2026 (user): own minimum score per strategy; empty = the common one from «Отбор сигналов».
+function scoreRow(key) {
+  const S = state.settings || {}, by = S.sig_score_by || {}, own = by[key] != null, v = own ? Number(by[key]) : Number(S.sig_score_min ?? 75), ru = LANG === 'ru', de = LANG === 'de';
+  return `<div class="selrow"><span>${ru ? 'Мин. score этой стратегии' : de ? 'Min. Score dieser Strategie' : 'Min score of this strategy'}</span><button type="button" data-ssc="${key}" data-d="-5">−</button><b>${v}</b><button type="button" data-ssc="${key}" data-d="5">+</button><em>${own ? `<a href="#" data-ssc="${key}" data-d="0">${ru ? '↺ как общий' : de ? '↺ wie allgemein' : '↺ like common'}</a>` : (ru ? 'общий' : de ? 'allgemein' : 'common')}</em></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ssc]'); if (!b || !state || !state.settings) return; e.preventDefault(); e.stopPropagation();
+  const k = b.dataset.ssc, d = +b.dataset.d, S = state.settings, by = { ...(S.sig_score_by || {}) };
+  if (!d) delete by[k]; else by[k] = Math.max(0, Math.min(100, (by[k] != null ? Number(by[k]) : Number(S.sig_score_min ?? 75)) + d));
+  state.settings = { ...S, sig_score_by: by }; call({ action: 'settings', patch: { sig_score_by: by } }); renderStrategies(state.settings);
+}, true);
 function renderStrategies(s) {
   const q = stratQuery.toLowerCase();
   // Only the strategies starred in the Catalog are listed here (user 13.11.2026: no need to go to the Catalog each time).
@@ -636,7 +648,7 @@ function renderStrategies(s) {
       ${(x.presets || []).length && !(x.key === 'n_sharp' && x.params.sharp_on_rev === false) ? `<div class="presets"><small>${t('presets')} · ${t('presets_multi')}</small>${x.presets.map((pr, n) =>
         `<button class="chip${(x.activePresets || []).includes(n) ? ' active' : ''}" data-preset="${x.key}" data-pn="${n}">${(x.activePresets || []).includes(n) ? '✓ ' : ''}${n + 1} · ${esc(tr(pr.name))}</button>`).join('')}</div>` : ''}
       ${x.key === 'n_sharp' && x.params.sharp_on_rev === false ? '' : testTable(x)}
-      ${modeSpoilers(x)}${paramRows(x)}
+      ${scoreRow(x.key)}${modeSpoilers(x)}${paramRows(x)}
       <button class="btn ghost wide" data-reset="${x.key}">${t('defaults')}</button>
     </div></div>`).join('') || `<p class="empty">${t('fav_empty')}</p>`;
 }
@@ -1175,11 +1187,11 @@ let selOpen = (() => { try { return localStorage.getItem('selOpen') === '1'; } c
 function renderSel() {
   const el = document.getElementById('selBox'); if (!el || !state || !state.settings) return;
   const s = state.settings, ru = LANG === 'ru', de = LANG === 'de', T = (r, d, e) => ru ? r : de ? d : e;
-  const sc = Number(s.sig_score_min ?? 50), ph = Number(s.sig_per_hour) || 0, cl = Number(s.sig_clean_min) || 0, cn = Number(s.sig_clean_n) || 10;
+  const sc = Number(s.sig_score_min ?? 75), ph = Number(s.sig_per_hour) || 0, cl = Number(s.sig_clean_min) || 0, cn = Number(s.sig_clean_n) || 10;
   const lvl = sc >= 85 ? T('только сильные', 'nur starke', 'strong only') : sc >= 70 ? T('рабочие и сильные', 'brauchbare + starke', 'working + strong') : sc >= 50 ? T('слабые, рабочие, сильные', 'schwache, brauchbare, starke', 'weak, working, strong') : T('все, даже отклонённые', 'alle', 'all');
   const hour = (state.signals || []).filter(x => !x.manual && Date.now() - (x.created || 0) < 3600000).length;
   const html = `<details class="setfold selfold"${selOpen ? ' open' : ''}><summary><h3>${T('Отбор сигналов', 'Signalauswahl', 'Signal selection')}</h3><small>score ≥ ${sc} · ${ph ? T(`≤ ${ph} в час`, `≤ ${ph}/h`, `≤ ${ph}/h`) : T('без лимита', 'ohne Limit', 'no limit')} · ${cl ? T(`чистота ≥ ${cl} %`, `Sauberkeit ≥ ${cl} %`, `clean ≥ ${cl} %`) : T('чистота выкл', 'Sauberkeit aus', 'clean off')} · ${T('за час', 'letzte Std.', 'last hour')}: ${hour}</small></summary>
-    <div class="selrow"><span>${T('Мин. score', 'Min. Score', 'Min score')}</span><button type="button" data-sel="sig_score_min" data-d="-5">−</button><b>${sc}</b><button type="button" data-sel="sig_score_min" data-d="5">+</button><em>${lvl}</em></div>
+    <div class="selrow"><span>${T('Мин. score', 'Min. Score', 'Min score')}</span><button type="button" data-sel="sig_score_min" data-d="-5">−</button><b>${sc}</b><button type="button" data-sel="sig_score_min" data-d="5">+</button><em>${lvl} · <a href="#" data-screset="1">${T('↺ сбросить все стратегии к 75', '↺ alle Strategien auf 75', '↺ reset all strategies to 75')}</a></em></div>
     <div class="selrow"><span>${T('Сигналов в час, макс.', 'Signale pro Stunde, max.', 'Signals per hour, max')}</span><button type="button" data-sel="sig_per_hour" data-d="-5">−</button><b>${ph || '∞'}</b><button type="button" data-sel="sig_per_hour" data-d="5">+</button><em>${ph ? T('сильнейшие первыми', 'stärkste zuerst', 'strongest first') : T('0 = без лимита', '0 = ohne Limit', '0 = no limit')}</em></div><div class="selrow"><span>${T('Чистота, мин. %', 'Sauberkeit, min. %', 'Cleanliness, min %')}</span><button type="button" data-sel="sig_clean_min" data-d="-5">−</button><b>${cl || T('выкл', 'aus', 'off')}</b><button type="button" data-sel="sig_clean_min" data-d="5">+</button></div><div class="selrow"><span>${T('Чистота: свечей M1', 'Sauberkeit: M1-Kerzen', 'Cleanliness: M1 candles')}</span><button type="button" data-sel="sig_clean_n" data-d="-1">−</button><b>${cn}</b><button type="button" data-sel="sig_clean_n" data-d="1">+</button></div>
     <details class="pfold"><summary>${T('Как это работает', 'Wie es funktioniert', 'How it works')}</summary><div class="selhelp">${T(
       `<p><b>Score</b> — оценка сигнала от 0 до 100, её ставит стратегия за то, насколько полно выполнены её условия.</p><p>50–69 — <b>слабый</b> сетап · 70–84 — <b>рабочий</b> · 85–100 — <b>сильный</b>. Ниже 50 — отклонён.</p><p><b>Мин. score</b>: сигналы ниже порога не приходят. 50 = приходят слабые, рабочие и сильные (по умолчанию). 70 = слабые отсеяны. 85 = только сильные. Шаг 5.</p><p><b>Сигналов в час</b>: если за последние 60 минут пришло столько сигналов, новые не приходят, пока час не освободится. Из одновременных первым проходит сильнейший. 0 (∞) = без лимита. Шаг 5.</p><p><b>Чистота</b> — насколько прямо шла цена за последние N минутных свечей перед сигналом: итоговое движение ÷ сумма тел всех свечей. 100 % = все свечи одного цвета (ровная линия), 50 % = половина хода съедена откатами, около 0 % = пила (зелёная-красная). Сигнал приходит, только если чистота не ниже порога. Пример: 10 свечей, 8 зелёных и 2 маленькие красные — около 70–80 %. Выкл (0) = не проверяется. Шаг 5 %; число свечей — от 3 до 30.</p><p>Важно: высокий score — это «ситуация похожа на учебный пример», а не доказанно больше выигрышей. Порог уменьшает поток сигналов; проверяйте на демо.</p>`,
@@ -1196,11 +1208,16 @@ document.addEventListener('click', e => { // pattern selection (23.11.2026)
 }, true);
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-sel]'); if (!b || !state || !state.settings) return; e.preventDefault();
-  const k = b.dataset.sel, S = state.settings, cur = k === 'sig_score_min' ? Number(S.sig_score_min ?? 50) : k === 'sig_clean_n' ? Number(S.sig_clean_n) || 10 : Number(S[k]) || 0;
+  const k = b.dataset.sel, S = state.settings, cur = k === 'sig_score_min' ? Number(S.sig_score_min ?? 75) : k === 'sig_clean_n' ? Number(S.sig_clean_n) || 10 : Number(S[k]) || 0;
   const lim = { sig_score_min: [0, 100], sig_per_hour: [0, 500], sig_clean_min: [0, 100], sig_clean_n: [3, 30] }[k] || [0, 500];
   const v = Math.max(lim[0], Math.min(lim[1], cur + +b.dataset.d));
   state.settings = { ...state.settings, [k]: v }; call({ action: 'settings', patch: { [k]: v } }); renderSel();
 });
+document.addEventListener('click', e => { // 24.11.2026: common reset – every strategy back to 75
+  const b = e.target.closest('[data-screset]'); if (!b || !state || !state.settings) return; e.preventDefault(); e.stopPropagation();
+  if (!confirm(LANG === 'ru' ? 'Сбросить порог score у всех стратегий к 75?' : LANG === 'de' ? 'Score-Schwelle aller Strategien auf 75?' : 'Reset the score threshold of all strategies to 75?')) return;
+  state.settings = { ...state.settings, sig_score_min: 75, sig_score_by: {} }; call({ action: 'settings', patch: { sig_score_min: 75, sig_score_by: {} } }); renderSel(); renderStrategies(state.settings);
+}, true);
 let watchSeen = null, watchClosed = 0;
 function renderWatch() {
   const el = document.getElementById('watchBox'); if (!el || !state) return;
